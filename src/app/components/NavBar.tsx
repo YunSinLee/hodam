@@ -1,23 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import styles from "./NavBar.module.scss";
 
 export default function NavBar() {
-  const router = useRouter();
   const pathname = usePathname();
-  console.log(router, pathname);
   return (
-    <nav>
-      <Link href="/">
-        <p style={{ color: pathname === "/" ? "red" : "blue" }}>Home</p>
-      </Link>
-      <Link href="/about">
-        <p style={{ color: pathname === "/about" ? "red" : "blue" }}>About</p>
-      </Link>
-      <button type="button" onClick={() => router.push("/about")}>
-        to About
-      </button>
+    <nav className={styles.nav}>
+      <div className={styles["logo-and-title"]}>
+        <img src="/Hodam1.png" className={styles.logo} />
+        <span className={styles.title}>HODAM</span>
+      </div>
+      <div className={styles.links}>
+        <Link href="/">
+          <p className={pathname === "/" ? styles.active : ""}>Home</p>
+        </Link>
+        <Link href="/about">
+          <p className={pathname === "/about" ? styles.active : ""}>About</p>
+        </Link>
+      </div>
     </nav>
   );
 }

@@ -1,0 +1,72 @@
+@-webkit-keyframes text-blur-out {
+  0% {
+    -webkit-filter: blur(0.01);
+    filter: blur(0.01);
+  }
+  50% {
+    -webkit-filter: blur(12px) opacity(0%);
+    filter: blur(12px) opacity(0%);
+  }
+  100% {
+    -webkit-filter: blur(0.01);
+    filter: blur(0.01);
+  }
+}
+@keyframes text-blur-out {
+  0% {
+    -webkit-filter: blur(0.01);
+    filter: blur(0.01);
+  }
+  50% {
+    -webkit-filter: blur(12px) opacity(0%);
+    filter: blur(12px) opacity(0%);
+  }
+  100% {
+    -webkit-filter: blur(0.01);
+    filter: blur(0.01);
+  }
+}
+
+.searchContainer {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  .searchInput {
+    width: 40rem;
+    padding: 0.8rem 1.6rem;
+    border: 1px solid #eaeaea;
+    border-radius: 8px;
+    font-size: 16px;
+    &:focus {
+      outline: none;
+      border: 1px solid #007bff;
+    }
+  }
+  .searchButton {
+    padding: 0.8rem 1.6rem;
+    border: none;
+    border-radius: 8px;
+    background-color: #007bff;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    &:hover {
+      background-color: #0056b3;
+    }
+  }
+}
+
+.messageContainer .message {
+  font-size: 1.6rem;
+  line-height: 2.4rem;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2.4rem;
+  -webkit-animation: text-blur-out 3s cubic-bezier(0.55, 0.085, 0.68, 0.53) both;
+  animation: text-blur-out 3s cubic-bezier(0.55, 0.085, 0.68, 0.53) both;
+  animation-iteration-count: infinite;
+}

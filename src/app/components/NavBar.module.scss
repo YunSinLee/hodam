@@ -1,0 +1,32 @@
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2rem 2.4rem;
+  border-bottom: 2px solid #eaeaea;
+}
+.nav .links {
+  display: flex;
+  gap: 20px;
+  p {
+    font-size: 18px;
+    font-weight: 400;
+    cursor: pointer;
+    &.active {
+      font-weight: 500;
+    }
+  }
+}
+.logo-and-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  .logo {
+    width: 48px;
+    height: 54px;
+  }
+  .title {
+    font-size: 32px;
+    font-weight: 600;
+  }
+}
