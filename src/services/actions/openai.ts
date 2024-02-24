@@ -48,7 +48,7 @@ export async function addMessageToThread(threadId: string, message: string) {
 
 export async function run(threadId: string) {
   const run = await openai.beta.threads.runs.create(threadId, {
-    assistant_id: "asst_BFn9OJqLE0CcW1A4Jq9n8Vqv",
+    assistant_id: "asst_R9N7jpLS8FrppgKTyyzclhB1",
   });
 
   return run;
@@ -64,5 +64,46 @@ export async function getText(threadId: string) {
   const messages = await openai.beta.threads.messages.list(threadId);
   console.log("messages", messages.data[0].content[0].text.value);
 
-  return messages.data[0].content[0].text.value;
+  return extractLists(messages.data[0].content[0].text.value);
+}
+
+export async function createImage(prompt: string) {
+  const style =
+    "동화를 위한 스타일로 그려주고, 화려하기보다는 좀 더 간단하고 깔끔했으면 좋겠어. 이제 너가 그려야 할 그림에 대해 설명해줄게. ";
+  const promptAddedStyle = style + prompt;
+  const response = await openai.images.generate({
+    prompt: promptAddedStyle,
+    model: "dall-e-2",
+    n: 1,
+    response_format: "url",
+    size: "512x512",
+  });
+
+  return response;
+}
+
+function extractListItems(content: string) {
+  const itemRegex = /<li>(.*?)<\/li>/gs;
+  const matches = content.matchAll(itemRegex);
+  const items = Array.from(matches, match => ({ text: match[1] }));
+  return items;
+}
+
+function extractLists(data: string) {
+  const ulRegex = /<ul>(.*?)<\/ul>/s;
+  const olRegex = /<ol>(.*?)<\/ol>/s;
+  const pRegex = /<p>(.*?)<\/p>/gs;
+
+  const ulMatch = data.match(ulRegex);
+  const olMatch = data.match(olRegex);
+  const pMatches = data.matchAll(pRegex);
+
+  const ulContent = ulMatch ? ulMatch[1] : "";
+  const olContent = olMatch ? olMatch[1] : "";
+  const pContents = Array.from(pMatches, match => match[1]);
+
+  const ulItems = extractListItems(ulContent);
+  const olItems = extractListItems(olContent);
+
+  return { ulItems, olItems, pContents };
 }
