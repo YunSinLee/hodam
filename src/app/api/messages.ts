@@ -1,26 +1,33 @@
 import { supabase } from "../utils/supabase";
+import { Message } from "../types/openai";
 
 const messagesApi = {
   async saveMessages({
     messages,
     thread_id,
-    keywords,
+    order,
   }: {
     messages: string[];
-    thread_id: string;
-    keywords: string[];
-  }) {
-    messages.forEach(async message => {
-      console.log("message", message);
-      const { data, error } = await supabase
+    thread_id: number;
+    order: number;
+  }): Promise<Message[]> {
+    for (const message of messages) {
+      const { error } = await supabase
         .from("messages")
-        .insert({ message, thread_id, keywords })
-        .select();
+        .insert({ message, thread_id, order });
+
       if (error) {
         console.error("Error saving message", error);
       }
-      console.log("저장 성공", data);
-    });
+    }
+
+    const { data } = await supabase
+      .from("messages")
+      .select()
+      .eq("thread_id", thread_id)
+      .eq("order", order);
+
+    return data as Message[];
   },
 };
 

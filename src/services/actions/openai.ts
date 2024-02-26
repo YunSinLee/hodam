@@ -64,20 +64,28 @@ export async function getText(threadId: string) {
   const messages = await openai.beta.threads.messages.list(threadId);
   console.log("messages", messages.data[0].content[0].text.value);
 
+  return messages.data[0].content[0].text.value;
+}
+
+export async function getExtractedText(threadId: string) {
+  const messages = await openai.beta.threads.messages.list(threadId);
+
   return extractLists(messages.data[0].content[0].text.value);
 }
 
 export async function createImage(prompt: string) {
   const style =
-    "동화를 위한 스타일로 그려주고, 화려하기보다는 좀 더 간단하고 깔끔했으면 좋겠어. 이제 너가 그려야 할 그림에 대해 설명해줄게. ";
+    "너가 그려준 그림을 이용해서 동화책을 만들거야. 동화책을 읽을 사람은 3살에서 7살 정도의 어린이야. 애니메이션 같은 그림으로 그려줬으면 좋겠어. 이제 너가 그려야 할 그림에 대해 설명해줄게. ";
   const promptAddedStyle = style + prompt;
+  console.log("promptAddedStyle", promptAddedStyle);
   const response = await openai.images.generate({
     prompt: promptAddedStyle,
-    model: "dall-e-2",
+    model: "dall-e-3",
     n: 1,
     response_format: "url",
-    size: "512x512",
+    size: "1024x1024",
   });
+  console.log("response", response);
 
   return response;
 }

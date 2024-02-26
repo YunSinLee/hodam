@@ -7,21 +7,26 @@ import {
   run,
   retrieveRun,
   getText,
+  getExtractedText,
   createImage,
 } from "../../services/actions/openai";
 import styles from "./page.module.scss";
+import { Thread } from "../types/openai";
+import { isEmpty } from "../utils";
 
+import threadApi from "../api/thread";
 import keywordsApi from "../api/keywords";
 import messagesApi from "../api/messages";
 
 export default function Hodam() {
-  const [threadId, setThreadId] = useState<string>("");
+  const [thread, setThread] = useState<Thread>({} as Thread);
   const [keywords, setKeywords] = useState<string>("");
   const [messages, setMessages] = useState<{ text: string }[]>([]);
   const [notice, setNotice] = useState<string>("");
   const [selections, setSelections] = useState<{ text: string }[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
+  const [order, setOrder] = useState<number>(0);
 
   function inputKeywords(e: React.ChangeEvent<HTMLInputElement>) {
     const { value } = e.target;
@@ -31,60 +36,67 @@ export default function Hodam() {
   async function startThread() {
     const response = await createThread();
 
-    setThreadId(response.id);
+    const thread = await threadApi.createThread({ thread_id: response.id });
+
+    setThread(thread);
   }
 
   async function searchKeywords() {
     setIsLoading(true);
-    await addMessageToThread(threadId, keywords);
+    await addMessageToThread(thread.openai_thread_id, keywords);
 
     const keywordArray = keywords.split(",");
-    keywordsApi.saveKeywords({ keywords: keywordArray, thread_id: threadId });
+    keywordsApi.saveKeywords({
+      keywords: keywordArray,
+      thread_id: thread.id,
+    });
 
-    const response = await run(threadId);
-
-    // setRunId(response.id);
+    const response = await run(thread.openai_thread_id);
 
     checkStatusWithInterval(response.id);
   }
 
   async function clickSelection(selection: string, index: number) {
     setIsLoading(true);
-    if (index === 3) {
-      const response = await createImage(selection);
 
-      const imageUrls = response.data.map(data => data.url ?? "");
-      setImages(imageUrls);
-      setIsLoading(false);
-    } else {
-      setSelections([]);
-      await addMessageToThread(threadId, selection);
+    setSelections([]);
+    await addMessageToThread(thread.openai_thread_id, selection);
 
-      const response = await run(threadId);
+    const response = await run(thread.openai_thread_id);
 
-      checkStatusWithInterval(response.id);
-    }
+    checkStatusWithInterval(response.id, index === 3);
   }
 
-  async function checkStatusWithInterval(runId: string) {
+  async function checkStatusWithInterval(runId: string, isImage = false) {
     const interval = 5000; // 5 seconds in milliseconds
 
     async function check() {
-      const response = await retrieveRun(threadId, runId);
+      const response = await retrieveRun(thread.openai_thread_id, runId);
       const currentStatus = response.status;
       console.log("runStatus", currentStatus);
       if (currentStatus === "completed") {
-        const { ulItems, olItems, pContents } = await getText(threadId);
-        messagesApi.saveMessages({
-          messages: ulItems.map(item => item.text),
-          thread_id: threadId,
-          keywords: keywords.split(","),
-        });
-        messages.length
-          ? setMessages([...messages, ...ulItems])
-          : setMessages([...ulItems]);
-        pContents.length && setNotice(pContents[0]);
-        setSelections([...olItems]);
+        if (isImage) {
+          const prompt = await getText(thread.openai_thread_id);
+          const response = await createImage(prompt);
+
+          const imageUrls = response.data.map(data => data.url ?? "");
+          setImages(imageUrls);
+        } else {
+          const { ulItems, olItems, pContents } = await getExtractedText(
+            thread.openai_thread_id,
+          );
+          messagesApi.saveMessages({
+            messages: ulItems.map(item => item.text),
+            thread_id: thread.id,
+            order,
+          });
+          messages.length
+            ? setMessages([...messages, ...ulItems])
+            : setMessages([...ulItems]);
+          pContents.length && setNotice(pContents[0]);
+          setSelections([...olItems]);
+          setOrder(order + 1);
+        }
 
         setIsLoading(false);
       } else {
@@ -97,8 +109,8 @@ export default function Hodam() {
 
   return (
     <div>
-      {!threadId && <button onClick={startThread}>시작하기</button>}
-      {threadId && (
+      {isEmpty(thread) && <button onClick={startThread}>시작하기</button>}
+      {!isEmpty(thread) && (
         <div>
           <div className={styles.searchContainer}>
             <input
@@ -131,8 +143,8 @@ export default function Hodam() {
             ))}
           </div>
           <div className={styles.imageContainer}>
-            {images.map(image => (
-              <img className={styles.image} src={image} />
+            {images.map((image, i) => (
+              <img className={styles.image} src={image} key={i} />
             ))}
           </div>
 
