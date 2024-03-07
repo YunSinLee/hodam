@@ -14,9 +14,11 @@ import styles from "./page.module.scss";
 import { Thread } from "../types/openai";
 import { isEmpty } from "../utils";
 
-import threadApi from "../api/thread";
-import keywordsApi from "../api/keywords";
-import messagesApi from "../api/messages";
+import threadApi from "@/app/api/thread";
+import keywordsApi from "@/app/api/keywords";
+import messagesApi from "@/app/api/messages";
+import userApi from "@/app/api/user";
+import useUserInfo from "@/services/hooks/use-user-info";
 
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
@@ -27,6 +29,18 @@ export default function Hodam() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
   const [order, setOrder] = useState<number>(0);
+
+  const { setUserInfo } = useUserInfo();
+
+  getSession();
+
+  async function getSession() {
+    const userData = await userApi.getSession();
+
+    if (userData) {
+      setUserInfo(userData);
+    }
+  }
 
   function inputKeywords(e: React.ChangeEvent<HTMLInputElement>) {
     const { value } = e.target;
