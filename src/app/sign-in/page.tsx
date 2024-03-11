@@ -45,8 +45,10 @@ export default function SignIn() {
 
     const data = await userApi.signIn({ email, password });
 
-    if (data) setUserInfo(data);
-    console.log("성공", data);
+    if (data) {
+      setUserInfo(data);
+      location.href = "/";
+    }
   };
 
   const validateEmail = (email: string) => {
