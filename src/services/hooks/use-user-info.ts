@@ -15,7 +15,7 @@ interface UserInfoActions {
   deleteUserInfo: () => void;
 }
 
-const defaultState = { profileUrl: "", id: undefined, email: undefined };
+export const defaultState = { profileUrl: "", id: undefined, email: undefined };
 
 const useUserInfo = create<UserInfoState & UserInfoActions>(set => ({
   userInfo: defaultState,

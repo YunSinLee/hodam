@@ -33,7 +33,6 @@ const userApi = {
     }
 
     if (data) {
-      console.log("data", data);
       const userData = {
         profileUrl: "",
         id: data.user?.id,
