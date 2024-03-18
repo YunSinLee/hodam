@@ -18,7 +18,9 @@ import threadApi from "@/app/api/thread";
 import keywordsApi from "@/app/api/keywords";
 import messagesApi from "@/app/api/messages";
 import userApi from "@/app/api/user";
+import beadApi from "../api/bead";
 import useUserInfo from "@/services/hooks/use-user-info";
+import useBead from "@/services/hooks/use-bead";
 
 import KeywordInput from "@/app/components/KeywordInput";
 import MessageDisplay from "@/app/components/MessageDisplay";
@@ -35,10 +37,15 @@ export default function Hodam() {
   const [turn, setTurn] = useState<number>(0);
 
   const { userInfo, setUserInfo } = useUserInfo();
+  const { bead, setBead } = useBead();
 
   useEffect(() => {
     getSession();
   }, []);
+
+  useEffect(() => {
+    if (userInfo.id) startThread();
+  }, [userInfo]);
 
   async function getSession() {
     const userData = await userApi.getSession();
@@ -63,7 +70,19 @@ export default function Hodam() {
     setThread(thread);
   }
 
+  async function consumeBeads() {
+    if (bead.count === 0) {
+      alert("구슬이 부족합니다.");
+      throw new Error("Not enough beads");
+    }
+
+    if (!userInfo.id || bead.count === undefined) return;
+    const beadInfo = await beadApi.updateBeadCount(userInfo.id, bead.count - 1);
+    setBead(beadInfo);
+  }
+
   async function searchKeywords() {
+    await consumeBeads();
     setIsLoading(true);
     await addMessageToThread(thread.openai_thread_id, keywords);
 

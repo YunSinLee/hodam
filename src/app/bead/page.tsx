@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 import beadApi from "../api/bead";

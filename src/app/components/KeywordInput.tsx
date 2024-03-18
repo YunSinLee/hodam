@@ -16,10 +16,13 @@ export default function KeywordInput({
         onChange={onKeywordsChange}
       />
       <button
-        className="text-xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
+        className="flex items-center gap-4 text-xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
         onClick={onButtonClicked}
       >
-        이야기를 들려줘!
+        <span>이야기를 들려줘!</span>
+        <div className="flex items-center">
+          <img src="bead.png" className="w-8 h-8" /> X 1{" "}
+        </div>
       </button>
     </div>
   );
