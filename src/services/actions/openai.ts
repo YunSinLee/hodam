@@ -1,12 +1,18 @@
 "use server";
 
 import openAI from "openai";
+import type { StoryContent, MessagePair } from "@/app/types/openai";
 
 const OPEN_AI_API_KEY = process.env.OPEN_AI_API_KEY;
 
 const openai = new openAI({
   apiKey: OPEN_AI_API_KEY,
 });
+
+const assistantIds = {
+  default: "asst_R9N7jpLS8FrppgKTyyzclhB1",
+  traditional: "asst_ixhqsGqYTN4WUNY1cjwumVoH",
+};
 
 export async function getResponse(keyword: string) {
   const response = await openai.chat.completions.create({
@@ -46,9 +52,10 @@ export async function addMessageToThread(threadId: string, message: string) {
   return response;
 }
 
-export async function run(threadId: string) {
+export async function run(threadId: string, assistantType: string = "default") {
+  console.log("assistantType", assistantType);
   const run = await openai.beta.threads.runs.create(threadId, {
-    assistant_id: "asst_R9N7jpLS8FrppgKTyyzclhB1",
+    assistant_id: assistantIds[assistantType as keyof typeof assistantIds],
   });
 
   return run;
@@ -60,16 +67,11 @@ export async function retrieveRun(threadId: string, runId: string) {
   return run;
 }
 
-export async function getText(threadId: string) {
-  const messages = await openai.beta.threads.messages.list(threadId);
-
-  return messages.data[0].content[0].text.value;
-}
-
 export async function getExtractedText(threadId: string) {
   const messages = await openai.beta.threads.messages.list(threadId);
+  console.log("messages", messages.data[0].content[0].text.value);
 
-  return extractLists(messages.data[0].content[0].text.value);
+  return extractStoryContentFromHTML(messages.data[0].content[0].text.value);
 }
 
 export async function createImage(prompt: string) {
@@ -87,28 +89,60 @@ export async function createImage(prompt: string) {
   return response;
 }
 
-function extractListItems(content: string) {
-  const itemRegex = /<li>(.*?)<\/li>/gs;
-  const matches = content.matchAll(itemRegex);
-  const items = Array.from(matches, match => ({ text: match[1] }));
-  return items;
-}
+export async function extractStoryContentFromHTML(
+  htmlString: string,
+): Promise<StoryContent> {
+  // 섹션별로 HTML 문자열 분리
+  const messagesSectionMatch = htmlString.match(
+    /<ul class="messages">([\s\S]*?)<\/ul>/,
+  );
+  const selectionsSectionMatch = htmlString.match(
+    /<ol class="selections">([\s\S]*?)<\/ol>/,
+  );
 
-function extractLists(data: string) {
-  const ulRegex = /<ul>(.*?)<\/ul>/s;
-  const olRegex = /<ol>(.*?)<\/ol>/s;
-  const pRegex = /<p>(.*?)<\/p>/gs;
+  // 동화내용 추출
+  const messages: MessagePair[] = [];
+  if (messagesSectionMatch) {
+    const messagesHtml = messagesSectionMatch[1];
+    const messageRegex =
+      /<li class="korean">(.+?)<\/li>\s*<li class="english">(.+?)<\/li>/g;
+    let messageMatch;
+    while ((messageMatch = messageRegex.exec(messagesHtml)) !== null) {
+      messages.push({ korean: messageMatch[1], english: messageMatch[2] });
+    }
+  }
 
-  const ulMatch = data.match(ulRegex);
-  const olMatch = data.match(olRegex);
-  const pMatches = data.matchAll(pRegex);
+  // 선택지 추출
+  const selections: MessagePair[] = [];
+  if (selectionsSectionMatch) {
+    const selectionsHtml = selectionsSectionMatch[1];
+    const selectionRegex =
+      /<li class="korean">(.+?)<\/li>\s*<li class="english">(.+?)<\/li>/g;
+    let selectionMatch;
+    while ((selectionMatch = selectionRegex.exec(selectionsHtml)) !== null) {
+      selections.push({
+        korean: selectionMatch[1],
+        english: selectionMatch[2],
+      });
+    }
+  }
 
-  const ulContent = ulMatch ? ulMatch[1] : "";
-  const olContent = olMatch ? olMatch[1] : "";
-  const pContents = Array.from(pMatches, match => match[1]);
+  // 안내메시지 추출
+  const noticeRegex = /<p class="notice">(.+?)<\/p>/;
+  const noticeMatch = noticeRegex.exec(htmlString);
+  const notice = noticeMatch ? noticeMatch[1] : "";
 
-  const ulItems = extractListItems(ulContent);
-  const olItems = extractListItems(olContent);
+  // 이미지 설명 추출
+  const imageDescriptionRegex = /<p class="image">(.+?)<\/p>/;
+  const imageDescriptionMatch = imageDescriptionRegex.exec(htmlString);
+  const imageDescription = imageDescriptionMatch
+    ? imageDescriptionMatch[1]
+    : "";
 
-  return { ulItems, olItems, pContents };
+  return {
+    messages,
+    selections,
+    notice,
+    imageDescription,
+  };
 }

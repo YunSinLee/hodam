@@ -1,5 +1,3 @@
-import Hodam from "@/app/hodam/page";
-
 export function useHodamSpeech() {
   const HodamSpeech = new SpeechSynthesisUtterance();
 

@@ -89,6 +89,13 @@ export default function NavBar() {
             시작하기
           </p>
         </Link>
+        <Link href="/my-story">
+          <p
+            className={`text-lg font-normal ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
+          >
+            내 동화
+          </p>
+        </Link>
         {userInfo.id ? (
           <button className="font-semibold" onClick={signOut}>
             로그아웃

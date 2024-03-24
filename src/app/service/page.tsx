@@ -1,22 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createThread,
   addMessageToThread,
   run,
   retrieveRun,
-  getText,
   getExtractedText,
   createImage,
 } from "../../services/actions/openai";
 import styles from "./page.module.scss";
-import { Thread } from "../types/openai";
+import { Message, Thread, Selection } from "../types/openai";
 import { isEmpty } from "../utils";
 
 import threadApi from "@/app/api/thread";
 import keywordsApi from "@/app/api/keywords";
 import messagesApi from "@/app/api/messages";
+import imageApi from "@/app/api/image";
 import userApi from "@/app/api/user";
 import beadApi from "../api/bead";
 import useUserInfo from "@/services/hooks/use-user-info";
@@ -29,15 +29,34 @@ import SelectionDisplay from "@/app/components/SelectionDisplay";
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
   const [keywords, setKeywords] = useState<string>("");
-  const [messages, setMessages] = useState<{ text: string }[]>([]);
+  const [messages, setMessages] = useState<{ text: string; text_en: string }[]>(
+    [],
+  );
   const [notice, setNotice] = useState<string>("");
-  const [selections, setSelections] = useState<{ text: string }[]>([]);
+  const [selections, setSelections] = useState<
+    { text: string; text_en: string }[]
+  >([]);
+  const [imageDescription, setImageDescription] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
   const [turn, setTurn] = useState<number>(0);
+  const [assistantType, setAssistantType] = useState<"default" | "traditional">(
+    "default",
+  );
+  const [isEnglishIncluded, setIsEnglishIncluded] = useState<boolean>(false);
+  const [isShowEnglish, setIsShowEnglish] = useState<boolean>(false);
+  const [isImageIncluded, setIsImageIncluded] = useState<boolean>(false);
+  const [isStarted, setIsStarted] = useState<boolean>(false);
 
   const { userInfo, setUserInfo } = useUserInfo();
   const { bead, setBead } = useBead();
+
+  const neededBeadCount = useMemo(() => {
+    let count = 1;
+    if (isEnglishIncluded) count++;
+    if (isImageIncluded) count++;
+    return count;
+  }, [isEnglishIncluded, isImageIncluded]);
 
   useEffect(() => {
     getSession();
@@ -45,7 +64,8 @@ export default function Hodam() {
 
   useEffect(() => {
     if (userInfo.id) startThread();
-  }, [userInfo]);
+    console.log("재실행");
+  }, [userInfo.id]);
 
   async function getSession() {
     const userData = await userApi.getSession();
@@ -71,18 +91,23 @@ export default function Hodam() {
   }
 
   async function consumeBeads() {
-    if (bead.count === 0) {
+    if (!userInfo.id || bead.count === undefined) return;
+
+    if (bead.count < neededBeadCount) {
       alert("구슬이 부족합니다.");
       throw new Error("Not enough beads");
     }
 
-    if (!userInfo.id || bead.count === undefined) return;
-    const beadInfo = await beadApi.updateBeadCount(userInfo.id, bead.count - 1);
+    const beadInfo = await beadApi.updateBeadCount(
+      userInfo.id,
+      bead.count - neededBeadCount,
+    );
     setBead(beadInfo);
   }
 
   async function searchKeywords() {
     await consumeBeads();
+    setIsStarted(true);
     setIsLoading(true);
     await addMessageToThread(thread.openai_thread_id, keywords);
 
@@ -92,51 +117,80 @@ export default function Hodam() {
       thread_id: thread.id,
     });
 
-    const response = await run(thread.openai_thread_id);
+    const response = await run(thread.openai_thread_id, assistantType);
 
     checkStatusWithInterval(response.id);
   }
 
-  async function clickSelection(selection: string, index: number) {
+  async function clickSelection(selection: string) {
     setIsLoading(true);
 
     setSelections([]);
     await addMessageToThread(thread.openai_thread_id, selection);
 
-    const response = await run(thread.openai_thread_id);
+    const response = await run(thread.openai_thread_id, assistantType);
 
-    checkStatusWithInterval(response.id, index === 3);
+    checkStatusWithInterval(response.id);
   }
 
-  async function checkStatusWithInterval(runId: string, isImage = false) {
+  async function getImage(description: string) {
+    console.log("이미지디스크립션", description);
+    const response = await createImage(description);
+
+    const imageUrls = response.data.map(data => data.url ?? "");
+    setImages(imageUrls);
+    await imageApi.saveImage({
+      image_url: imageUrls[0],
+      thread_id: thread.id,
+      turn,
+      description,
+    });
+  }
+
+  async function checkStatusWithInterval(runId: string) {
     const interval = 5000; // 5 seconds in milliseconds
 
     async function check() {
       const response = await retrieveRun(thread.openai_thread_id, runId);
       const currentStatus = response.status;
       if (currentStatus === "completed") {
-        if (isImage) {
-          const prompt = await getText(thread.openai_thread_id);
-          const response = await createImage(prompt);
+        const {
+          messages: newMessages,
+          selections: newSelections,
+          notice: newNotice,
+          imageDescription: newImageDescription,
+        } = await getExtractedText(thread.openai_thread_id);
 
-          const imageUrls = response.data.map(data => data.url ?? "");
-          setImages(imageUrls);
-        } else {
-          const { ulItems, olItems, pContents } = await getExtractedText(
-            thread.openai_thread_id,
-          );
-          messagesApi.saveMessages({
-            messages: ulItems.map(item => item.text),
-            thread_id: thread.id,
-            turn,
-          });
-          messages.length
-            ? setMessages([...messages, ...ulItems])
-            : setMessages([...ulItems]);
-          pContents.length && setNotice(pContents[0]);
-          setSelections([...olItems]);
-          setTurn(turn + 1);
+        const savedMessages = await messagesApi.saveMessages({
+          messages: newMessages,
+          thread_id: thread.id,
+          turn,
+        });
+        const messageMaps = savedMessages.map((item: Message) => ({
+          text: item.message,
+          text_en: item.message_en,
+        }));
+        messages.length
+          ? setMessages([...messages, ...messageMaps])
+          : setMessages([...messageMaps]);
+        newNotice && setNotice(newNotice);
+        const savedSelections = await messagesApi.saveSelections({
+          selections: newSelections,
+          thread_id: thread.id,
+          turn,
+        });
+        const selectionMaps = savedSelections.map((item: Selection) => ({
+          text: item.selection,
+          text_en: item.selection_en,
+        }));
+        setSelections([...selectionMaps]);
+        console.log("이미지1", newImageDescription);
+        setImageDescription(newImageDescription);
+        if (turn === 0 && isImageIncluded) {
+          await getImage(newImageDescription);
         }
+        setTurn(turn + 1);
+        // }
 
         setIsLoading(false);
       } else {
@@ -159,37 +213,67 @@ export default function Hodam() {
       )}
       {!isEmpty(thread) && (
         <div className="max-w-screen-lg flex flex-col items-center mx-auto">
-          {/* <div className="flex items-center gap-8">
-            <input
-              className="form-input text-3xl flex-1 px-4 py-2 bturn bturn-gray-300 rounded-md focus:outline-none focus:bturn-orange-500 focus:ring-1 focus:ring-orange-500 shadow-sm"
-              type="text"
-              value={keywords}
-              onChange={inputKeywords}
+          {isStarted ? null : (
+            <KeywordInput
+              neededBeadCount={neededBeadCount}
+              keywords={keywords}
+              assistantType={assistantType}
+              isEnglishIncluded={isEnglishIncluded}
+              isImageIncluded={isImageIncluded}
+              onKeywordsChange={inputKeywords}
+              onButtonClicked={searchKeywords}
+              onAssistantTypeChange={(
+                e: React.ChangeEvent<HTMLSelectElement>,
+              ) =>
+                setAssistantType(e.target.value as "default" | "traditional")
+              }
+              onEnglishIncludedChange={(
+                e: React.ChangeEvent<HTMLInputElement>,
+              ) => setIsEnglishIncluded(e.target.checked)}
+              onImageIncludedChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setIsImageIncluded(e.target.checked)
+              }
             />
+          )}
+          {messages.length > 0 ? (
+            <div>
+              {isEnglishIncluded ? (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={isShowEnglish}
+                    onChange={() => setIsShowEnglish(!isShowEnglish)}
+                  />
+                  영어 보이기
+                </label>
+              ) : null}
+              <div className="flex gap-12">
+                <div className="flex-1">
+                  <MessageDisplay
+                    messages={messages}
+                    isShowEnglish={isShowEnglish}
+                  />
+                </div>
+                <div className="max-w-80">
+                  <SelectionDisplay
+                    selections={selections}
+                    isShowEnglish={isShowEnglish}
+                    clickSelection={clickSelection}
+                    notice={notice}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {/* {imageDescription.length > 0 ? (
             <button
-              className="text-3xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white bturn bturn-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
-              onClick={searchKeywords}
+              className="flex gap-2 text-left text-xl leading-8 px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
+              onClick={getImage}
             >
-              알려줘
+              <span>{4}. </span>
+              <span>그림을 그려보아요</span>
             </button>
-          </div> */}
-          <KeywordInput
-            keywords={keywords}
-            onKeywordsChange={inputKeywords}
-            onButtonClicked={searchKeywords}
-          />
-          <div className="flex gap-12">
-            <div className="flex-1">
-              <MessageDisplay messages={messages} />
-            </div>
-            <div className="max-w-80">
-              <SelectionDisplay
-                selections={selections}
-                clickSelection={clickSelection}
-                notice={notice}
-              />
-            </div>
-          </div>
+          ) : null} */}
           <div className={styles.imageContainer}>
             {images.map((image, i) => (
               <img className={styles.image} src={image} key={i} />
