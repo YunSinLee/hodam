@@ -5,16 +5,17 @@ const messagesApi = {
   async saveMessages({
     messages,
     thread_id,
-    order,
+    turn,
   }: {
     messages: string[];
     thread_id: number;
-    order: number;
+    turn: number;
   }): Promise<Message[]> {
     for (const message of messages) {
       const { error } = await supabase
         .from("messages")
-        .insert({ message, thread_id, order });
+        .insert({ message, thread_id, turn })
+        .select();
 
       if (error) {
         console.error("Error saving message", error);
@@ -23,9 +24,9 @@ const messagesApi = {
 
     const { data } = await supabase
       .from("messages")
-      .select()
+      .select("*")
       .eq("thread_id", thread_id)
-      .eq("order", order);
+      .eq("turn", turn);
 
     return data as Message[];
   },

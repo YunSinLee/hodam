@@ -15,7 +15,6 @@ const getMovie = async (id: string) => {
 
 export async function generateMetadata({ params: { id } }: { params: Params }) {
   const movie = await getMovie(id);
-  console.log(movie);
   return {
     title: movie.title,
     description: "영화 상세 페이지입니다.",

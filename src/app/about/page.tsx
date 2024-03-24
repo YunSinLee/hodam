@@ -9,14 +9,11 @@ async function getKeywords() {
     .insert([{ id: 2, thread_id: "soadifajsdof", keyword: "윤신윤신" }])
     .select();
 
-  console.log("data", data);
-
   let { data: keywords, error } = await supabase.from("keywords").select("*");
 
   if (error) {
     throw error;
   }
-  console.log("keywords", keywords);
   return keywords;
 }
 
