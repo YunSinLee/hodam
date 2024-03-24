@@ -26,6 +26,30 @@ const keywordsApi = {
 
     return data as Keyword[];
   },
+  async fetchKeywords({
+    thread_ids,
+  }: {
+    thread_ids: number[];
+  }): Promise<Record<number, Keyword[]>> {
+    const { data } = await supabase
+      .from("keywords")
+      .select()
+      .in("thread_id", thread_ids);
+
+    if (!data) return {};
+    const groupedByThreadId: Record<number, Keyword[]> = data.reduce(
+      (acc, keyword) => {
+        if (!acc[keyword.thread_id]) {
+          acc[keyword.thread_id] = [];
+        }
+        acc[keyword.thread_id].push(keyword);
+        return acc;
+      },
+      {},
+    );
+
+    return groupedByThreadId;
+  },
 };
 
 export default keywordsApi;

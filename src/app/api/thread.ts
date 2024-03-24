@@ -23,6 +23,14 @@ const threadApi = {
 
     return data![0] as Thread;
   },
+  async fetchThreads({ user_id }: { user_id: string }): Promise<Thread[]> {
+    const { data } = await supabase
+      .from("thread")
+      .select("*")
+      .eq("user_id", user_id);
+
+    return data as Thread[];
+  },
 };
 
 export default threadApi;
