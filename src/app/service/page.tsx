@@ -108,6 +108,11 @@ export default function Hodam() {
     await consumeBeads();
     setIsStarted(true);
     setIsLoading(true);
+    await threadApi.updateThread({
+      thread_id: thread.id,
+      user_id: userInfo.id,
+      able_english: isEnglishIncluded,
+    });
     await addMessageToThread(thread.openai_thread_id, keywords);
 
     const keywordArray = keywords.split(",");
