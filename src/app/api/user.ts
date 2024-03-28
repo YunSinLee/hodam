@@ -1,20 +1,25 @@
 import { supabase } from "../utils/supabase";
 
 const userApi = {
-  async signUp({ email, password }: { email: string; password: string }) {
+  async signUp({
+    email,
+    password,
+    // phone,
+  }: {
+    email: string;
+    password: string;
+    // phone: string;
+  }) {
     const { data, error } = await supabase.auth.signUp({
       email,
+      // phone,
       password,
       options: {
         emailRedirectTo: process.env.NEXT_PUBLIC_SITE_URL,
       },
     });
 
-    if (error) {
-      console.error("Error signing up user", error);
-    }
-
-    return data;
+    return { data, error };
   },
   async signIn({ email, password }: { email: string; password: string }) {
     const { data, error } = await supabase.auth.signInWithPassword({

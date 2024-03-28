@@ -229,85 +229,93 @@ export default function Hodam() {
 
   return (
     <div>
-      {isEmpty(thread) && (
-        <button
-          onClick={startThread}
-          className="text-xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white bturn bturn-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
-        >
-          시작하기
-        </button>
-      )}
-      {!isEmpty(thread) && (
-        <div className="max-w-screen-lg flex flex-col items-center mx-auto">
-          {isStarted ? null : (
-            <KeywordInput
-              neededBeadCount={neededBeadCount}
-              keywords={keywords}
-              assistantType={assistantType}
-              isEnglishIncluded={isEnglishIncluded}
-              isImageIncluded={isImageIncluded}
-              onKeywordsChange={inputKeywords}
-              onButtonClicked={searchKeywords}
-              onAssistantTypeChange={(
-                e: React.ChangeEvent<HTMLSelectElement>,
-              ) =>
-                setAssistantType(e.target.value as "default" | "traditional")
-              }
-              onEnglishIncludedChange={(
-                e: React.ChangeEvent<HTMLInputElement>,
-              ) => setIsEnglishIncluded(e.target.checked)}
-              onImageIncludedChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setIsImageIncluded(e.target.checked)
-              }
-            />
+      {userInfo.id ? (
+        <div>
+          {isEmpty(thread) && (
+            <button
+              onClick={startThread}
+              className="text-xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white bturn bturn-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
+            >
+              시작하기
+            </button>
           )}
-          {messages.length > 0 ? (
-            <div>
-              {isEnglishIncluded ? (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={isShowEnglish}
-                    onChange={() => setIsShowEnglish(!isShowEnglish)}
-                  />
-                  영어 보이기
-                </label>
+          {!isEmpty(thread) && (
+            <div className="max-w-screen-lg flex flex-col items-center mx-auto">
+              {isStarted ? null : (
+                <KeywordInput
+                  neededBeadCount={neededBeadCount}
+                  keywords={keywords}
+                  assistantType={assistantType}
+                  isEnglishIncluded={isEnglishIncluded}
+                  isImageIncluded={isImageIncluded}
+                  onKeywordsChange={inputKeywords}
+                  onButtonClicked={searchKeywords}
+                  onAssistantTypeChange={(
+                    e: React.ChangeEvent<HTMLSelectElement>,
+                  ) =>
+                    setAssistantType(
+                      e.target.value as "default" | "traditional",
+                    )
+                  }
+                  onEnglishIncludedChange={(
+                    e: React.ChangeEvent<HTMLInputElement>,
+                  ) => setIsEnglishIncluded(e.target.checked)}
+                  onImageIncludedChange={(
+                    e: React.ChangeEvent<HTMLInputElement>,
+                  ) => setIsImageIncluded(e.target.checked)}
+                />
+              )}
+              {messages.length > 0 ? (
+                <div>
+                  {isEnglishIncluded ? (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={isShowEnglish}
+                        onChange={() => setIsShowEnglish(!isShowEnglish)}
+                      />
+                      영어 보이기
+                    </label>
+                  ) : null}
+                  <div className="flex gap-12">
+                    <div className="flex-1">
+                      <MessageDisplay
+                        messages={messages}
+                        isShowEnglish={isShowEnglish}
+                      />
+                    </div>
+                    <div className="max-w-80">
+                      <SelectionDisplay
+                        selections={selections}
+                        isShowEnglish={isShowEnglish}
+                        clickSelection={clickSelection}
+                        notice={notice}
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : null}
-              <div className="flex gap-12">
-                <div className="flex-1">
-                  <MessageDisplay
-                    messages={messages}
-                    isShowEnglish={isShowEnglish}
-                  />
-                </div>
-                <div className="max-w-80">
-                  <SelectionDisplay
-                    selections={selections}
-                    isShowEnglish={isShowEnglish}
-                    clickSelection={clickSelection}
-                    notice={notice}
-                  />
-                </div>
+              <div className={styles.imageContainer}>
+                {images.map((image, i) => (
+                  <img className={styles.image} src={image} key={i} />
+                ))}
               </div>
-            </div>
-          ) : null}
-          <div className={styles.imageContainer}>
-            {images.map((image, i) => (
-              <img className={styles.image} src={image} key={i} />
-            ))}
-          </div>
 
-          {!messages.length && isLoading && (
-            <h4 className={styles.loadingContainer}>
-              이야기 여행을 준비하는 중...
-            </h4>
-          )}
-          {!!messages.length && isLoading && (
-            <h4 className={styles.loadingContainer}>
-              다음 이야기로 여행하는 중...
-            </h4>
+              {!messages.length && isLoading && (
+                <h4 className={styles.loadingContainer}>
+                  이야기 여행을 준비하는 중...
+                </h4>
+              )}
+              {!!messages.length && isLoading && (
+                <h4 className={styles.loadingContainer}>
+                  다음 이야기로 여행하는 중...
+                </h4>
+              )}
+            </div>
           )}
         </div>
+      ) : (
+        <div className="text-3xl text-center mt-20">로그인이 필요합니다.</div>
       )}
     </div>
   );

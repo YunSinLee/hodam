@@ -31,7 +31,7 @@ const BeadPage: React.FC = () => {
     <div className="flex flex-col items-center">
       <img src="bead.png" alt="Bead" className="w-24 h-24" />
       <p className="text-xl font-bold">Bead Count: {bead.count}</p>
-      <div className="space-x-4">
+      {/* <div className="space-x-4">
         {buttonData.map(button => (
           <button
             key={button.quantity}
@@ -49,7 +49,7 @@ const BeadPage: React.FC = () => {
             <div className="text-xl">{button.price}원</div>
           </button>
         ))}
-      </div>
+      </div> */}
     </div>
   );
 };

@@ -54,7 +54,7 @@ export default function NavBar() {
     };
 
     fetchBead();
-  }, [userInfo]);
+  }, []);
 
   return (
     <nav className="flex items-center justify-between px-8 py-8 border-b-2 border-gray-300">
