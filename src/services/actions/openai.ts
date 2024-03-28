@@ -69,8 +69,8 @@ export async function retrieveRun(threadId: string, runId: string) {
 
 export async function getExtractedText(threadId: string) {
   const messages = await openai.beta.threads.messages.list(threadId);
-  console.log("messages", messages.data[0].content[0].text.value);
 
+  // @ts-ignore
   return extractStoryContentFromHTML(messages.data[0].content[0].text.value);
 }
 
