@@ -2,6 +2,8 @@ export interface Thread {
   id: number;
   openai_thread_id: string;
   created_at: string;
+  user_id: string;
+  able_english: boolean;
 }
 
 export interface Message {

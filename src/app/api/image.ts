@@ -1,27 +1,21 @@
 import { supabase } from "../utils/supabase";
-import type { Image } from "../types/openai";
 
 const imageApi = {
   async saveImage({
-    image_url,
+    image_file,
     thread_id,
-    turn,
-    description,
+    // turn,
+    // description,
   }: {
-    image_url: string;
+    image_file: Blob;
     thread_id: number;
-    turn: number;
-    description: string;
-  }): Promise<Image> {
-    const { data, error } = await supabase
+    // turn: number;
+    // description: string;
+  }) {
+    console.log("image_url", image_file);
+    const { data, error } = await supabase.storage
       .from("image")
-      .insert({
-        image_url,
-        thread_id,
-        turn,
-        description,
-      })
-      .select();
+      .upload(`image_thread_id_${thread_id}`, image_file);
 
     if (error) {
       console.error("Error saving image", error);
@@ -29,8 +23,16 @@ const imageApi = {
     if (!data) {
       throw new Error("No data returned");
     }
+  },
+  async getImage({ thread_id }: { thread_id: number }) {
+    const { data } = await supabase.storage
+      .from("image")
+      .createSignedUrl(`image_thread_id_${thread_id}`, 3600);
 
-    return data[0] as Image;
+    if (!data) {
+      return null;
+    }
+    return data.signedUrl;
   },
 };
 

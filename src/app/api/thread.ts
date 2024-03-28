@@ -23,13 +23,48 @@ const threadApi = {
 
     return data![0] as Thread;
   },
-  async fetchThreads({ user_id }: { user_id: string }): Promise<Thread[]> {
+  async getThreadByID(thread_id: number): Promise<Thread> {
+    const { data } = await supabase
+      .from("thread")
+      .select("*")
+      .eq("id", thread_id);
+
+    return data![0] as Thread;
+  },
+  async fetchThreadsByUserId({
+    user_id,
+  }: {
+    user_id: string;
+  }): Promise<Thread[]> {
     const { data } = await supabase
       .from("thread")
       .select("*")
       .eq("user_id", user_id);
 
     return data as Thread[];
+  },
+  async updateThread({
+    thread_id,
+    user_id,
+    able_english,
+  }: {
+    thread_id: number;
+    user_id: string | undefined;
+    able_english: boolean;
+  }) {
+    const { data, error } = await supabase
+      .from("thread")
+      .update({
+        able_english,
+      })
+      .eq("id", thread_id)
+      .eq("user_id", user_id);
+
+    if (error) {
+      console.error("Error updating thread", error);
+    }
+
+    return data;
   },
 };
 

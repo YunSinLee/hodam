@@ -7,16 +7,16 @@ export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // const [phone, setPhone] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  // const [phoneError, setPhoneError] = useState("");
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
-    setEmailError(
-      validateEmail(value) ? "" : "Please enter a valid email address.",
-    );
+    setEmailError(validateEmail(value) ? "" : "이메일이 올바르지 않습니다.");
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,10 +25,10 @@ export default function SignUp() {
     setPasswordError(
       validatePassword(value)
         ? ""
-        : "Password must be at least 8 characters long and contain a combination of letters and numbers.",
+        : "비밀번호는 8자 이상이어야 하며 문자와 숫자의 조합이어야 합니다.",
     );
     setConfirmPasswordError(
-      value === confirmPassword ? "" : "Passwords do not match.",
+      value === confirmPassword ? "" : "비밀번호가 일치하지 않습니다.",
     );
   };
 
@@ -38,33 +38,66 @@ export default function SignUp() {
     const value = e.target.value;
     setConfirmPassword(value);
     setConfirmPasswordError(
-      value === password ? "" : "Passwords do not match.",
+      value === password ? "" : "비밀번호가 일치하지 않습니다.",
     );
   };
+
+  // const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const value = e.target.value;
+  //   setPhone(value);
+  //   setPhoneError(
+  //     validationPhone(value)
+  //       ? ""
+  //       : "휴대폰 번호가 올바르지 않습니다.(예: 010-1234-5678)",
+  //   );
+  // };
+
+  // const validationPhone = (phone: string) => {
+  //   const phoneRegex = /^\d{3}-\d{3,4}-\d{4}$/;
+  //   return phoneRegex.test(phone);
+  // };
+
+  // const formatPhoneNumber = (phone: string) => {
+  //   const formattedPhone = phone.replace(/-/g, "");
+  //   return `+82${formattedPhone}`;
+  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateEmail(email)) {
-      setEmailError("Please enter a valid email address.");
+      setEmailError("이메일이 올바르지 않습니다.");
       return;
     }
     if (!validatePassword(password)) {
       setPasswordError(
-        "Password must be at least 8 characters long and contain a combination of letters and numbers.",
+        "비밀번호는 8자 이상이어야 하며 문자와 숫자의 조합이어야 합니다.",
       );
       return;
     }
     if (password !== confirmPassword) {
-      setConfirmPasswordError("Passwords do not match.");
+      setConfirmPasswordError("비밀번호가 일치하지 않습니다.");
       return;
     }
+    // if (!phone && phone.length !== 13) {
+    //   setPhoneError("휴대폰 번호가 올바르지 않습니다.(예: 010-1234-5678)");
+    //   return;
+    // }
+    // const formattedPhone = formatPhoneNumber(phone);
 
-    const user = await userApi.signUp({ email, password });
+    const { data, error } = await userApi.signUp({
+      email,
+      password,
+      // phone: formattedPhone,
+    });
 
-    if (user) {
-      console.log("User signed up successfully");
+    if (error) {
+      alert(
+        `ErrorCode: ${error.status}\nErrorMessage: ${error.message}\n
+        회원가입에 실패했습니다. 반복될 경우, dldbstls7777@naver.com으로 문의주세요.`,
+      );
     } else {
-      console.log("Error signing up user");
+      alert("회원가입에 성공했습니다.");
+      location.href = "/sign-in";
     }
   };
 
@@ -82,35 +115,62 @@ export default function SignUp() {
     !email || !password || !confirmPassword || password !== confirmPassword;
 
   return (
-    <form onSubmit={handleSubmit}>
-      <label>
-        Email:
-        <input type="email" value={email} onChange={handleEmailChange} />
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col max-w-md mx-auto mt-20"
+    >
+      <label className="mb-2 flex gap-4 items-center">
+        <span className="block w-24">이메일</span>
+        <input
+          type="email"
+          value={email}
+          onChange={handleEmailChange}
+          className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
+        />
       </label>
-      {emailError && <p>{emailError}</p>}
+      {emailError && <p className="text-red-500">{emailError}</p>}
       <br />
-      <label>
-        Password:
+      <label className="mb-2 flex gap-4 items-center">
+        <span className="block w-24">비밀번호</span>
         <input
           type="password"
           value={password}
           onChange={handlePasswordChange}
+          className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
         />
       </label>
-      {passwordError && <p>{passwordError}</p>}
+      {passwordError && <p className="text-red-500">{passwordError}</p>}
       <br />
-      <label>
-        Confirm Password:
+      <label className="mb-2 flex gap-4 items-center">
+        <span className="block w-24">비밀번호 확인</span>
         <input
           type="password"
           value={confirmPassword}
           onChange={handleConfirmPasswordChange}
+          className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
         />
       </label>
-      {confirmPasswordError && <p>{confirmPasswordError}</p>}
+      {confirmPasswordError && (
+        <p className="text-red-500">{confirmPasswordError}</p>
+      )}
       <br />
-      <button type="submit" disabled={buttonDisabled}>
-        Sign Up
+      {/* <label className="mb-2 flex gap-4 items-center">
+        <span className="block w-24">휴대폰 번호</span>
+        <input
+          type="text"
+          value={phone}
+          onChange={handlePhoneChange}
+          className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
+        />
+      </label>
+      {phoneError && <p className="text-red-500">{phoneError}</p>}
+      <br /> */}
+      <button
+        type="submit"
+        disabled={buttonDisabled}
+        className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
+      >
+        회원가입
       </button>
     </form>
   );

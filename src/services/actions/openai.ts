@@ -82,10 +82,11 @@ export async function createImage(prompt: string) {
     prompt: promptAddedStyle,
     model: "dall-e-3",
     n: 1,
-    response_format: "url",
+    response_format: "b64_json",
     size: "1024x1024",
   });
 
+  console.log("response", response);
   return response;
 }
 

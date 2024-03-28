@@ -50,24 +50,26 @@ export default function KeywordInput({
         </button>
       </div>
       <div className="flex gap-8">
-        <label>
+        {/* <label>
           <input
             type="checkbox"
             checked={assistantType === "traditional"}
             onChange={e => onAssistantClicked(e)}
           />
           전통적
-        </label>
-        <label>
+        </label> */}
+        <label className="text-xl">
           <input
+            className="w-8"
             type="checkbox"
             checked={isEnglishIncluded}
             onChange={e => onLanguageClicked(e)}
           />
           영어포함하기
         </label>
-        <label>
+        <label className="text-xl">
           <input
+            className="w-8"
             type="checkbox"
             checked={isImageIncluded}
             onChange={onImageIncludedChange}
