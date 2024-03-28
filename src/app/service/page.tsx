@@ -1,5 +1,5 @@
 "use client";
-
+import fs from "fs";
 import { useEffect, useMemo, useState } from "react";
 import {
   createThread,
@@ -36,7 +36,6 @@ export default function Hodam() {
   const [selections, setSelections] = useState<
     { text: string; text_en: string }[]
   >([]);
-  const [imageDescription, setImageDescription] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
   const [turn, setTurn] = useState<number>(0);
@@ -134,17 +133,16 @@ export default function Hodam() {
   }
 
   async function getImage(description: string) {
-    console.log("이미지디스크립션", description);
     const response = await createImage(description);
-
-    const imageUrls = response.data.map(data => data.url ?? "");
-    setImages(imageUrls);
-    await imageApi.saveImage({
-      image_url: imageUrls[0],
-      thread_id: thread.id,
-      turn,
-      description,
-    });
+    try {
+      const imageData = await uploadImage(
+        response.data[0].b64_json!,
+        thread.id,
+      );
+      setImages([URL.createObjectURL(imageData!)]);
+    } catch (error) {
+      console.error("Error fetching image:", error);
+    }
   }
 
   async function checkStatusWithInterval(runId: string) {
@@ -184,8 +182,6 @@ export default function Hodam() {
           text_en: item.selection_en,
         }));
         setSelections([...selectionMaps]);
-        console.log("이미지1", newImageDescription);
-        setImageDescription(newImageDescription);
         if (turn === 0 && isImageIncluded) {
           await getImage(newImageDescription);
         }
@@ -199,6 +195,31 @@ export default function Hodam() {
     }
 
     await check(); // Initial call to check
+  }
+  function base64toBlob(base64Data: string, contentType = "image/png") {
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: contentType });
+  }
+
+  async function uploadImage(base64Data: string, thread_id: number) {
+    const imageBlob = base64toBlob(base64Data);
+
+    try {
+      await imageApi.saveImage({
+        image_file: imageBlob,
+        thread_id: thread_id,
+      });
+      console.log("이미지가 성공적으로 업로드되었습니다.");
+
+      return imageBlob;
+    } catch (error) {
+      console.error("이미지 업로드 중 오류 발생:", error);
+    }
   }
 
   return (
@@ -265,15 +286,6 @@ export default function Hodam() {
               </div>
             </div>
           ) : null}
-          {/* {imageDescription.length > 0 ? (
-            <button
-              className="flex gap-2 text-left text-xl leading-8 px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
-              onClick={getImage}
-            >
-              <span>{4}. </span>
-              <span>그림을 그려보아요</span>
-            </button>
-          ) : null} */}
           <div className={styles.imageContainer}>
             {images.map((image, i) => (
               <img className={styles.image} src={image} key={i} />
