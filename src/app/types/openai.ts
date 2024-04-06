@@ -37,6 +37,7 @@ export interface MessagePair {
 }
 
 export interface StoryContent {
+  rawText: string;
   messages: MessagePair[];
   selections: MessagePair[];
   notice: string;

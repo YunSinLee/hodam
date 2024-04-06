@@ -47,15 +47,21 @@ const threadApi = {
     thread_id,
     user_id,
     able_english,
+    has_image,
+    raw_text,
   }: {
     thread_id: number;
     user_id: string | undefined;
-    able_english: boolean;
+    able_english?: boolean;
+    has_image?: boolean;
+    raw_text?: string;
   }) {
     const { data, error } = await supabase
       .from("thread")
       .update({
         able_english,
+        has_image,
+        raw_text,
       })
       .eq("id", thread_id)
       .eq("user_id", user_id);

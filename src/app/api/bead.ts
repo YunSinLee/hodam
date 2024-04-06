@@ -55,7 +55,6 @@ const beadApi = {
     if (error) {
       console.error("Error updating bead count", error);
     }
-    console.log("bead", data);
     return data![0] as Bead;
   },
 };

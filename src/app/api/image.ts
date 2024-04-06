@@ -12,7 +12,6 @@ const imageApi = {
     // turn: number;
     // description: string;
   }) {
-    console.log("image_url", image_file);
     const { data, error } = await supabase.storage
       .from("image")
       .upload(`image_thread_id_${thread_id}`, image_file);
