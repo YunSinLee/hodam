@@ -25,6 +25,7 @@ import useBead from "@/services/hooks/use-bead";
 import KeywordInput from "@/app/components/KeywordInput";
 import MessageDisplay from "@/app/components/MessageDisplay";
 import SelectionDisplay from "@/app/components/SelectionDisplay";
+import GuideForSign from "@/app/components/GuideForSign";
 
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
@@ -155,7 +156,7 @@ export default function Hodam() {
   async function getImage(description: string) {
     const response = await createImage(description);
     try {
-      const imageData = await uploadImage(
+      const imageData = await imageApi.uploadImage(
         response.data[0].b64_json!,
         thread.id,
       );
@@ -224,42 +225,15 @@ export default function Hodam() {
 
     await check(); // Initial call to check
   }
-  function base64toBlob(base64Data: string, contentType = "image/png") {
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: contentType });
-  }
-
-  async function uploadImage(base64Data: string, thread_id: number) {
-    const imageBlob = base64toBlob(base64Data);
-
-    try {
-      await imageApi.saveImage({
-        image_file: imageBlob,
-        thread_id: thread_id,
-      });
-
-      return imageBlob;
-    } catch (error) {
-      console.error("이미지 업로드 중 오류 발생:", error);
-    }
-  }
 
   return (
     <div>
       {userInfo.id ? (
         <div>
           {isEmpty(thread) && (
-            <button
-              onClick={startThread}
-              className="text-xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white bturn bturn-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
-            >
-              시작하기
-            </button>
+            <div className="text-3xl text-center mt-20">
+              이야기 시작을 준비하고 있어요.
+            </div>
           )}
           {!isEmpty(thread) && (
             <div className="max-w-screen-lg flex flex-col items-center mx-auto">
@@ -343,7 +317,7 @@ export default function Hodam() {
           )}
         </div>
       ) : (
-        <div className="text-3xl text-center mt-20">로그인이 필요합니다.</div>
+        <GuideForSign />
       )}
     </div>
   );

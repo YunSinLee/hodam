@@ -33,6 +33,30 @@ const imageApi = {
     }
     return data.signedUrl;
   },
+  async uploadImage(base64Data: string, thread_id: number) {
+    const imageBlob = base64toBlob(base64Data);
+
+    try {
+      await imageApi.saveImage({
+        image_file: imageBlob,
+        thread_id: thread_id,
+      });
+
+      return imageBlob;
+    } catch (error) {
+      console.error("이미지 업로드 중 오류 발생:", error);
+    }
+
+    function base64toBlob(base64Data: string, contentType = "image/png") {
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: contentType });
+    }
+  },
 };
 
 export default imageApi;

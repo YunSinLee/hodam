@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import HButton from "@/app/components/atomic/HButton";
 
 export default function Home() {
   return (
@@ -17,9 +18,7 @@ export default function Home() {
           <p>시작하기 버튼을 눌러 호담을 시작해보세요.</p>
         </div>
         <Link href="./service">
-          <button className="text-3xl px-8 py-2 bg-orange-500 hover:bg-orange-700 text-white bturn bturn-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow">
-            이야기 만들어보기
-          </button>
+          <HButton label="시작하기" size="xl" style="filled" />
         </Link>
         <div className="text-xl text-gray-500 mt-4 max-w-xl flex flex-col items-center gap-2">
           <p>

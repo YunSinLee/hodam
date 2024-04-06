@@ -3,7 +3,8 @@
 import React from "react";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
-import beadApi from "../api/bead";
+import beadApi from "@/app/api/bead";
+import HButton from "@/app/components/atomic/HButton";
 
 const BeadPage: React.FC = () => {
   const { bead, setBead } = useBead();
@@ -31,25 +32,28 @@ const BeadPage: React.FC = () => {
     <div className="flex flex-col items-center">
       <img src="bead.png" alt="Bead" className="w-24 h-24" />
       <p className="text-xl font-bold">Bead Count: {bead.count}</p>
-      {/* <div className="space-x-4">
+      <div className="space-x-4">
         {buttonData.map(button => (
-          <button
+          <HButton
             key={button.quantity}
+            children={
+              <div>
+                <div className="flex items-center">
+                  <img
+                    src="bead.png"
+                    alt={`Image ${button.quantity}`}
+                    className="w-8 h-8"
+                  />{" "}
+                  X {button.quantity}
+                </div>
+                <div className="text-xl">{button.price}원</div>
+              </div>
+            }
             onClick={() => chargeBeads(button.quantity)}
-            className="border border-orange-500 hover:bg-orange-100 hover:border-orange-100 text-orange-500 font-bold py-2 px-4 rounded"
-          >
-            <div className="flex items-center">
-              <img
-                src="bead.png"
-                alt={`Image ${button.quantity}`}
-                className="w-8 h-8"
-              />{" "}
-              X {button.quantity}
-            </div>
-            <div className="text-xl">{button.price}원</div>
-          </button>
+            style="outlined"
+          />
         ))}
-      </div> */}
+      </div>
     </div>
   );
 };

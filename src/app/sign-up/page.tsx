@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import userApi from "../api/user";
+import userApi from "@/app/api/user";
+import HButton from "@/app/components/atomic/HButton";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
@@ -165,13 +166,14 @@ export default function SignUp() {
       </label>
       {phoneError && <p className="text-red-500">{phoneError}</p>}
       <br /> */}
-      <button
-        type="submit"
+
+      <HButton
+        label="회원가입"
+        size="md"
+        style="filled"
+        className="text-center"
         disabled={buttonDisabled}
-        className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
-      >
-        회원가입
-      </button>
+      />
     </form>
   );
 }
