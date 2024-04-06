@@ -7,9 +7,10 @@ import useUserInfo, {
 } from "@/services/hooks/use-user-info";
 import useBead from "@/services/hooks/use-bead";
 import userApi from "@/app/api/user";
-import beadApi from "../api/bead";
+import beadApi from "@/app/api/bead";
 import { useEffect } from "react";
-import { supabase } from "../utils/supabase";
+import { supabase } from "@/app/utils/supabase";
+import HButton from "@/app/components/atomic/HButton";
 
 export default function NavBar() {
   const { userInfo, setUserInfo } = useUserInfo();
@@ -97,9 +98,12 @@ export default function NavBar() {
           </p>
         </Link>
         {userInfo.id ? (
-          <button className="font-semibold" onClick={signOut}>
-            로그아웃
-          </button>
+          <HButton
+            className="py-0"
+            label="로그아웃"
+            style="outlined"
+            onClick={signOut}
+          />
         ) : (
           <>
             <Link href="/sign-up">

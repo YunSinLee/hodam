@@ -1,3 +1,5 @@
+import HButton from "@/app/components/atomic/HButton";
+
 export default function KeywordInput({
   neededBeadCount,
   keywords,
@@ -39,15 +41,18 @@ export default function KeywordInput({
           value={keywords}
           onChange={onKeywordsChange}
         />
-        <button
-          className="flex items-center gap-4 text-xl px-4 py-2 bg-orange-500 hover:bg-orange-700 text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow"
+        <HButton
+          children={
+            <div className="flex items-center gap-4">
+              <span className="text-xl">이야기를 들려줘!</span>
+              <div className="flex items-center">
+                <img src="bead.png" className="w-8 h-8" /> X {neededBeadCount}{" "}
+              </div>
+            </div>
+          }
           onClick={onButtonClicked}
-        >
-          <span>이야기를 들려줘!</span>
-          <div className="flex items-center">
-            <img src="bead.png" className="w-8 h-8" /> X {neededBeadCount}{" "}
-          </div>
-        </button>
+          style="filled"
+        />
       </div>
       <div className="flex gap-8">
         {/* <label>
