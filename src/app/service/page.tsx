@@ -1,5 +1,5 @@
 "use client";
-import fs from "fs";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   createThread,
@@ -29,6 +29,7 @@ import SelectionDisplay from "@/app/components/SelectionDisplay";
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
   const [keywords, setKeywords] = useState<string>("");
+  const [rawText, setRawText] = useState<string>("");
   const [messages, setMessages] = useState<{ text: string; text_en: string }[]>(
     [],
   );
@@ -36,7 +37,9 @@ export default function Hodam() {
   const [selections, setSelections] = useState<
     { text: string; text_en: string }[]
   >([]);
+  const [imageDescription, setImageDescription] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
   const [turn, setTurn] = useState<number>(0);
   const [assistantType, setAssistantType] = useState<"default" | "traditional">(
@@ -63,8 +66,19 @@ export default function Hodam() {
 
   useEffect(() => {
     if (userInfo.id) startThread();
-    console.log("재실행");
   }, [userInfo.id]);
+
+  useEffect(() => {
+    getImageFn();
+
+    async function getImageFn() {
+      if (turn === 0 && isImageIncluded && imageDescription) {
+        setIsImageLoading(true);
+        await getImage(imageDescription);
+        setIsImageLoading(false);
+      }
+    }
+  }, [imageDescription]);
 
   async function getSession() {
     const userData = await userApi.getSession();
@@ -112,6 +126,7 @@ export default function Hodam() {
       thread_id: thread.id,
       user_id: userInfo.id,
       able_english: isEnglishIncluded,
+      has_image: isImageIncluded,
     });
     await addMessageToThread(thread.openai_thread_id, keywords);
 
@@ -158,12 +173,20 @@ export default function Hodam() {
       const currentStatus = response.status;
       if (currentStatus === "completed") {
         const {
+          rawText: newRawText,
           messages: newMessages,
           selections: newSelections,
           notice: newNotice,
           imageDescription: newImageDescription,
         } = await getExtractedText(thread.openai_thread_id);
 
+        setImageDescription(newImageDescription);
+        await threadApi.updateThread({
+          thread_id: thread.id,
+          user_id: userInfo.id,
+          raw_text: rawText + newRawText,
+        });
+        setRawText(rawText + newRawText);
         const savedMessages = await messagesApi.saveMessages({
           messages: newMessages,
           thread_id: thread.id,
@@ -187,9 +210,9 @@ export default function Hodam() {
           text_en: item.selection_en,
         }));
         setSelections([...selectionMaps]);
-        if (turn === 0 && isImageIncluded) {
-          await getImage(newImageDescription);
-        }
+        // if (turn === 0 && isImageIncluded) {
+        //   await getImage(rawText);
+        // }
         setTurn(turn + 1);
         // }
 
@@ -219,7 +242,6 @@ export default function Hodam() {
         image_file: imageBlob,
         thread_id: thread_id,
       });
-      console.log("이미지가 성공적으로 업로드되었습니다.");
 
       return imageBlob;
     } catch (error) {
@@ -295,11 +317,17 @@ export default function Hodam() {
                   </div>
                 </div>
               ) : null}
-              <div className={styles.imageContainer}>
-                {images.map((image, i) => (
-                  <img className={styles.image} src={image} key={i} />
-                ))}
-              </div>
+              {isImageLoading ? (
+                <div className={styles.loadingContainer}>
+                  이미지를 생성하는 중...
+                </div>
+              ) : (
+                <div className={styles.imageContainer}>
+                  {images.map((image, i) => (
+                    <img className={styles.image} src={image} key={i} />
+                  ))}
+                </div>
+              )}
 
               {!messages.length && isLoading && (
                 <h4 className={styles.loadingContainer}>

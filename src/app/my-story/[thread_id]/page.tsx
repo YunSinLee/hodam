@@ -37,7 +37,6 @@ export default function MyStoryDetail() {
       setMessages(texts);
     }
     setIsLoading(false);
-    console.log(messages.length);
   }
 
   async function fetchImage() {
