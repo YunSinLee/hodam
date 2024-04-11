@@ -35,6 +35,7 @@ const userApi = {
       } else {
         console.error("Error signing in user", error);
       }
+      throw new Error("로그인 실패");
     }
 
     if (data) {
