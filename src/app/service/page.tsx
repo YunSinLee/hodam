@@ -274,13 +274,16 @@ export default function Hodam() {
                     </label>
                   ) : null}
                   <div className="flex gap-12">
-                    <div className="flex-1">
+                    <div
+                      className="flex-1 overflow-auto py-8"
+                      style={{ height: "calc(100vh - 82px)" }}
+                    >
                       <MessageDisplay
                         messages={messages}
                         isShowEnglish={isShowEnglish}
                       />
                     </div>
-                    <div className="max-w-80">
+                    <div className="max-w-80 py-8">
                       <SelectionDisplay
                         selections={selections}
                         isShowEnglish={isShowEnglish}

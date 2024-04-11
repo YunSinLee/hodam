@@ -11,7 +11,6 @@ const BeadPage: React.FC = () => {
   const { userInfo } = useUserInfo();
 
   async function chargeBeads(quantity: number) {
-    console.log(userInfo.id, bead.count);
     if (!userInfo.id || !bead) return;
     const beadInfo = await beadApi.updateBeadCount(
       userInfo.id,

@@ -44,7 +44,7 @@ export default function SignIn() {
     }
 
     const data = await userApi.signIn({ email, password });
-    console.log("data", data);
+
     if (data) {
       setUserInfo(data);
       location.href = "/";
