@@ -17,9 +17,7 @@ export default function SignIn() {
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
-    setEmailError(
-      validateEmail(value) ? "" : "Please enter a valid email address.",
-    );
+    setEmailError(validateEmail(value) ? "" : "이메일이 올바르지 않습니다.");
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,25 +26,25 @@ export default function SignIn() {
     setPasswordError(
       validatePassword(value)
         ? ""
-        : "Password must be at least 8 characters long and contain a combination of letters and numbers.",
+        : "비밀번호는 8자 이상이어야 하며 문자와 숫자, 특수기호의 조합이어야 합니다.",
     );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateEmail(email)) {
-      setEmailError("Please enter a valid email address.");
+      setEmailError("이메일이 올바르지 않습니다.");
       return;
     }
     if (!validatePassword(password)) {
       setPasswordError(
-        "Password must be at least 8 characters long and contain a combination of letters and numbers.",
+        "비밀번호는 8자 이상이어야 하며 문자와 숫자, 특수기호의 조합이어야 합니다.",
       );
       return;
     }
 
     const data = await userApi.signIn({ email, password });
-
+    console.log("data", data);
     if (data) {
       setUserInfo(data);
       location.href = "/";
@@ -59,7 +57,8 @@ export default function SignIn() {
   };
 
   const validatePassword = (password: string) => {
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+    const passwordRegex =
+      /^(?:(?=.*[A-Za-z])(?=.*\d)|(?=.*[A-Za-z])(?=.*[@$!%*#?&])|(?=.*\d)(?=.*[@$!%*#?&]))[A-Za-z\d@$!%*#?&]{8,}$/;
     return passwordRegex.test(password);
   };
 
