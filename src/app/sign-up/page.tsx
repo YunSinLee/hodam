@@ -26,7 +26,7 @@ export default function SignUp() {
     setPasswordError(
       validatePassword(value)
         ? ""
-        : "비밀번호는 8자 이상이어야 하며 문자와 숫자의 조합이어야 합니다.",
+        : "비밀번호는 8자 이상이어야 하며 문자와 숫자, 특수기호의 조합이어야 합니다.",
     );
     setConfirmPasswordError(
       value === confirmPassword ? "" : "비밀번호가 일치하지 않습니다.",
@@ -71,7 +71,7 @@ export default function SignUp() {
     }
     if (!validatePassword(password)) {
       setPasswordError(
-        "비밀번호는 8자 이상이어야 하며 문자와 숫자의 조합이어야 합니다.",
+        "비밀번호는 8자 이상이어야 하며 문자와 숫자, 특수기호의 조합이어야 합니다.",
       );
       return;
     }
@@ -108,10 +108,10 @@ export default function SignUp() {
   };
 
   const validatePassword = (password: string) => {
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+    const passwordRegex =
+      /^(?:(?=.*[A-Za-z])(?=.*\d)|(?=.*[A-Za-z])(?=.*[@$!%*#?&])|(?=.*\d)(?=.*[@$!%*#?&]))[A-Za-z\d@$!%*#?&]{8,}$/;
     return passwordRegex.test(password);
   };
-
   const buttonDisabled =
     !email || !password || !confirmPassword || password !== confirmPassword;
 
