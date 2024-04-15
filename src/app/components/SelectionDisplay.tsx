@@ -12,7 +12,7 @@ export default function SelectionDisplay({
   notice: string;
 }) {
   return (
-    <div>
+    <div className="flex flex-col items-center">
       <h2 className="text-xl font-bold mb-4">{notice}</h2>
       <div className="flex flex-col gap-4">
         {selections.map((selection, index) => (
