@@ -236,7 +236,7 @@ export default function Hodam() {
             </div>
           )}
           {!isEmpty(thread) && (
-            <div className="sm:max-w-screen-sm lg:max-w-screen-lg flex flex-col items-center mx-auto">
+            <div className="flex flex-col items-center mx-auto">
               {isStarted ? null : (
                 <KeywordInput
                   neededBeadCount={neededBeadCount}
@@ -304,14 +304,16 @@ export default function Hodam() {
               </div>
             </div>
           )}
-          <div className="py-2 h-footer sticky bottom-0 border-t-2">
-            <SelectionDisplay
-              selections={selections}
-              isShowEnglish={isShowEnglish}
-              clickSelection={clickSelection}
-              notice={notice}
-            />
-          </div>
+          {selections.length > 0 && (
+            <div className="py-2 h-footer sticky bottom-0 border-t-2">
+              <SelectionDisplay
+                selections={selections}
+                isShowEnglish={isShowEnglish}
+                clickSelection={clickSelection}
+                notice={notice}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <GuideForSign />
