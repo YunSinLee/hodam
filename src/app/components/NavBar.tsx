@@ -90,28 +90,28 @@ export default function NavBar() {
           >
             <Link href="/">
               <p
-                className={`text-lg font-normal ${pathname === "/" ? "text-orange-500" : ""}`}
+                className={`text-lg font-medium ${pathname === "/" ? "text-orange-500" : ""}`}
               >
                 홈
               </p>
             </Link>
             <Link href="/service">
               <p
-                className={`text-lg font-normal ${pathname === "/service" ? "text-orange-500" : ""}`}
+                className={`text-lg font-medium ${pathname === "/service" ? "text-orange-500" : ""}`}
               >
                 시작하기
               </p>
             </Link>
             <Link href="/my-story">
               <p
-                className={`text-lg font-normal ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
+                className={`text-lg font-medium ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
               >
                 내 동화
               </p>
             </Link>
             {userInfo.id ? (
               <HButton
-                className="py-0"
+                className="py-0 font-medium text-lg"
                 label="로그아웃"
                 style="outlined"
                 onClick={signOut}
@@ -120,14 +120,14 @@ export default function NavBar() {
               <>
                 <Link href="/sign-up">
                   <p
-                    className={`text-lg font-normal ${pathname === "/sign-up" ? "text-orange-500" : ""}`}
+                    className={`text-lg font-medium ${pathname === "/sign-up" ? "text-orange-500" : ""}`}
                   >
                     회원가입
                   </p>
                 </Link>
                 <Link href="/sign-in">
                   <p
-                    className={`text-lg font-normal ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
+                    className={`text-lg font-medium ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
                   >
                     로그인
                   </p>
@@ -140,28 +140,28 @@ export default function NavBar() {
         <div className="hidden sm:flex sm:items-center sm:gap-4">
           <Link href="/">
             <p
-              className={`text-lg font-normal ${pathname === "/" ? "text-orange-500" : ""}`}
+              className={`font-medium text-lg ${pathname === "/" ? "text-orange-500" : ""}`}
             >
               홈
             </p>
           </Link>
           <Link href="/service">
             <p
-              className={`text-lg font-normal ${pathname === "/service" ? "text-orange-500" : ""}`}
+              className={`font-medium text-lg ${pathname === "/service" ? "text-orange-500" : ""}`}
             >
               시작하기
             </p>
           </Link>
           <Link href="/my-story">
             <p
-              className={`text-lg font-normal ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
+              className={`font-medium text-lg ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
             >
               내 동화
             </p>
           </Link>
           {userInfo.id ? (
             <HButton
-              className="py-0"
+              className="py-0 font-medium text-lg"
               label="로그아웃"
               style="outlined"
               onClick={signOut}
@@ -170,14 +170,14 @@ export default function NavBar() {
             <>
               <Link href="/sign-up">
                 <p
-                  className={`text-lg font-normal ${pathname === "/sign-up" ? "text-orange-500" : ""}`}
+                  className={`font-medium text-lg ${pathname === "/sign-up" ? "text-orange-500" : ""}`}
                 >
                   회원가입
                 </p>
               </Link>
               <Link href="/sign-in">
                 <p
-                  className={`text-lg font-normal ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
+                  className={`font-medium text-lg ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
                 >
                   로그인
                 </p>

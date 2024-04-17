@@ -18,5 +18,13 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    ({ addUtilities }) => {
+      addUtilities({
+        ".clickable-layer": {
+          "@apply hover:bg-gray-200 cursor-pointer": "",
+        },
+      });
+    },
+  ],
 };

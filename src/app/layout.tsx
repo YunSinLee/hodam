@@ -1,10 +1,7 @@
 // import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import NavBar from "./components/NavBar";
 import "../styles/globals.css";
 import { Metadata } from "next";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
@@ -21,9 +18,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <NavBar />
-        <div>{children}</div>
+      <body>
+        <div className="h-navbar fixed top-0 z-10 bg-neutral-50 w-full">
+          <NavBar />
+        </div>
+        <div className="absolute top-20 w-full">{children}</div>
       </body>
     </html>
   );

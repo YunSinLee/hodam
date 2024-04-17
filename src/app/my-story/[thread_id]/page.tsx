@@ -7,6 +7,8 @@ import messagesApi from "@/app/api/messages";
 import imageApi from "@/app/api/image";
 import type { Message, Thread } from "@/app/types/openai";
 import MessageDisplay from "@/app/components/MessageDisplay";
+import Link from "next/link";
+import HButton from "@/app/components/atomic/HButton";
 
 export default function MyStoryDetail() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -53,32 +55,42 @@ export default function MyStoryDetail() {
   }, []);
 
   return (
-    <div>
-      <h1>MyStoryDetail</h1>
-      <p>{params.thread_id}</p>
+    <div className="px-4 sm:px-8 py-4">
+      <div className="flex gap-4 items-center justify-between mb-8">
+        <Link
+          href={{
+            pathname: `/my-story`,
+          }}
+        >
+          <HButton
+            className="font-medium"
+            label="← 목록으로"
+            size="sm"
+            style="outlined"
+            color="neutral"
+          />
+        </Link>
+        <p className="font-medium text-xl">이야기 {params.thread_id}</p>
+        {thread.able_english ? (
+          <label className="cursor-pointer clickable-layer items-center flex gap-2 px-1">
+            <input
+              type="checkbox"
+              checked={isShowEnglish}
+              onChange={() => setIsShowEnglish(!isShowEnglish)}
+            />
+            영어 보이기
+          </label>
+        ) : null}
+      </div>
       {isLoading ? (
         <div>Loading...</div>
       ) : messages.length === 0 ? (
         <div>No messages</div>
       ) : (
-        <div>
-          {thread.able_english ? (
-            <label>
-              <input
-                type="checkbox"
-                checked={isShowEnglish}
-                onChange={() => setIsShowEnglish(!isShowEnglish)}
-              />
-              영어 보이기
-            </label>
-          ) : null}
+        <div className="flex flex-col items-center">
           {imageUrl ? (
-            <div style={{ maxWidth: "300px" }}>
-              <img
-                src={imageUrl}
-                alt="image"
-                style={{ width: "100%", height: "auto" }}
-              />
+            <div className="max-w-80 sm:max-w-screen-sm">
+              <img src={imageUrl} alt="image" />
             </div>
           ) : null}
           <MessageDisplay messages={messages} isShowEnglish={isShowEnglish} />
