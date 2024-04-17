@@ -236,7 +236,7 @@ export default function Hodam() {
             </div>
           )}
           {!isEmpty(thread) && (
-            <div className="max-w-screen-lg flex flex-col items-center mx-auto">
+            <div className="flex flex-col items-center mx-auto">
               {isStarted ? null : (
                 <KeywordInput
                   neededBeadCount={neededBeadCount}
@@ -261,58 +261,57 @@ export default function Hodam() {
                   ) => setIsImageIncluded(e.target.checked)}
                 />
               )}
-              {messages.length > 0 ? (
-                <div>
-                  {isEnglishIncluded ? (
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={isShowEnglish}
-                        onChange={() => setIsShowEnglish(!isShowEnglish)}
-                      />
-                      영어 보이기
-                    </label>
-                  ) : null}
-                  <div className="flex gap-12">
-                    <div className="flex-1">
+              <div className="overflow-auto py-8 h-screen-navbar-footer">
+                {isImageLoading ? (
+                  <div className="text-3xl">이미지를 생성하는 중...</div>
+                ) : (
+                  <div className="max-w-80 sm:max-w-screen-sm">
+                    {images.map((image, i) => (
+                      <img src={image} key={i} />
+                    ))}
+                  </div>
+                )}
+                {messages.length > 0 ? (
+                  <div>
+                    {isEnglishIncluded ? (
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={isShowEnglish}
+                          onChange={() => setIsShowEnglish(!isShowEnglish)}
+                        />
+                        영어 보이기
+                      </label>
+                    ) : null}
+                    <div>
                       <MessageDisplay
                         messages={messages}
                         isShowEnglish={isShowEnglish}
                       />
                     </div>
-                    <div className="max-w-80">
-                      <SelectionDisplay
-                        selections={selections}
-                        isShowEnglish={isShowEnglish}
-                        clickSelection={clickSelection}
-                        notice={notice}
-                      />
-                    </div>
                   </div>
-                </div>
-              ) : null}
-              {isImageLoading ? (
-                <div className={styles.loadingContainer}>
-                  이미지를 생성하는 중...
-                </div>
-              ) : (
-                <div className={styles.imageContainer}>
-                  {images.map((image, i) => (
-                    <img className={styles.image} src={image} key={i} />
-                  ))}
-                </div>
-              )}
-
-              {!messages.length && isLoading && (
-                <h4 className={styles.loadingContainer}>
-                  이야기 여행을 준비하는 중...
-                </h4>
-              )}
-              {!!messages.length && isLoading && (
-                <h4 className={styles.loadingContainer}>
-                  다음 이야기로 여행하는 중...
-                </h4>
-              )}
+                ) : null}
+                {!messages.length && isLoading && (
+                  <h4 className={styles.loadingContainer}>
+                    이야기 여행을 준비하는 중...
+                  </h4>
+                )}
+                {!!messages.length && isLoading && (
+                  <h4 className={styles.loadingContainer}>
+                    다음 이야기로 여행하는 중...
+                  </h4>
+                )}
+              </div>
+            </div>
+          )}
+          {selections.length > 0 && (
+            <div className="py-2 h-footer sticky bottom-0 border-t-2">
+              <SelectionDisplay
+                selections={selections}
+                isShowEnglish={isShowEnglish}
+                clickSelection={clickSelection}
+                notice={notice}
+              />
             </div>
           )}
         </div>

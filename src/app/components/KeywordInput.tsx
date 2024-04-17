@@ -33,55 +33,59 @@ export default function KeywordInput({
   }
 
   return (
-    <div className="flex flex-col w-full my-8">
-      <div className="flex items-center gap-8">
+    <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start w-full my-8 px-8">
+      <div className="flex flex-col items-center sm:items-start gap-2 w-full">
         <input
-          className="form-input text-xl flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 shadow-sm"
+          className="form-input text-xl w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 shadow-sm"
           type="text"
           value={keywords}
           onChange={onKeywordsChange}
         />
-        <HButton
-          children={
-            <div className="flex items-center gap-4">
-              <span className="text-xl">이야기를 들려줘!</span>
-              <div className="flex items-center">
-                <img src="bead.png" className="w-8 h-8" /> X {neededBeadCount}{" "}
-              </div>
+        <div className="flex gap-8">
+          {/* <label>
+            <input
+              type="checkbox"
+              checked={assistantType === "traditional"}
+              onChange={e => onAssistantClicked(e)}
+            />
+            전통적
+          </label> */}
+          <label className="text-sm sm:text-xl">
+            <input
+              className="w-8"
+              type="checkbox"
+              checked={isEnglishIncluded}
+              onChange={e => onLanguageClicked(e)}
+            />
+            영어포함하기
+          </label>
+          <label className="text-sm sm:text-xl">
+            <input
+              className="w-8"
+              type="checkbox"
+              checked={isImageIncluded}
+              onChange={onImageIncludedChange}
+            />
+            그림포함하기
+          </label>
+        </div>
+      </div>
+      <HButton
+        children={
+          <div className="flex items-center gap-2 sm:gap-4 sm:min-w-52">
+            <span className="text-md sm:text-xl">이야기를 들려줘!</span>
+            <div className="flex items-center">
+              <img
+                src="bead.png"
+                className="w-6 sm:w-8 h-6 sm:h-8 text-md sm:text-xl"
+              />{" "}
+              X {neededBeadCount}{" "}
             </div>
-          }
-          onClick={onButtonClicked}
-          style="filled"
-        />
-      </div>
-      <div className="flex gap-8">
-        {/* <label>
-          <input
-            type="checkbox"
-            checked={assistantType === "traditional"}
-            onChange={e => onAssistantClicked(e)}
-          />
-          전통적
-        </label> */}
-        <label className="text-xl">
-          <input
-            className="w-8"
-            type="checkbox"
-            checked={isEnglishIncluded}
-            onChange={e => onLanguageClicked(e)}
-          />
-          영어포함하기
-        </label>
-        <label className="text-xl">
-          <input
-            className="w-8"
-            type="checkbox"
-            checked={isImageIncluded}
-            onChange={onImageIncludedChange}
-          />
-          그림포함하기
-        </label>
-      </div>
+          </div>
+        }
+        onClick={onButtonClicked}
+        style="filled"
+      />
     </div>
   );
 }

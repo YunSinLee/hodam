@@ -122,7 +122,7 @@ body {
 
 body {
   margin: 0;
-  padding: 2.4rem;
+  font-family: -apple-system, HakgyoansimDoldam, sans-serif;
 }
 
 a {
@@ -130,6 +130,43 @@ a {
   text-decoration: none;
 }
 
-a:hover {
-  text-decoration: underline;
+@font-face {
+  font-family: "HakgyoansimDoldam";
+  font-weight: 400;
+  src: url("../../public/fonts/HakgyoansimDoldamL.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "HakgyoansimDoldam";
+  font-weight: 500;
+  src: url("../../public/fonts/HakgyoansimDoldamM.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "HakgyoansimDoldam";
+  font-weight: 700;
+  src: url("../../public/fonts/HakgyoansimDoldamB.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Milmi";
+  font-weight: 400;
+  src: url("../../public/fonts/Milmi.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Adultkid";
+  src: url("../../public/fonts/Adultkid.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "LaundryGodic";
+  font-weight: 400;
+  src: url("../../public/fonts/LaundryGodicRegular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "LaundryGodic";
+  font-weight: 500;
+  src: url("../../public/fonts/LaundryGodicBold.ttf") format("truetype");
 }

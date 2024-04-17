@@ -10,7 +10,21 @@ module.exports = {
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      height: {
+        navbar: "82px",
+        footer: "142px",
+        "screen-navbar-footer": "calc(100vh - 82px - 142px)",
+      },
+    },
   },
-  plugins: [],
+  plugins: [
+    ({ addUtilities }) => {
+      addUtilities({
+        ".clickable-layer": {
+          "@apply hover:bg-gray-200 cursor-pointer": "",
+        },
+      });
+    },
+  ],
 };

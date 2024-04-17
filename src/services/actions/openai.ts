@@ -92,6 +92,7 @@ export async function extractStoryContentFromHTML(
   htmlString: string,
 ): Promise<StoryContent> {
   // 섹션별로 HTML 문자열 분리
+  // 섹션별로 HTML 문자열 분리
   const messagesSectionMatch = htmlString.match(
     /<ul class="messages">([\s\S]*?)<\/ul>/,
   );
@@ -104,10 +105,13 @@ export async function extractStoryContentFromHTML(
   if (messagesSectionMatch) {
     const messagesHtml = messagesSectionMatch[1];
     const messageRegex =
-      /<li class="korean">(.+?)<\/li>\s*<li class="english">(.+?)<\/li>/g;
+      /<li class="korean">(.+?)<\/li>(\s*<li class="english">(.+?)<\/li>)?/g;
     let messageMatch;
     while ((messageMatch = messageRegex.exec(messagesHtml)) !== null) {
-      messages.push({ korean: messageMatch[1], english: messageMatch[2] });
+      messages.push({
+        korean: messageMatch[1],
+        english: messageMatch[3] || "", // 영어 메시지가 없으면 빈 문자열 사용
+      });
     }
   }
 
@@ -116,12 +120,12 @@ export async function extractStoryContentFromHTML(
   if (selectionsSectionMatch) {
     const selectionsHtml = selectionsSectionMatch[1];
     const selectionRegex =
-      /<li class="korean">(.+?)<\/li>\s*<li class="english">(.+?)<\/li>/g;
+      /<li class="korean">(.+?)<\/li>(\s*<li class="english">(.+?)<\/li>)?/g;
     let selectionMatch;
     while ((selectionMatch = selectionRegex.exec(selectionsHtml)) !== null) {
       selections.push({
         korean: selectionMatch[1],
-        english: selectionMatch[2],
+        english: selectionMatch[3] || "", // 영어 선택지가 없으면 빈 문자열 사용
       });
     }
   }
