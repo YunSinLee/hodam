@@ -108,7 +108,7 @@ export default function Hodam() {
     if (!userInfo.id || bead.count === undefined) return;
 
     if (bead.count < neededBeadCount) {
-      alert("구슬이 부족합니다.");
+      alert("곶감이 부족합니다.");
       throw new Error("Not enough beads");
     }
 
