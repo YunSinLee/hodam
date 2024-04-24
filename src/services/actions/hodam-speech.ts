@@ -4,7 +4,7 @@ export function useHodamSpeech() {
   changeHodamSpeechSetting({
     lang: "ko-KR",
     volume: 1,
-    rate: 0.6,
+    rate: 0.8,
     pitch: 0.75,
   });
 
