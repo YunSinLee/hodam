@@ -39,6 +39,7 @@ export default function KeywordInput({
           className="form-input text-xl w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 shadow-sm"
           type="text"
           value={keywords}
+          placeholder="예시) 윤신, 마법, 도서관"
           onChange={onKeywordsChange}
         />
         <div className="flex gap-8">
@@ -76,7 +77,7 @@ export default function KeywordInput({
             <span className="text-md sm:text-xl">이야기를 들려줘!</span>
             <div className="flex items-center">
               <img
-                src="bead.png"
+                src="persimmon_240424.png"
                 className="w-6 sm:w-8 h-6 sm:h-8 text-md sm:text-xl"
               />{" "}
               X {neededBeadCount}{" "}

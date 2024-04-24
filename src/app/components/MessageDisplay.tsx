@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useHodamSpeech } from "@/services/actions/hodam-speech";
 
 export default function MessageDisplay({
@@ -7,16 +8,29 @@ export default function MessageDisplay({
   messages: { text: string; text_en: string }[];
   isShowEnglish: boolean;
 }) {
-  function readMessage(message: string) {
-    const { setText, speak, stop } = useHodamSpeech();
+  const [currentSpeakingText, setCurrentSpeakingText] = useState(""); // 추가: 현재 읽히고 있는 텍스트
 
+  function readMessage(message: string, isKorean = true) {
+    const { HodamSpeech, changeHodamSpeechSetting, setText, speak, stop } =
+      useHodamSpeech();
+
+    changeHodamSpeechSetting({
+      lang: isKorean ? "ko-KR" : "en-US",
+      rate: isKorean ? 0.8 : 0.5,
+    });
     setText(message);
 
     if (window.speechSynthesis.speaking) {
       stop();
+      setCurrentSpeakingText(""); // speaking 중이 아닐 때 현재 읽히고 있는 텍스트 초기화
     } else {
       speak();
+      setCurrentSpeakingText(message); // speaking 중일 때 현재 읽히고 있는 텍스트 설정
     }
+
+    HodamSpeech.addEventListener("end", () => {
+      setCurrentSpeakingText(""); // 읽기가 끝나면 현재 읽히고 있는 텍스트 초기화
+    });
   }
 
   return (
@@ -25,15 +39,19 @@ export default function MessageDisplay({
         {messages.map((message, index) => (
           <div className="flex flex-col gap-2" key={index}>
             <p
-              className="text-xl leading-8"
+              className={`text-xl leading-8 clickable-layer ${
+                currentSpeakingText === message.text ? "font-bold" : ""
+              }`}
               onClick={() => readMessage(message.text)}
             >
               {message.text}
             </p>
             {isShowEnglish && (
               <p
-                className="text-xl leading-8"
-                onClick={() => readMessage(message.text_en)}
+                className={`text-xl leading-8 clickable-layer ${
+                  currentSpeakingText === message.text_en ? "font-bold" : ""
+                }`}
+                onClick={() => readMessage(message.text_en, false)}
               >
                 {message.text_en}
               </p>

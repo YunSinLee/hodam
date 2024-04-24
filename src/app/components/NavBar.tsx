@@ -60,16 +60,18 @@ export default function NavBar() {
 
   return (
     <nav className="flex items-center justify-between px-8 py-3 border-b-2 border-gray-300">
-      <div className="flex items-center space-x-2">
-        <img src="/Hodam1.png" className="w-12 h-14" />
-        <span className="text-2xl font-semibold">HODAM</span>
-      </div>
+      <Link href="/">
+        <div className="flex items-center space-x-2">
+          <img src="/Hodam1.png" className="w-12 h-14" />
+          <span className="text-2xl font-semibold">HODAM</span>
+        </div>
+      </Link>
       <div className="flex items-center gap-4">
         {bead && (
           <Link href="/bead">
             <div className="flex items-center">
               <div className="relative">
-                <img src="/bead.png" className="w-8 h-8 mr-1" />
+                <img src="/persimmon_240424.png" className="w-8 h-8 mr-1" />
                 <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-orange-500 rounded-full w-6 h-6 flex items-center justify-center text-white text-xs font-semibold">
                   {bead.count}
                 </div>

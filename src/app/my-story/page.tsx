@@ -42,7 +42,7 @@ export default function MyStory() {
   }, [userInfo.id]);
 
   return (
-    <div>
+    <div className="max-w-screen-sm sm:max-w-screen-lg mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-4">My Story</h1>
       {isLoading ? (
         <div>Loading...</div>
