@@ -76,7 +76,7 @@ export default function KeywordInput({
             <span className="text-md sm:text-xl">이야기를 들려줘!</span>
             <div className="flex items-center">
               <img
-                src="bead.png"
+                src="persimmon_240424.png"
                 className="w-6 sm:w-8 h-6 sm:h-8 text-md sm:text-xl"
               />{" "}
               X {neededBeadCount}{" "}

@@ -29,9 +29,9 @@ const BeadPage: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center">
-      <img src="bead.png" alt="Bead" className="w-24 h-24" />
+      <img src="persimmon_240424.png" alt="Bead" className="w-24 h-24" />
       <p className="text-xl font-bold">Bead Count: {bead.count}</p>
-      <div className="space-x-4">
+      {/* <div className="space-x-4">
         {buttonData.map(button => (
           <HButton
             key={button.quantity}
@@ -39,7 +39,7 @@ const BeadPage: React.FC = () => {
               <div>
                 <div className="flex items-center">
                   <img
-                    src="bead.png"
+                    src="persimmon_240424.png"
                     alt={`Image ${button.quantity}`}
                     className="w-8 h-8"
                   />{" "}
@@ -52,7 +52,7 @@ const BeadPage: React.FC = () => {
             style="outlined"
           />
         ))}
-      </div>
+      </div> */}
     </div>
   );
 };
