@@ -8,7 +8,7 @@ import {
   retrieveRun,
   getExtractedText,
   createImage,
-} from "../../services/actions/openai";
+} from "../api/openai";
 import styles from "./page.module.scss";
 import { Message, Thread, Selection } from "../types/openai";
 import { isEmpty } from "../utils";
