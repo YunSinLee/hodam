@@ -58,7 +58,7 @@ export default function KeywordInput({
               checked={isEnglishIncluded}
               onChange={e => onLanguageClicked(e)}
             />
-            영어포함하기
+            영어포함
           </label>
           <label className="text-sm sm:text-xl">
             <input
@@ -67,14 +67,14 @@ export default function KeywordInput({
               checked={isImageIncluded}
               onChange={onImageIncludedChange}
             />
-            그림포함하기
+            그림포함
           </label>
         </div>
       </div>
       <HButton
         children={
-          <div className="flex items-center gap-2 sm:gap-4 sm:min-w-52">
-            <span className="text-md sm:text-xl">이야기를 들려줘!</span>
+          <div className="flex items-center gap-2 justify-center sm:gap-4 sm:min-w-32">
+            <span className="text-md sm:text-xl">시작!</span>
             <div className="flex items-center">
               <img
                 src="persimmon_240424.png"
