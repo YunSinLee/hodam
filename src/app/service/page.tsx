@@ -69,25 +69,17 @@ export default function Hodam() {
     if (userInfo.id) startThread();
   }, [userInfo.id]);
 
-  // useEffect(() => {
-  //   getImageFn();
+  useEffect(() => {
+    getImageFn();
 
-  //   async function getImageFn() {
-  //     if (turn === 0 && isImageIncluded && imageDescription) {
-  //       setIsImageLoading(true);
-  //       await getImage(imageDescription);
-  //       setIsImageLoading(false);
-  //     }
-  //   }
-  // }, [imageDescription]);
-
-  async function getImageFn() {
-    if (isImageIncluded && imageDescription) {
-      setIsImageLoading(true);
-      await getImage(imageDescription);
-      setIsImageLoading(false);
+    async function getImageFn() {
+      if (turn === 0 && isImageIncluded && imageDescription) {
+        setIsImageLoading(true);
+        await getImage(imageDescription);
+        setIsImageLoading(false);
+      }
     }
-  }
+  }, [imageDescription]);
 
   async function getSession() {
     const userData = await userApi.getSession();
@@ -299,12 +291,6 @@ export default function Hodam() {
                     </div>
                   </div>
                 ) : null}
-                {imageDescription && (
-                  <div>
-                    <span>{imageDescription}</span>
-                    <button onClick={getImageFn}>이미지 생성</button>
-                  </div>
-                )}
                 {!messages.length && isLoading && (
                   <h4 className={styles.loadingContainer}>
                     이야기 여행을 준비하는 중...
