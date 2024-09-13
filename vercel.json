@@ -4,7 +4,7 @@
     "src/app/api/*": {
       "maxDuration": 25
     },
-    "src/services/actions/*": {
+    "src/services/actions/**": {
       "maxDuration": 25
     }
   }
