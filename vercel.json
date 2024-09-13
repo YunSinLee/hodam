@@ -1,10 +1,10 @@
 {
   "regions": ["icn1"],
   "functions": {
-    "src/api/*": {
+    "src/app/api/*": {
       "maxDuration": 25
     },
-    "src/app/api/*": {
+    "src/services/actions/*": {
       "maxDuration": 25
     }
   }
