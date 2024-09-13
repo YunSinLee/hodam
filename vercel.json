@@ -1,13 +1,13 @@
 {
   "regions": ["icn1"],
   "functions": {
-    "api/test.js": {
-      "maxDuration": 30
-    },
-    "api/*.js": {
+    "api/*": {
       "maxDuration": 15
     },
-    "src/api/*.js": {
+    "src/api/*": {
+      "maxDuration": 25
+    },
+    "src/app/api/*": {
       "maxDuration": 25
     }
   }
