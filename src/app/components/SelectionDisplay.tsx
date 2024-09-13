@@ -19,7 +19,6 @@ export default function SelectionDisplay({
           <HButton
             children={
               <div className="flex gap-2 text-left">
-                <span>{index + 1}. </span>
                 <span className="flex flex-col gap-1">
                   <span>{selection.text}</span>
                   {isShowEnglish && <span>{selection.text_en}</span>}
@@ -30,6 +29,7 @@ export default function SelectionDisplay({
             size="md"
             color="orange"
             style="filled"
+            key={index}
           />
         ))}
       </div>

@@ -236,7 +236,7 @@ export default function Hodam() {
             </div>
           )}
           {!isEmpty(thread) && (
-            <div className="flex flex-col items-center mx-auto">
+            <div className="flex flex-col items-center mx-auto px-4">
               {isStarted ? null : (
                 <KeywordInput
                   neededBeadCount={neededBeadCount}
@@ -265,7 +265,7 @@ export default function Hodam() {
                 {isImageLoading ? (
                   <div className="text-3xl">이미지를 생성하는 중...</div>
                 ) : (
-                  <div className="max-w-80 sm:max-w-screen-sm">
+                  <div className="max-w-80 sm:max-w-screen-sm mx-auto">
                     {images.map((image, i) => (
                       <img src={image} key={i} />
                     ))}
