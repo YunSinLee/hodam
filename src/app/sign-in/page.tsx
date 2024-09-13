@@ -70,7 +70,7 @@ export default function SignIn() {
       className="flex flex-col max-w-96 mx-auto mt-20"
     >
       <label className="mb-2 flex gap-4 items-center">
-        <span className="block w-14">이메일</span>
+        <span className="block w-16">이메일</span>
         <input
           type="email"
           value={email}
@@ -81,7 +81,7 @@ export default function SignIn() {
       {emailError && <p className="text-red-500">{emailError}</p>}
       <br />
       <label className="mb-2 flex gap-4 items-center">
-        <span className="block w-14">비밀번호</span>
+        <span className="block w-16">비밀번호</span>
         <input
           type="password"
           value={password}
