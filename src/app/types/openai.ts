@@ -4,6 +4,7 @@ export interface Thread {
   created_at: string;
   user_id: string;
   able_english: boolean;
+  has_image: boolean;
 }
 
 export interface Message {

@@ -5,8 +5,9 @@ import keywordsApi from "@/app/api/keywords";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 import { useEffect, useState } from "react";
-import type { Keyword, Thread } from "../types/openai";
+import type { Keyword, Thread } from "@/app/types/openai";
 import Link from "next/link";
+import { formatTime } from "@/app/utils";
 
 export default function MyStory() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -43,57 +44,69 @@ export default function MyStory() {
 
   return (
     <div className="max-w-screen-sm sm:max-w-screen-lg mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-4">My Story</h1>
+      <h1 className="text-2xl font-bold mb-4">내 동화</h1>
       {isLoading ? (
-        <div>Loading...</div>
+        <div>이야기 목록을 불러오는 중...</div>
       ) : (
         <div>
           <div>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="py-2 px-4 border-b text-center">번호</th>
-                  <th className="py-2 px-4 border-b text-center">
+                  <th className="hidden sm:block min-w-12 py-2 px-2 border-b text-center">
+                    번호
+                  </th>
+                  <th className="min-w-12 sm:min-w-20 py-2 px-2 border-b text-center">
+                    생성
+                  </th>
+                  <th className="py-2 px-2 border-b text-center">
                     동화 키워드
                   </th>
-                  <th className="py-2 px-4 border-b text-center">영어보기</th>
-                  <th className="py-2 px-4 border-b text-center">상세보기</th>
+                  <th className="min-w-14 sm:min-w-20 py-2 px-2 border-b text-center">
+                    영어
+                  </th>
+                  <th className="py-2 px-2 border-b text-center">이미지</th>
+                  <th className="py-2 px-2 border-b text-center"></th>
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(keywordsByThread).map(threadId => {
-                  const keywords = keywordsByThread[parseInt(threadId)];
+                {threads.map((thread: Thread) => {
                   return (
-                    <tr key={threadId}>
-                      <td className="py-2 px-4 border-b text-center">
-                        {threadId}
+                    <tr key={thread.id}>
+                      <td className="hidden sm:block min-w-12 py-2 px-2 border-b text-center">
+                        {thread.id}
                       </td>
-                      <td className="py-2 px-4 border-b text-center">
-                        {keywords.map(keyword => (
-                          <a key={keyword.id} className="mr-2">
-                            {keyword.keyword}
-                          </a>
-                        ))}
+                      <td className="min-w-12 sm:min-w-20 py-2 px-2 border-b text-center">
+                        <span className="hidden sm:block">
+                          {formatTime(thread.created_at, "YY.MM.DD")}
+                        </span>
+                        <span className="block sm:hidden">
+                          {formatTime(thread.created_at, "MM.DD")}
+                        </span>
                       </td>
-                      <td className="py-2 px-4 border-b text-center">
-                        {threads.find(
-                          thread => thread.id === parseInt(threadId),
-                        )?.able_english
-                          ? "가능"
-                          : "불가능"}
+                      <td className="py-2 px-2 border-b text-center">
+                        {keywordsByThread[thread.id]?.map(
+                          (keyword: Keyword) => (
+                            <a key={keyword.id}>{keyword.keyword}</a>
+                          ),
+                        )}
                       </td>
-                      <td className="py-2 px-4 border-b text-blue-500 text-center">
+                      <td className="min-w-14 sm:min-w-20 py-2 px-2 border-b text-center">
+                        {thread.able_english ? "가능" : "불가능"}
+                      </td>
+                      <td className="min-w-20 py-2 px-2 border-b text-center">
+                        {thread.has_image ? "있어요" : "-"}
+                      </td>
+                      <td className="py-2 px-2 border-b text-gray-400 text-center">
                         <Link
                           href={{
-                            pathname: `/my-story/${threadId}`,
+                            pathname: `/my-story/${thread.id}`,
                             query: {
-                              ableEnglish: threads.find(
-                                thread => thread.id === parseInt(threadId),
-                              )?.able_english,
+                              ableEnglish: thread.able_english,
                             },
                           }}
                         >
-                          클릭
+                          〉
                         </Link>
                       </td>
                     </tr>
