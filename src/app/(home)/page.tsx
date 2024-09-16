@@ -5,8 +5,18 @@ import HButton from "@/app/components/atomic/HButton";
 
 export default function Home() {
   return (
-    <div className="flex flex-col sm:flex-row items-center text-center gap-4 justify-center my-4">
-      <img src="/Hodam1.png" className="w-72 h-80" />
+    <div className="flex flex-col items-center text-center gap-4 justify-center my-4">
+      <video
+        className="w-8/12 border-orange-500 border-2 rounded-md"
+        controls
+        autoPlay
+        muted
+      >
+        <source
+          src="https://zdvnlojkptjgalxgcqxa.supabase.co/storage/v1/object/sign/dev_src/hodam_tutorial.mov?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJkZXZfc3JjL2hvZGFtX3R1dG9yaWFsLm1vdiIsImlhdCI6MTcyNjQ2NDkyNiwiZXhwIjoxODIxMDcyOTI2fQ.eiiVBvAzMS56mxJMYHsafe2x8cAllpdo0dco2CQk2mc&t=2024-09-16T05%3A35%3A27.052Z"
+          type="video/mp4"
+        />
+      </video>
       <div className="flex flex-col items-center gap-4 px-4">
         <div className="text-xl flex flex-col items-center gap-2">
           <p>

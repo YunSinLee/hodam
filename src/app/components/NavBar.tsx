@@ -62,7 +62,7 @@ export default function NavBar() {
     <nav className="flex items-center justify-between px-8 py-3 border-b-2 border-gray-300">
       <Link href="/">
         <div className="flex items-center space-x-2">
-          <img src="/Hodam1.png" className="w-12 h-14" />
+          <img src="/hodam.png" className="w-12 h-12" />
           <span className="text-2xl font-semibold">HODAM</span>
         </div>
       </Link>

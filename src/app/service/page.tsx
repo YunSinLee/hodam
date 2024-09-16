@@ -231,7 +231,7 @@ export default function Hodam() {
       {userInfo.id ? (
         <div>
           {isEmpty(thread) && (
-            <div className="text-3xl text-center mt-20">
+            <div className="animate-pulse text-3xl text-center mt-20">
               이야기 시작을 준비하고 있어요.
             </div>
           )}
@@ -263,7 +263,9 @@ export default function Hodam() {
               )}
               <div className="overflow-auto py-8 h-screen-navbar-footer">
                 {isImageLoading ? (
-                  <div className="text-3xl">이미지를 생성하는 중...</div>
+                  <div className="animate-pulse max-w-80 sm:max-w-screen-sm aspect-square flex justify-center items-center mx-auto text-3xl text-gray-500 border-2 border-grey-500 rounded-md">
+                    이미지를 생성하는 중...
+                  </div>
                 ) : (
                   <div className="max-w-80 sm:max-w-screen-sm mx-auto">
                     {images.map((image, i) => (
@@ -292,12 +294,12 @@ export default function Hodam() {
                   </div>
                 ) : null}
                 {!messages.length && isLoading && (
-                  <h4 className={styles.loadingContainer}>
+                  <h4 className="animate-pulse flex justify-center items-center text-3xl">
                     이야기 여행을 준비하는 중...
                   </h4>
                 )}
                 {!!messages.length && isLoading && (
-                  <h4 className={styles.loadingContainer}>
+                  <h4 className="animate-pulse flex justify-center items-center text-3xl">
                     다음 이야기로 여행하는 중...
                   </h4>
                 )}
