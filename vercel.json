@@ -9,6 +9,15 @@
     },
     "app/service/*": {
       "maxDuration": 60
+    },
+    "src/app/api/*": {
+      "maxDuration": 60
+    },
+    "src/app/service": {
+      "maxDuration": 60
+    },
+    "src/app/service/*": {
+      "maxDuration": 60
     }
   }
 }
