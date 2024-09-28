@@ -5,6 +5,7 @@ import userApi from "@/app/api/user";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 import HButton from "@/app/components/atomic/HButton";
+import { redirect } from "next/navigation";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -51,6 +52,18 @@ export default function SignIn() {
     }
   };
 
+  async function signinWithKakao() {
+    const url = await userApi.signInWithKakao();
+
+    if (url) redirect(url);
+  }
+
+  async function signinWithGoogle() {
+    const url = await userApi.signInWithGoogle();
+
+    if (url) redirect(url);
+  }
+
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
@@ -65,39 +78,43 @@ export default function SignIn() {
   const buttonDisabled = !email || !password;
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col max-w-96 mx-auto mt-20"
-    >
-      <label className="mb-2 flex gap-4 items-center">
-        <span className="block w-16">이메일</span>
-        <input
-          type="email"
-          value={email}
-          onChange={handleEmailChange}
-          className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
+    <div>
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col max-w-96 mx-auto mt-20"
+      >
+        <label className="mb-2 flex gap-4 items-center">
+          <span className="block w-16">이메일</span>
+          <input
+            type="email"
+            value={email}
+            onChange={handleEmailChange}
+            className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
+          />
+        </label>
+        {emailError && <p className="text-red-500">{emailError}</p>}
+        <br />
+        <label className="mb-2 flex gap-4 items-center">
+          <span className="block w-16">비밀번호</span>
+          <input
+            type="password"
+            value={password}
+            onChange={handlePasswordChange}
+            className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
+          />
+        </label>
+        {passwordError && <p className="text-red-500">{passwordError}</p>}
+        <br />
+        <HButton
+          label="로그인"
+          size="md"
+          style="filled"
+          className="text-center"
+          disabled={buttonDisabled}
         />
-      </label>
-      {emailError && <p className="text-red-500">{emailError}</p>}
-      <br />
-      <label className="mb-2 flex gap-4 items-center">
-        <span className="block w-16">비밀번호</span>
-        <input
-          type="password"
-          value={password}
-          onChange={handlePasswordChange}
-          className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
-        />
-      </label>
-      {passwordError && <p className="text-red-500">{passwordError}</p>}
-      <br />
-      <HButton
-        label="로그인"
-        size="md"
-        style="filled"
-        className="text-center"
-        disabled={buttonDisabled}
-      />
-    </form>
+      </form>
+      <button onClick={signinWithKakao}>카카오</button>
+      <button onClick={signinWithGoogle}>구글</button>
+    </div>
   );
 }
