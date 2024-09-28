@@ -120,13 +120,7 @@ export default function NavBar() {
               />
             ) : (
               <>
-                <Link href="/sign-up">
-                  <p
-                    className={`text-lg font-medium ${pathname === "/sign-up" ? "text-orange-500" : ""}`}
-                  >
-                    회원가입
-                  </p>
-                </Link>
+                {/* sign-up 링크 제거 */}
                 <Link href="/sign-in">
                   <p
                     className={`text-lg font-medium ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
@@ -170,13 +164,7 @@ export default function NavBar() {
             />
           ) : (
             <>
-              <Link href="/sign-up">
-                <p
-                  className={`font-medium text-lg ${pathname === "/sign-up" ? "text-orange-500" : ""}`}
-                >
-                  회원가입
-                </p>
-              </Link>
+              {/* sign-up 링크 제거 */}
               <Link href="/sign-in">
                 <p
                   className={`font-medium text-lg ${pathname === "/sign-in" ? "text-orange-500" : ""}`}

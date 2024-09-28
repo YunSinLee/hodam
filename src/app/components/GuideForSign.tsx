@@ -6,9 +6,6 @@ export default function GuideForSign() {
     <div className="text-center">
       <p>로그인이 필요합니다.</p>
       <div className="flex justify-center mt-4">
-        <Link href="/sign-up" className="mr-2">
-          <HButton label="회원가입" />
-        </Link>
         <Link href="/sign-in">
           <HButton label="로그인" />
         </Link>

@@ -1,120 +1,42 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react"; // useState 제거
 import userApi from "@/app/api/user";
 import useUserInfo from "@/services/hooks/use-user-info";
 
-import HButton from "@/app/components/atomic/HButton";
-import { redirect } from "next/navigation";
-
 export default function SignIn() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-
-  const { setUserInfo } = useUserInfo();
-
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setEmail(value);
-    setEmailError(validateEmail(value) ? "" : "이메일이 올바르지 않습니다.");
-  };
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setPassword(value);
-    setPasswordError(
-      validatePassword(value)
-        ? ""
-        : "비밀번호는 8자 이상이어야 하며 문자와 숫자, 특수기호의 조합이어야 합니다.",
-    );
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateEmail(email)) {
-      setEmailError("이메일이 올바르지 않습니다.");
-      return;
-    }
-    if (!validatePassword(password)) {
-      setPasswordError(
-        "비밀번호는 8자 이상이어야 하며 문자와 숫자, 특수기호의 조합이어야 합니다.",
-      );
-      return;
-    }
-
-    const data = await userApi.signIn({ email, password });
-
-    if (data) {
-      setUserInfo(data);
-      location.href = "/";
-    }
-  };
-
   async function signinWithKakao() {
-    const url = await userApi.signInWithKakao();
-
-    if (url) redirect(url);
+    await userApi.signInWithKakao();
   }
 
   async function signinWithGoogle() {
-    const url = await userApi.signInWithGoogle();
-
-    if (url) redirect(url);
+    await userApi.signInWithGoogle();
   }
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const validatePassword = (password: string) => {
-    const passwordRegex =
-      /^(?:(?=.*[A-Za-z])(?=.*\d)|(?=.*[A-Za-z])(?=.*[@$!%*#?&])|(?=.*\d)(?=.*[@$!%*#?&]))[A-Za-z\d@$!%*#?&]{8,}$/;
-    return passwordRegex.test(password);
-  };
-
-  const buttonDisabled = !email || !password;
-
   return (
-    <div>
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col max-w-96 mx-auto mt-20"
+    <div className="flex flex-col items-center mt-20">
+      <button
+        onClick={signinWithKakao}
+        className="mb-4 flex items-center justify-center bg-yellow-400 rounded-md px-4 py-3 hover:bg-yellow-500 transition w-full max-w-xs"
       >
-        <label className="mb-2 flex gap-4 items-center">
-          <span className="block w-16">이메일</span>
-          <input
-            type="email"
-            value={email}
-            onChange={handleEmailChange}
-            className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
-          />
-        </label>
-        {emailError && <p className="text-red-500">{emailError}</p>}
-        <br />
-        <label className="mb-2 flex gap-4 items-center">
-          <span className="block w-16">비밀번호</span>
-          <input
-            type="password"
-            value={password}
-            onChange={handlePasswordChange}
-            className="border border-gray-300 rounded-md px-2 py-1 mt-1 flex-1"
-          />
-        </label>
-        {passwordError && <p className="text-red-500">{passwordError}</p>}
-        <br />
-        <HButton
-          label="로그인"
-          size="md"
-          style="filled"
-          className="text-center"
-          disabled={buttonDisabled}
+        <img
+          src="https://zdvnlojkptjgalxgcqxa.supabase.co/storage/v1/object/sign/dev_src/kakao_logo.svg?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJkZXZfc3JjL2tha2FvX2xvZ28uc3ZnIiwiaWF0IjoxNzI3NTA1ODM3LCJleHAiOjIwNDI4NjU4Mzd9.Cmokqsi-zX2BRPMbFK68LihtknghrBnZSfTrg-K8a0o&t=2024-09-28T06%3A43%3A57.830Z"
+          alt="카카오 로그인"
+          className="h-6 mr-2"
         />
-      </form>
-      <button onClick={signinWithKakao}>카카오</button>
-      <button onClick={signinWithGoogle}>구글</button>
+        카카오로 로그인
+      </button>
+      <button
+        onClick={signinWithGoogle}
+        className="flex items-center justify-center bg-white border border-gray-300 rounded-md px-4 py-3 hover:bg-gray-100 transition w-full max-w-xs"
+      >
+        <img
+          src="https://zdvnlojkptjgalxgcqxa.supabase.co/storage/v1/object/sign/dev_src/google_logo.svg?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJkZXZfc3JjL2dvb2dsZV9sb2dvLnN2ZyIsImlhdCI6MTcyNzUwNTgyNCwiZXhwIjoyMDQyODY1ODI0fQ.DzYbBmaD4t6MHGlJQCYx-vpXvpKCoMlA7usHb-OsSRI&t=2024-09-28T06%3A43%3A44.619Z"
+          alt="구글 로그인"
+          className="h-6 mr-2"
+        />
+        구글로 로그인
+      </button>
     </div>
   );
 }
