@@ -2,6 +2,7 @@
 import NavBar from "./components/NavBar";
 import "../styles/globals.css";
 import { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 export const metadata: Metadata = {
   title: {
@@ -16,6 +17,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const gaId = process.env.NEXT_PUBLIC_GA_ID!;
+
   return (
     <html lang="en">
       <body>
@@ -24,6 +27,7 @@ export default function RootLayout({
         </div>
         <div className="absolute top-20 w-full">{children}</div>
       </body>
+      <GoogleAnalytics gaId={gaId} />
     </html>
   );
 }
