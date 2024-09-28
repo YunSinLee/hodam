@@ -19,5 +19,16 @@
     "src/app/service/*": {
       "maxDuration": 60
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
+  ]
 }
