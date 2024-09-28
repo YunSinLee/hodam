@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://hodam.vercel.app
+
+# Sitemaps
+Sitemap: https://hodam.vercel.app/sitemap.xml

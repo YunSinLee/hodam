@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postbuild": "next-sitemap"
   },
   "dependencies": {
     "@langchain/openai": "^0.2.11",
@@ -16,6 +17,7 @@
     "elevenlabs": "^0.2.0",
     "langchain": "^0.2.19",
     "next": "14.0.4",
+    "next-sitemap": "^4.2.3",
     "openai": "^4.60.0",
     "react": "^18",
     "react-dom": "^18",
