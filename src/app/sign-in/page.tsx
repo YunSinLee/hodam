@@ -2,7 +2,7 @@
 
 import React from "react"; // useState 제거
 import userApi from "@/app/api/user";
-import useUserInfo from "@/services/hooks/use-user-info";
+// import useUserInfo from "@/services/hooks/use-user-info";
 
 export default function SignIn() {
   async function signinWithKakao() {
