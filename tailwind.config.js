@@ -18,6 +18,9 @@ module.exports = {
       },
     },
   },
+  corePlugins: {
+    preflight: false, // PrimeReact 스타일과의 충돌 방지
+  },
   plugins: [
     ({ addUtilities }) => {
       addUtilities({

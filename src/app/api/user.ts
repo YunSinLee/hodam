@@ -78,9 +78,6 @@ const userApi = {
   async signInWithKakao() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "kakao",
-      // options: {
-      //   redirectTo: "http://localhost:3000/",
-      // },
     });
 
     if (error) {
