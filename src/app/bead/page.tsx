@@ -10,7 +10,7 @@ const BeadPage: React.FC = () => {
   const { bead, setBead } = useBead();
   const { userInfo } = useUserInfo();
 
-  async function chargeBeads(quantity: number) {
+  async function chargeBeads(quantity: number, price: number) {
     if (!userInfo.id || !bead) return;
     const beadInfo = await beadApi.updateBeadCount(
       userInfo.id,
@@ -18,6 +18,15 @@ const BeadPage: React.FC = () => {
     );
 
     setBead(beadInfo);
+
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("event", "charge_beads", {
+        category: "Bead",
+        action: "Charge",
+        label: `${quantity} Beads`,
+        value: price,
+      });
+    }
   }
 
   const buttonData = [
@@ -35,7 +44,7 @@ const BeadPage: React.FC = () => {
         {buttonData.map(button => (
           <Button
             key={button.quantity}
-            onClick={() => chargeBeads(button.quantity)}
+            onClick={() => chargeBeads(button.quantity, button.price)}
             className="p-button-outlined min-w-32 flex flex-col items-center justify-center"
           >
             <div className="flex items-center">
