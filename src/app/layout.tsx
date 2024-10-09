@@ -1,9 +1,9 @@
 import { PrimeReactProvider } from "primereact/api";
+import "../styles/globals.css";
 import "primereact/resources/themes/lara-light-amber/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import NavBar from "./components/NavBar";
-import "../styles/globals.css";
 import { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 export const metadata: Metadata = {
@@ -23,9 +23,9 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <PrimeReactProvider value={{ ripple: true }}>
+      <PrimeReactProvider value={{ ripple: true, unstyled: true }}>
         <body>
-          <div className="h-navbar fixed top-0 z-10 w-full">
+          <div className="h-navbar fixed top-0 z-10 w-full  border-b-2 border-gray-300 bg-white">
             <NavBar />
           </div>
           <div className="absolute top-20 w-full">{children}</div>

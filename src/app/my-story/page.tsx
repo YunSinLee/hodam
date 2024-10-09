@@ -1,21 +1,25 @@
 "use client";
 
 import threadApi from "@/app/api/thread";
-import keywordsApi from "@/app/api/keywords";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 import { useEffect, useState } from "react";
-import type { Keyword, Thread } from "@/app/types/openai";
+import type { ThreadWithUser } from "@/app/types/openai";
 import Link from "next/link";
 import { formatTime } from "@/app/utils";
 
 export default function MyStory() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [keywordsByThread, setKeywordsByThread] = useState<
-    Record<number, Keyword[]>
-  >([]);
+  const [threads, setThreads] = useState<ThreadWithUser[]>([]);
   const { userInfo } = useUserInfo();
+
+  async function fetchAllThreads() {
+    setIsLoading(true);
+    const threads = await threadApi.fetchAllThreads();
+    setThreads(threads);
+
+    setIsLoading(false);
+  }
 
   async function fetchThreadsByUserId() {
     if (!userInfo.id) return;
@@ -24,23 +28,17 @@ export default function MyStory() {
       user_id: userInfo.id,
     });
     setThreads(threads);
-    const keywords = await keywordsApi.fetchKeywords({
-      thread_ids: threads.map(thread => thread.id),
-    });
 
-    const result: Record<number, Keyword[]> = {};
-    for (const thread of threads) {
-      if (!keywords[thread.id]) continue;
-      result[thread.id] = keywords[thread.id];
-    }
-
-    setKeywordsByThread(result);
     setIsLoading(false);
   }
 
   useEffect(() => {
+    fetchAllThreads();
+  }, []); // 빈 배열을 추가하여 컴포넌트가 마운트될 때만 호출되도록 변경
+
+  useEffect(() => {
     fetchThreadsByUserId();
-  }, [userInfo.id]);
+  }, [userInfo.id]); // userInfo.id가 변경될 때도 호출되도록 유지
 
   return (
     <div className="max-w-screen-sm sm:max-w-screen-lg mx-auto px-4 py-8">
@@ -53,8 +51,8 @@ export default function MyStory() {
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="hidden sm:block min-w-12 py-2 px-2 border-b text-center">
-                    번호
+                  <th className="min-w-12 sm:min-w-20 py-2 px-2 border-b text-center">
+                    유저
                   </th>
                   <th className="min-w-12 sm:min-w-20 py-2 px-2 border-b text-center">
                     생성
@@ -70,11 +68,11 @@ export default function MyStory() {
                 </tr>
               </thead>
               <tbody>
-                {threads.map((thread: Thread) => {
+                {threads.map((thread: ThreadWithUser) => {
                   return (
                     <tr key={thread.id}>
-                      <td className="hidden sm:block min-w-12 py-2 px-2 border-b text-center">
-                        {thread.id}
+                      <td className="min-w-12 sm:min-w-20 py-2 px-2 border-b text-center">
+                        {thread.user?.display_name}
                       </td>
                       <td className="min-w-12 sm:min-w-20 py-2 px-2 border-b text-center">
                         <span className="hidden sm:block">
@@ -85,11 +83,9 @@ export default function MyStory() {
                         </span>
                       </td>
                       <td className="py-2 px-2 border-b text-center">
-                        {keywordsByThread[thread.id]?.map(
-                          (keyword: Keyword) => (
-                            <a key={keyword.id}>{keyword.keyword}</a>
-                          ),
-                        )}
+                        {thread.keywords
+                          ?.map(keyword => keyword.keyword)
+                          .join(", ")}
                       </td>
                       <td className="min-w-14 sm:min-w-20 py-2 px-2 border-b text-center">
                         {thread.able_english ? "가능" : "불가능"}

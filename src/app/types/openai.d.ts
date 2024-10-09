@@ -1,3 +1,5 @@
+import type { User } from "../types/user";
+
 export interface Thread {
   id: number;
   openai_thread_id: string;
@@ -5,6 +7,11 @@ export interface Thread {
   user_id: string;
   able_english: boolean;
   has_image: boolean;
+}
+
+export interface ThreadWithUser extends Thread {
+  user: User;
+  keywords: Keyword[];
 }
 
 export interface Message {
