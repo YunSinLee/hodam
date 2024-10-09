@@ -59,7 +59,7 @@ export default function NavBar() {
   }, [userInfo.id]);
 
   return (
-    <nav className="flex items-center justify-between px-8 py-3 border-b-2 border-gray-300">
+    <nav className="flex items-center justify-between px-8 py-3">
       <Link href="/">
         <div className="flex items-center space-x-2">
           <img src="/hodam.png" className="w-12 h-12" />
@@ -106,7 +106,7 @@ export default function NavBar() {
             </Link>
             <Link href="/my-story">
               <p
-                className={`text-lg font-medium ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
+                className={`text-lg font-medium ${pathname?.includes("/my-story") ? "text-orange-500" : ""}`}
               >
                 내 동화
               </p>
@@ -150,7 +150,7 @@ export default function NavBar() {
           </Link>
           <Link href="/my-story">
             <p
-              className={`font-medium text-lg ${pathname.includes("/my-story") ? "text-orange-500" : ""}`}
+              className={`font-medium text-lg ${pathname?.includes("/my-story") ? "text-orange-500" : ""}`}
             >
               내 동화
             </p>

@@ -1,5 +1,5 @@
 import { supabase } from "../utils/supabase";
-import { Thread } from "../types/openai";
+import type { Thread, ThreadWithUser } from "../types/openai";
 
 const threadApi = {
   async createThread({
@@ -31,17 +31,46 @@ const threadApi = {
 
     return data![0] as Thread;
   },
+  async fetchAllThreads(): Promise<ThreadWithUser[]> {
+    const { data, error } = await supabase.from("thread").select(
+      `
+        *,
+        user: user_id (
+          id,
+          email,
+          display_name
+        )
+      `,
+    );
+
+    if (error) {
+      console.error("Error fetching threads:", error);
+      return [];
+    }
+
+    return data as ThreadWithUser[];
+  },
+
   async fetchThreadsByUserId({
     user_id,
   }: {
     user_id: string;
-  }): Promise<Thread[]> {
+  }): Promise<ThreadWithUser[]> {
     const { data } = await supabase
       .from("thread")
-      .select("*")
+      .select(
+        `
+          *,
+          user: user_id (
+            id,
+            email,
+            display_name
+          )
+        `,
+      )
       .eq("user_id", user_id);
 
-    return data as Thread[];
+    return data as ThreadWithUser[];
   },
   async updateThread({
     thread_id,
