@@ -21,7 +21,7 @@ export default function MyStoryDetail() {
   const params = useParams();
 
   async function getThread() {
-    const thread = await threadApi.getThreadByID(Number(params.thread_id));
+    const thread = await threadApi.getThreadByID(Number(params?.thread_id));
 
     setThread(thread);
   }
@@ -29,9 +29,9 @@ export default function MyStoryDetail() {
   async function fetchMessages() {
     setIsLoading(true);
     const data = await messagesApi.fetchMessages({
-      thread_ids: [Number(params.thread_id)],
+      thread_ids: [Number(params?.thread_id)],
     });
-    const targetMessage = data[Number(params.thread_id)];
+    const targetMessage = data[Number(params?.thread_id)];
     if (targetMessage) {
       const texts = targetMessage.map((message: Message) => {
         return { text: message.message, text_en: message.message_en };
@@ -43,7 +43,7 @@ export default function MyStoryDetail() {
 
   async function fetchImage() {
     const imageUrl = await imageApi.getImage({
-      thread_id: Number(params.thread_id),
+      thread_id: Number(params?.thread_id),
     });
     setImageUrl(imageUrl);
   }
@@ -70,7 +70,7 @@ export default function MyStoryDetail() {
             color="neutral"
           />
         </Link>
-        <p className="font-medium text-xl">이야기 {params.thread_id}</p>
+        <p className="font-medium text-xl">이야기 {params?.thread_id}</p>
         {thread.able_english ? (
           <label className="cursor-pointer clickable-layer items-center flex gap-2 px-1">
             <input
