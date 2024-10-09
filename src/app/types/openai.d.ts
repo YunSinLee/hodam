@@ -11,6 +11,7 @@ export interface Thread {
 
 export interface ThreadWithUser extends Thread {
   user: User;
+  keywords: Keyword[];
 }
 
 export interface Message {

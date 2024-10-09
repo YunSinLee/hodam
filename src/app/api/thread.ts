@@ -32,25 +32,37 @@ const threadApi = {
     return data![0] as Thread;
   },
   async fetchAllThreads(): Promise<ThreadWithUser[]> {
-    const { data, error } = await supabase.from("thread").select(
-      `
+    const { data, error } = await supabase
+      .from("thread")
+      .select(
+        `
         *,
         user: user_id (
           id,
           email,
           display_name
+        ),
+        keywords:keywords (
+          id,
+          thread_id,
+          keyword
         )
       `,
-    );
+      )
+      .not("user_id", "is", null); // user_id가 NULL이 아닌 경우만 가져옴
 
     if (error) {
       console.error("Error fetching threads:", error);
       return [];
     }
 
-    return data as ThreadWithUser[];
-  },
+    // TODO: 추후 keywords가 없는 경우를 SQL로 처리하도록 변경
+    const filteredData = (data ?? []).filter(
+      thread => thread.keywords && thread.keywords.length > 0,
+    );
 
+    return filteredData as ThreadWithUser[];
+  },
   async fetchThreadsByUserId({
     user_id,
   }: {
@@ -65,12 +77,22 @@ const threadApi = {
             id,
             email,
             display_name
+          ),
+          keywords:keywords (
+            id,
+            thread_id,
+            keyword
           )
         `,
       )
       .eq("user_id", user_id);
 
-    return data as ThreadWithUser[];
+    // TODO: 추후 keywords가 없는 경우를 SQL로 처리하도록 변경
+    const filteredData = (data ?? []).filter(
+      thread => thread.keywords && thread.keywords.length > 0,
+    );
+
+    return filteredData as ThreadWithUser[];
   },
   async updateThread({
     thread_id,

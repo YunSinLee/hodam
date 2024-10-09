@@ -1,37 +1,23 @@
 "use client";
 
 import threadApi from "@/app/api/thread";
-import keywordsApi from "@/app/api/keywords";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 import { useEffect, useState } from "react";
-import type { Keyword, Thread, ThreadWithUser } from "@/app/types/openai";
+import type { ThreadWithUser } from "@/app/types/openai";
 import Link from "next/link";
 import { formatTime } from "@/app/utils";
 
 export default function MyStory() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [threads, setThreads] = useState<ThreadWithUser[]>([]);
-  const [keywordsByThread, setKeywordsByThread] = useState<
-    Record<number, Keyword[]>
-  >([]);
   const { userInfo } = useUserInfo();
 
   async function fetchAllThreads() {
     setIsLoading(true);
     const threads = await threadApi.fetchAllThreads();
     setThreads(threads);
-    const keywords = await keywordsApi.fetchKeywords({
-      thread_ids: threads.map(thread => thread.id),
-    });
 
-    const result: Record<number, Keyword[]> = {};
-    for (const thread of threads) {
-      if (!keywords[thread.id]) continue;
-      result[thread.id] = keywords[thread.id];
-    }
-
-    setKeywordsByThread(result);
     setIsLoading(false);
   }
 
@@ -42,17 +28,7 @@ export default function MyStory() {
       user_id: userInfo.id,
     });
     setThreads(threads);
-    const keywords = await keywordsApi.fetchKeywords({
-      thread_ids: threads.map(thread => thread.id),
-    });
 
-    const result: Record<number, Keyword[]> = {};
-    for (const thread of threads) {
-      if (!keywords[thread.id]) continue;
-      result[thread.id] = keywords[thread.id];
-    }
-
-    setKeywordsByThread(result);
     setIsLoading(false);
   }
 
@@ -107,11 +83,9 @@ export default function MyStory() {
                         </span>
                       </td>
                       <td className="py-2 px-2 border-b text-center">
-                        {keywordsByThread[thread.id]?.map(
-                          (keyword: Keyword) => (
-                            <a key={keyword.id}>{keyword.keyword}</a>
-                          ),
-                        )}
+                        {thread.keywords
+                          ?.map(keyword => keyword.keyword)
+                          .join(", ")}
                       </td>
                       <td className="min-w-14 sm:min-w-20 py-2 px-2 border-b text-center">
                         {thread.able_english ? "가능" : "불가능"}
