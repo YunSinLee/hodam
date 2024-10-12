@@ -17,20 +17,19 @@ export default function SelectionDisplay({
       <div className="flex flex-col gap-4">
         {selections.map((selection, index) => (
           <HButton
-            children={
-              <div className="flex gap-2 text-left">
-                <span className="flex flex-col gap-1">
-                  <span>{selection.text}</span>
-                  {isShowEnglish && <span>{selection.text_en}</span>}
-                </span>
-              </div>
-            }
+            key={index}
             onClick={() => clickSelection(selection.text)}
             size="md"
             color="orange"
-            style="filled"
-            key={index}
-          />
+            buttonStyle="filled"
+          >
+            <div className="flex gap-2 text-left">
+              <span className="flex flex-col gap-1">
+                <span>{selection.text}</span>
+                {isShowEnglish && <span>{selection.text_en}</span>}
+              </span>
+            </div>
+          </HButton>
         ))}
       </div>
     </div>

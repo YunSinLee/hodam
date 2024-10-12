@@ -1,11 +1,11 @@
 "use server";
 
-import openAI from "openai";
+import OpenAI from "openai";
 import type { StoryContent, MessagePair } from "@/app/types/openai";
 
-const OPEN_AI_API_KEY = process.env.OPEN_AI_API_KEY;
+const { OPEN_AI_API_KEY } = process.env;
 
-const openai = new openAI({
+const openai = new OpenAI({
   apiKey: OPEN_AI_API_KEY,
 });
 
@@ -47,42 +47,6 @@ export async function addMessageToThread(threadId: string, message: string) {
   const response = await openai.beta.threads.messages.create(threadId, {
     role: "user",
     content: message,
-  });
-
-  return response;
-}
-
-export async function run(threadId: string, assistantType: string = "default") {
-  const run = await openai.beta.threads.runs.create(threadId, {
-    assistant_id: assistantIds[assistantType as keyof typeof assistantIds],
-  });
-
-  return run;
-}
-
-export async function retrieveRun(threadId: string, runId: string) {
-  const run = await openai.beta.threads.runs.retrieve(threadId, runId);
-
-  return run;
-}
-
-export async function getExtractedText(threadId: string) {
-  const messages = await openai.beta.threads.messages.list(threadId);
-
-  // @ts-ignore
-  return extractStoryContentFromHTML(messages.data[0].content[0].text.value);
-}
-
-export async function createImage(prompt: string) {
-  const style =
-    "너가 그려준 그림을 이용해서 동화책을 만들거야. 동화책을 읽을 사람은 3살에서 7살 정도의 어린이야. 애니메이션 같은 그림으로 그려줬으면 좋겠어. 이제 너가 그려야 할 그림에 대해 설명해줄게. ";
-  const promptAddedStyle = style + prompt;
-  const response = await openai.images.generate({
-    prompt: promptAddedStyle,
-    model: "dall-e-3",
-    n: 1,
-    response_format: "b64_json",
-    size: "1024x1024",
   });
 
   return response;
@@ -149,4 +113,41 @@ export async function extractStoryContentFromHTML(
     notice,
     imageDescription,
   };
+}
+
+export async function run(threadId: string, assistantType: string = "default") {
+  const result = await openai.beta.threads.runs.create(threadId, {
+    assistant_id: assistantIds[assistantType as keyof typeof assistantIds],
+  });
+
+  return result;
+}
+
+export async function retrieveRun(threadId: string, runId: string) {
+  const result = await openai.beta.threads.runs.retrieve(threadId, runId);
+
+  return result;
+}
+
+export async function getExtractedText(threadId: string) {
+  const messages = await openai.beta.threads.messages.list(threadId);
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  return extractStoryContentFromHTML(messages.data[0].content[0].text.value);
+}
+
+export async function createImage(prompt: string) {
+  const style =
+    "너가 그려준 그림을 이용해서 동화책을 만들거야. 동화책을 읽을 사람은 3살에서 7살 정도의 어린이야. 애니메이션 같은 그림으로 그려줬으면 좋겠어. 이제 너가 그려야 할 그림에 대해 설명해줄게. ";
+  const promptAddedStyle = style + prompt;
+  const response = await openai.images.generate({
+    prompt: promptAddedStyle,
+    model: "dall-e-3",
+    n: 1,
+    response_format: "b64_json",
+    size: "1024x1024",
+  });
+
+  return response;
 }

@@ -3,31 +3,31 @@ import HButton from "@/app/components/atomic/HButton";
 export default function KeywordInput({
   neededBeadCount,
   keywords,
-  assistantType,
+  // assistantType,
   isEnglishIncluded,
   isImageIncluded,
   onKeywordsChange,
   onButtonClicked,
-  onAssistantTypeChange,
+  // onAssistantTypeChange,
   onEnglishIncludedChange,
   onImageIncludedChange,
 }: {
   neededBeadCount: number;
   keywords: string;
-  assistantType: "default" | "traditional";
+  // assistantType: "default" | "traditional";
   isEnglishIncluded: boolean;
   isImageIncluded: boolean;
   onKeywordsChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onButtonClicked: () => void;
-  onAssistantTypeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  // onAssistantTypeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   onEnglishIncludedChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onImageIncludedChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
-  function onAssistantClicked(e: React.ChangeEvent<HTMLInputElement>) {
-    onAssistantTypeChange({
-      target: { value: e.target.checked ? "traditional" : "default" },
-    } as React.ChangeEvent<HTMLSelectElement>);
-  }
+  // function onAssistantClicked(e: React.ChangeEvent<HTMLInputElement>) {
+  //   onAssistantTypeChange({
+  //     target: { value: e.target.checked ? "traditional" : "default" },
+  //   } as React.ChangeEvent<HTMLSelectElement>);
+  // }
   function onLanguageClicked(e: React.ChangeEvent<HTMLInputElement>) {
     onEnglishIncludedChange(e);
   }
@@ -51,7 +51,7 @@ export default function KeywordInput({
             />
             전통적
           </label> */}
-          <label className="text-sm sm:text-xl">
+          <label className="text-sm sm:text-xl" htmlFor="isEnglishIncluded">
             <input
               className="w-8"
               type="checkbox"
@@ -60,8 +60,9 @@ export default function KeywordInput({
             />
             영어포함
           </label>
-          <label className="text-sm sm:text-xl">
+          <label className="text-sm sm:text-xl" htmlFor="isImageIncluded">
             <input
+              id="imageIncluded"
               className="w-8"
               type="checkbox"
               checked={isImageIncluded}
@@ -71,22 +72,18 @@ export default function KeywordInput({
           </label>
         </div>
       </div>
-      <HButton
-        children={
-          <div className="flex items-center gap-2 justify-center sm:gap-4 sm:min-w-32">
-            <span className="text-md sm:text-xl">시작!</span>
-            <div className="flex items-center">
-              <img
-                src="persimmon_240424.png"
-                className="w-6 sm:w-8 h-6 sm:h-8 text-md sm:text-xl"
-              />{" "}
-              X {neededBeadCount}{" "}
-            </div>
+      <HButton onClick={onButtonClicked} buttonStyle="filled">
+        <div className="flex items-center gap-2 justify-center sm:gap-4 sm:min-w-32">
+          <span className="text-md sm:text-xl">시작!</span>
+          <div className="flex items-center">
+            <img
+              src="persimmon_240424.png"
+              className="w-6 sm:w-8 h-6 sm:h-8 text-md sm:text-xl"
+            />{" "}
+            X {neededBeadCount}{" "}
           </div>
-        }
-        onClick={onButtonClicked}
-        style="filled"
-      />
+        </div>
+      </HButton>
     </div>
   );
 }

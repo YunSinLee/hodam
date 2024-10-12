@@ -1,17 +1,17 @@
 import { create } from "zustand";
 
-interface userInfoType {
+interface UserInfoType {
   profileUrl: string;
   id: string | undefined;
   email: string | undefined;
 }
 
 interface UserInfoState {
-  userInfo: userInfoType;
+  userInfo: UserInfoType;
 }
 
 interface UserInfoActions {
-  setUserInfo: (userinfo: userInfoType) => void;
+  setUserInfo: (userinfo: UserInfoType) => void;
   deleteUserInfo: () => void;
 }
 
@@ -19,7 +19,7 @@ export const defaultState = { profileUrl: "", id: undefined, email: undefined };
 
 const useUserInfo = create<UserInfoState & UserInfoActions>(set => ({
   userInfo: defaultState,
-  setUserInfo: (userInfo: userInfoType) => {
+  setUserInfo: (userInfo: UserInfoType) => {
     set({ userInfo });
   },
   deleteUserInfo: () => {

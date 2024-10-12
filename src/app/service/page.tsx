@@ -241,18 +241,10 @@ export default function Hodam() {
                 <KeywordInput
                   neededBeadCount={neededBeadCount}
                   keywords={keywords}
-                  assistantType={assistantType}
                   isEnglishIncluded={isEnglishIncluded}
                   isImageIncluded={isImageIncluded}
-                  onKeywordsChange={inputKeywords}
-                  onButtonClicked={searchKeywords}
-                  onAssistantTypeChange={(
-                    e: React.ChangeEvent<HTMLSelectElement>,
-                  ) =>
-                    setAssistantType(
-                      e.target.value as "default" | "traditional",
-                    )
-                  }
+                  onKeywordsChange={v => inputKeywords(v)}
+                  onButtonClicked={() => searchKeywords()}
                   onEnglishIncludedChange={(
                     e: React.ChangeEvent<HTMLInputElement>,
                   ) => setIsEnglishIncluded(e.target.checked)}
@@ -276,7 +268,7 @@ export default function Hodam() {
                 {messages.length > 0 ? (
                   <div>
                     {isEnglishIncluded ? (
-                      <label>
+                      <label htmlFor="isShowEnglish">
                         <input
                           type="checkbox"
                           checked={isShowEnglish}
