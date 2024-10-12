@@ -10,10 +10,10 @@ export default function MessageDisplay({
 }) {
   const [currentSpeakingText, setCurrentSpeakingText] = useState(""); // 추가: 현재 읽히고 있는 텍스트
 
-  function readMessage(message: string, isKorean = true) {
-    const { HodamSpeech, changeHodamSpeechSetting, setText, speak, stop } =
-      useHodamSpeech();
+  const { HodamSpeech, changeHodamSpeechSetting, setText, speak, stop } =
+    useHodamSpeech();
 
+  function readMessage(message: string, isKorean = true) {
     changeHodamSpeechSetting({
       lang: isKorean ? "ko-KR" : "en-US",
       rate: isKorean ? 0.8 : 0.5,

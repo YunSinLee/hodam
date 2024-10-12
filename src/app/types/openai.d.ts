@@ -1,4 +1,4 @@
-import type { User } from "../types/user";
+import type { User } from "./user";
 
 export interface Thread {
   id: number;
@@ -7,6 +7,12 @@ export interface Thread {
   user_id: string;
   able_english: boolean;
   has_image: boolean;
+}
+
+export interface Keyword {
+  id: number;
+  thread_id: number;
+  keyword: string;
 }
 
 export interface ThreadWithUser extends Thread {
@@ -32,13 +38,6 @@ export interface Selection {
   selection: string;
   selection_en: string;
 }
-
-export interface Keyword {
-  id: number;
-  thread_id: number;
-  keyword: string;
-}
-
 export interface MessagePair {
   korean: string;
   english: string;

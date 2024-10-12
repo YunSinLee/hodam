@@ -1,5 +1,5 @@
-import { supabase } from "../utils/supabase";
 import type { Bead } from "@/services/hooks/use-bead";
+import { supabase } from "../utils/supabase";
 
 const beadApi = {
   async initializeBead(user_id: string) {

@@ -13,12 +13,25 @@
     "airbnb",
     "airbnb-typescript",
     "plugin:prettier/recommended",
-    "next/core-web-vitals"
+    "next/core-web-vitals",
+    "next/typescript"
   ],
   "rules": {
     // 'React' must be in scope when using JSX 에러 해결 (Next.js)
-	"react/react-in-jsx-scope": "off",
+    "react/react-in-jsx-scope": "off",
     // ts파일에서 tsx구문 허용 (Next.js)
-    "react/jsx-filename-extension": [1, { "extensions": [".ts", ".tsx"] }]
+    "react/jsx-filename-extension": [1, { "extensions": [".ts", ".tsx"] }],
+    "@typescript-eslint/ban-ts-ignore": "off",
+    // 함수가 정의되기 전에 사용되는 것을 허용
+    "no-use-before-define": [
+      "error",
+      {
+        "functions": false,
+        "classes": true,
+        "variables": true
+      }
+    ],
+    // default export를 선호하는 규칙 무시
+    "import/prefer-default-export": "off"
   }
 }

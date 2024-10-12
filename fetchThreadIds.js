@@ -1,8 +1,8 @@
 // fetchStoryIds.js
-const threadApi = require("@/app/api/thread");
+const sitemapApi = require("./src/app/api/sitemap.ts");
 
 const fetchStoryIds = async () => {
-  const threads = await threadApi.fetchAllThreads();
+  const threads = await sitemapApi.fetchAllThreads();
   return threads.map(thread => thread.id);
 };
 
