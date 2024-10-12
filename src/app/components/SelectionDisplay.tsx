@@ -28,7 +28,7 @@ export default function SelectionDisplay({
             onClick={() => clickSelection(selection.text)}
             size="md"
             color="orange"
-            style="filled"
+            buttonStyle="filled"
             key={index}
           />
         ))}

@@ -11,7 +11,7 @@ interface HButtonProps {
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   size?: ButtonSize;
   color?: ButtonColor;
-  style?: ButtonStyle;
+  buttonStyle?: ButtonStyle;
   disabled?: boolean;
 }
 
@@ -55,7 +55,7 @@ export default function HButton({
   onClick,
   size = "md",
   color = "orange",
-  style = "filled",
+  buttonStyle = "filled",
   disabled = false,
 }: HButtonProps) {
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -67,7 +67,7 @@ export default function HButton({
   const basicClass = "text-left leading-8 rounded-md shadow focus:outline-none";
   const sizeClass = sizeClasses[size];
   const styleClass =
-    style === "filled"
+    buttonStyle === "filled"
       ? filledColorClasses[color]
       : outlinedColorClasses[color];
   const disabledClass = disabled ? "opacity-50 cursor-not-allowed" : "";

@@ -85,7 +85,7 @@ export default function KeywordInput({
           </div>
         }
         onClick={onButtonClicked}
-        style="filled"
+        buttonStyle="filled"
       />
     </div>
   );
