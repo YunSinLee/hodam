@@ -49,10 +49,10 @@ const outlinedColorClasses = {
 };
 
 export default function HButton({
-  className,
-  label,
-  children,
-  onClick,
+  className = "",
+  label = "",
+  children = null,
+  onClick = undefined,
   size = "md",
   color = "orange",
   buttonStyle = "filled",
@@ -85,14 +85,3 @@ export default function HButton({
     </button>
   );
 }
-
-HButton.defaultProps = {
-  className: "",
-  label: "",
-  children: null,
-  onClick: undefined,
-  size: "md",
-  color: "orange",
-  buttonStyle: "filled",
-  disabled: false,
-};

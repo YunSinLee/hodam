@@ -5,7 +5,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-
 const sitemapApi = {
   async fetchAllThreads() {
     const { data, error } = await supabase
@@ -42,3 +41,6 @@ const sitemapApi = {
 };
 
 module.exports = sitemapApi;
+
+// 기본 내보내기 추가
+module.exports.default = sitemapApi;
