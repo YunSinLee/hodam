@@ -49,9 +49,9 @@ const outlinedColorClasses = {
 };
 
 export default function HButton({
-  className,
-  label,
-  children,
+  className = "",
+  label = "",
+  children = null,
   onClick,
   size = "md",
   color = "orange",
@@ -75,7 +75,12 @@ export default function HButton({
   const buttonClass = `${basicClass} ${sizeClass} ${styleClass} ${disabledClass} ${className || ""}`;
 
   return (
-    <button className={buttonClass} onClick={handleClick} disabled={disabled}>
+    <button
+      type="button"
+      className={buttonClass}
+      onClick={handleClick}
+      disabled={disabled}
+    >
       {children || label}
     </button>
   );

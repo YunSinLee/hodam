@@ -19,7 +19,7 @@ export default function NavBar() {
   const pathname = usePathname();
   async function signOut() {
     await userApi.signOut();
-    location.reload();
+    window.location.reload();
   }
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -28,15 +28,17 @@ export default function NavBar() {
           setUserInfo(defaultUserInfoState);
         }
         if (session) {
-          const user = session?.user! ?? null;
-          const userData = {
-            profileUrl: "",
-            id: user.id,
-            email: user.email,
-          };
-          setUserInfo(userData);
-          if (pathname === "/sign-in") {
-            location.href = "/";
+          const user = session?.user ?? null;
+          if (user) {
+            const userData = {
+              profileUrl: "",
+              id: user.id,
+              email: user.email,
+            };
+            setUserInfo(userData);
+            if (pathname === "/sign-in") {
+              window.location.href = "/";
+            }
           }
         }
       },
@@ -79,16 +81,25 @@ export default function NavBar() {
             </div>
           </Link>
         )}
-        <div
+        <button
+          type="button"
           className="block sm:hidden text-2xl"
           onClick={() => setIsShowMenu(!isShowMenu)}
+          aria-label="메뉴 열기/닫기"
         >
           ☰
-        </div>
+        </button>
         {isShowMenu ? (
           <div
             className="absolute p-4 shadow-md right-2 border-2 rounded-md top-16 bg-white flex flex-col items-center gap-4 sm:hidden"
+            role="menu"
+            tabIndex={0}
             onClick={() => setIsShowMenu(!isShowMenu)}
+            onKeyDown={e => {
+              if (e.key === "Escape") {
+                setIsShowMenu(false);
+              }
+            }}
           >
             <Link href="/">
               <p
@@ -116,19 +127,16 @@ export default function NavBar() {
                 className="py-0 font-medium text-lg"
                 label="로그아웃"
                 buttonStyle="outlined"
-                onClick={signOut}
+                onClick={() => signOut()}
               />
             ) : (
-              <>
-                {/* sign-up 링크 제거 */}
-                <Link href="/sign-in">
-                  <p
-                    className={`text-lg font-medium ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
-                  >
-                    로그인
-                  </p>
-                </Link>
-              </>
+              <Link href="/sign-in">
+                <p
+                  className={`text-lg font-medium ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
+                >
+                  로그인
+                </p>
+              </Link>
             )}
           </div>
         ) : null}
@@ -160,19 +168,16 @@ export default function NavBar() {
               className="py-0 font-medium text-lg"
               label="로그아웃"
               buttonStyle="outlined"
-              onClick={signOut}
+              onClick={() => signOut()}
             />
           ) : (
-            <>
-              {/* sign-up 링크 제거 */}
-              <Link href="/sign-in">
-                <p
-                  className={`font-medium text-lg ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
-                >
-                  로그인
-                </p>
-              </Link>
-            </>
+            <Link href="/sign-in">
+              <p
+                className={`font-medium text-lg ${pathname === "/sign-in" ? "text-orange-500" : ""}`}
+              >
+                로그인
+              </p>
+            </Link>
           )}
         </div>
       </div>

@@ -15,8 +15,8 @@ export default function MyStory() {
 
   async function fetchAllThreads() {
     setIsLoading(true);
-    const threads = await threadApi.fetchAllThreads();
-    setThreads(threads);
+    const threadsResult = await threadApi.fetchAllThreads();
+    setThreads(threadsResult);
 
     setIsLoading(false);
   }
@@ -24,10 +24,10 @@ export default function MyStory() {
   async function fetchThreadsByUserId() {
     if (!userInfo.id) return;
     setIsLoading(true);
-    const threads = await threadApi.fetchThreadsByUserId({
+    const threadsResult = await threadApi.fetchThreadsByUserId({
       user_id: userInfo.id,
     });
-    setThreads(threads);
+    setThreads(threadsResult);
 
     setIsLoading(false);
   }
@@ -64,7 +64,7 @@ export default function MyStory() {
                     영어
                   </th>
                   <th className="py-2 px-2 border-b text-center">이미지</th>
-                  <th className="py-2 px-2 border-b text-center"></th>
+                  <th className="py-2 px-2 border-b text-center">-</th>
                 </tr>
               </thead>
               <tbody>

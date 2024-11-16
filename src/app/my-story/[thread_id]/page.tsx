@@ -21,9 +21,11 @@ export default function MyStoryDetail() {
   const params = useParams();
 
   async function getThread() {
-    const thread = await threadApi.getThreadByID(Number(params?.thread_id));
+    const threadResult = await threadApi.getThreadByID(
+      Number(params?.thread_id),
+    );
 
-    setThread(thread);
+    setThread(threadResult);
   }
 
   async function fetchMessages() {
@@ -42,10 +44,10 @@ export default function MyStoryDetail() {
   }
 
   async function fetchImage() {
-    const imageUrl = await imageApi.getImage({
+    const imageUrlResult = await imageApi.getImage({
       thread_id: Number(params?.thread_id),
     });
-    setImageUrl(imageUrl);
+    setImageUrl(imageUrlResult);
   }
 
   useEffect(() => {
@@ -72,8 +74,12 @@ export default function MyStoryDetail() {
         </Link>
         <p className="font-medium text-xl">이야기 {params?.thread_id}</p>
         {thread.able_english ? (
-          <label className="cursor-pointer clickable-layer items-center flex gap-2 px-1">
+          <label
+            htmlFor="showEnglish"
+            className="cursor-pointer clickable-layer items-center flex gap-2 px-1"
+          >
             <input
+              id="showEnglish"
               type="checkbox"
               checked={isShowEnglish}
               onChange={() => setIsShowEnglish(!isShowEnglish)}
@@ -90,7 +96,7 @@ export default function MyStoryDetail() {
         <div className="flex flex-col items-center">
           {imageUrl ? (
             <div className="max-w-80 sm:max-w-screen-sm">
-              <img src={imageUrl} alt="image" />
+              <img src={imageUrl} alt="" />
             </div>
           ) : null}
           <MessageDisplay messages={messages} isShowEnglish={isShowEnglish} />

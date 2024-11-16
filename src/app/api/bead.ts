@@ -1,8 +1,22 @@
-import { supabase } from "../utils/supabase";
 import type { Bead } from "@/services/hooks/use-bead";
+import { supabase } from "../utils/supabase";
 
 const beadApi = {
   async initializeBead(user_id: string) {
+    async function _hasBead() {
+      const { data, error } = await supabase
+        .from("bead")
+        .select()
+        .eq("user_id", user_id);
+
+      if (error) {
+        console.error("Error getting bead", error);
+      }
+
+      if (data && data.length > 0) {
+        return true;
+      } else return false;
+    }
     const hasBead = await _hasBead();
 
     if (!hasBead) {
@@ -27,21 +41,6 @@ const beadApi = {
       }
 
       return data![0] as Bead;
-    }
-
-    async function _hasBead() {
-      const { data, error } = await supabase
-        .from("bead")
-        .select()
-        .eq("user_id", user_id);
-
-      if (error) {
-        console.error("Error getting bead", error);
-      }
-
-      if (data && data.length > 0) {
-        return true;
-      } else return false;
     }
   },
 

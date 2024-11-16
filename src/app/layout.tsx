@@ -2,9 +2,9 @@ import { PrimeReactProvider } from "primereact/api";
 import "primereact/resources/themes/lara-light-amber/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
-import NavBar from "./components/NavBar";
 import { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import NavBar from "./components/NavBar";
 
 import "../styles/globals.css";
 
