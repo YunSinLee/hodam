@@ -16,6 +16,7 @@ export default function SignIn() {
   return (
     <div className="flex flex-col items-center mt-20">
       <button
+        type="button"
         onClick={signinWithKakao}
         className="mb-4 flex items-center justify-center bg-yellow-400 rounded-md px-4 py-3 hover:bg-yellow-500 transition w-full max-w-xs"
       >
@@ -27,6 +28,7 @@ export default function SignIn() {
         카카오로 로그인
       </button>
       <button
+        type="button"
         onClick={signinWithGoogle}
         className="flex items-center justify-center bg-white border border-gray-300 rounded-md px-4 py-3 hover:bg-gray-100 transition w-full max-w-xs"
       >

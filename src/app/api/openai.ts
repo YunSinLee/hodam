@@ -3,8 +3,10 @@
 import openAI from "openai";
 import type { StoryContent, MessagePair } from "@/app/types/openai";
 
+// eslint-disable-next-line prefer-destructuring
 const OPEN_AI_API_KEY = process.env.OPEN_AI_API_KEY;
 
+// eslint-disable-next-line new-cap
 const openai = new openAI({
   apiKey: OPEN_AI_API_KEY,
 });
@@ -53,23 +55,25 @@ export async function addMessageToThread(threadId: string, message: string) {
 }
 
 export async function run(threadId: string, assistantType: string = "default") {
-  const run = await openai.beta.threads.runs.create(threadId, {
+  const result = await openai.beta.threads.runs.create(threadId, {
     assistant_id: assistantIds[assistantType as keyof typeof assistantIds],
   });
 
-  return run;
+  return result;
 }
 
 export async function retrieveRun(threadId: string, runId: string) {
-  const run = await openai.beta.threads.runs.retrieve(threadId, runId);
+  const result = await openai.beta.threads.runs.retrieve(threadId, runId);
 
-  return run;
+  return result;
 }
 
 export async function getExtractedText(threadId: string) {
   const messages = await openai.beta.threads.messages.list(threadId);
 
-  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
   return extractStoryContentFromHTML(messages.data[0].content[0].text.value);
 }
 
@@ -107,6 +111,7 @@ export async function extractStoryContentFromHTML(
     const messageRegex =
       /<li class="korean">(.+?)<\/li>(\s*<li class="english">(.+?)<\/li>)?/g;
     let messageMatch;
+    // eslint-disable-next-line no-cond-assign
     while ((messageMatch = messageRegex.exec(messagesHtml)) !== null) {
       messages.push({
         korean: messageMatch[1],
@@ -122,6 +127,7 @@ export async function extractStoryContentFromHTML(
     const selectionRegex =
       /<li class="korean">(.+?)<\/li>(\s*<li class="english">(.+?)<\/li>)?/g;
     let selectionMatch;
+    // eslint-disable-next-line no-cond-assign
     while ((selectionMatch = selectionRegex.exec(selectionsHtml)) !== null) {
       selections.push({
         korean: selectionMatch[1],

@@ -1,5 +1,16 @@
 "use client";
 
+import useUserInfo from "@/services/hooks/use-user-info";
+import useBead from "@/services/hooks/use-bead";
+import KeywordInput from "@/app/components/KeywordInput";
+import MessageDisplay from "@/app/components/MessageDisplay";
+import SelectionDisplay from "@/app/components/SelectionDisplay";
+import GuideForSign from "@/app/components/GuideForSign";
+import threadApi from "@/app/api/thread";
+import keywordsApi from "@/app/api/keywords";
+import messagesApi from "@/app/api/messages";
+import imageApi from "@/app/api/image";
+import userApi from "@/app/api/user";
 import { useEffect, useMemo, useState } from "react";
 import {
   createThread,
@@ -13,19 +24,7 @@ import {
 import { Message, Thread, Selection } from "../types/openai";
 import { isEmpty } from "../utils";
 
-import threadApi from "@/app/api/thread";
-import keywordsApi from "@/app/api/keywords";
-import messagesApi from "@/app/api/messages";
-import imageApi from "@/app/api/image";
-import userApi from "@/app/api/user";
 import beadApi from "../api/bead";
-import useUserInfo from "@/services/hooks/use-user-info";
-import useBead from "@/services/hooks/use-bead";
-
-import KeywordInput from "@/app/components/KeywordInput";
-import MessageDisplay from "@/app/components/MessageDisplay";
-import SelectionDisplay from "@/app/components/SelectionDisplay";
-import GuideForSign from "@/app/components/GuideForSign";
 
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
@@ -43,9 +42,7 @@ export default function Hodam() {
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
   const [turn, setTurn] = useState<number>(0);
-  const [assistantType, setAssistantType] = useState<"default" | "traditional">(
-    "default",
-  );
+  const [assistantType] = useState<"default" | "traditional">("default");
   const [isEnglishIncluded, setIsEnglishIncluded] = useState<boolean>(false);
   const [isShowEnglish, setIsShowEnglish] = useState<boolean>(false);
   const [isImageIncluded, setIsImageIncluded] = useState<boolean>(false);
@@ -61,6 +58,24 @@ export default function Hodam() {
     return count;
   }, [isEnglishIncluded, isImageIncluded]);
 
+  async function getSession() {
+    const userData = await userApi.getSession();
+    if (userData) {
+      setUserInfo(userData);
+    }
+  }
+
+  async function startThread() {
+    const response = await createThread();
+
+    const result = await threadApi.createThread({
+      thread_id: response.id,
+      user_id: userInfo.id,
+    });
+
+    setThread(result);
+  }
+
   useEffect(() => {
     getSession();
   }, []);
@@ -69,9 +84,20 @@ export default function Hodam() {
     if (userInfo.id) startThread();
   }, [userInfo.id]);
 
-  useEffect(() => {
-    getImageFn();
+  async function getImage(description: string) {
+    const response = await createImage(description);
+    try {
+      const imageData = await imageApi.uploadImage(
+        response.data[0].b64_json!,
+        thread.id,
+      );
+      setImages([URL.createObjectURL(imageData!)]);
+    } catch (error) {
+      console.error("Error fetching image:", error);
+    }
+  }
 
+  useEffect(() => {
     async function getImageFn() {
       if (turn === 0 && isImageIncluded && imageDescription) {
         setIsImageLoading(true);
@@ -79,29 +105,12 @@ export default function Hodam() {
         setIsImageLoading(false);
       }
     }
+    getImageFn();
   }, [imageDescription]);
-
-  async function getSession() {
-    const userData = await userApi.getSession();
-    if (userData) {
-      setUserInfo(userData);
-    }
-  }
 
   function inputKeywords(e: React.ChangeEvent<HTMLInputElement>) {
     const { value } = e.target;
     setKeywords(value);
-  }
-
-  async function startThread() {
-    const response = await createThread();
-
-    const thread = await threadApi.createThread({
-      thread_id: response.id,
-      user_id: userInfo.id,
-    });
-
-    setThread(thread);
   }
 
   async function consumeBeads() {
@@ -119,6 +128,65 @@ export default function Hodam() {
     setBead(beadInfo);
   }
 
+  async function checkStatusWithInterval(runId: string) {
+    const interval = 5000; // 5 seconds in milliseconds
+
+    async function check() {
+      const response = await retrieveRun(thread.openai_thread_id, runId);
+      const currentStatus = response.status;
+      if (currentStatus === "completed") {
+        const {
+          rawText: newRawText,
+          messages: newMessages,
+          selections: newSelections,
+          notice: newNotice,
+          imageDescription: newImageDescription,
+        } = await getExtractedText(thread.openai_thread_id);
+
+        setImageDescription(newImageDescription);
+        await threadApi.updateThread({
+          thread_id: thread.id,
+          user_id: userInfo.id,
+          raw_text: rawText + newRawText,
+        });
+        setRawText(rawText + newRawText);
+        const savedMessages = await messagesApi.saveMessages({
+          messages: newMessages,
+          thread_id: thread.id,
+          turn,
+        });
+        const messageMaps = savedMessages.map((item: Message) => ({
+          text: item.message,
+          text_en: item.message_en,
+        }));
+        setMessages(
+          messages.length ? [...messages, ...messageMaps] : [...messageMaps],
+        );
+        if (newNotice) setNotice(newNotice);
+        const savedSelections = await messagesApi.saveSelections({
+          selections: newSelections,
+          thread_id: thread.id,
+          turn,
+        });
+        const selectionMaps = savedSelections.map((item: Selection) => ({
+          text: item.selection,
+          text_en: item.selection_en,
+        }));
+        setSelections([...selectionMaps]);
+        // if (turn === 0 && isImageIncluded) {
+        //   await getImage(rawText);
+        // }
+        setTurn(turn + 1);
+        // }
+
+        setIsLoading(false);
+      } else {
+        setTimeout(check, interval); // Call check again after interval
+      }
+    }
+
+    await check(); // Initial call to check
+  }
   async function searchKeywords() {
     await consumeBeads();
     setIsStarted(true);
@@ -153,79 +221,6 @@ export default function Hodam() {
     checkStatusWithInterval(response.id);
   }
 
-  async function getImage(description: string) {
-    const response = await createImage(description);
-    try {
-      const imageData = await imageApi.uploadImage(
-        response.data[0].b64_json!,
-        thread.id,
-      );
-      setImages([URL.createObjectURL(imageData!)]);
-    } catch (error) {
-      console.error("Error fetching image:", error);
-    }
-  }
-
-  async function checkStatusWithInterval(runId: string) {
-    const interval = 5000; // 5 seconds in milliseconds
-
-    async function check() {
-      const response = await retrieveRun(thread.openai_thread_id, runId);
-      const currentStatus = response.status;
-      if (currentStatus === "completed") {
-        const {
-          rawText: newRawText,
-          messages: newMessages,
-          selections: newSelections,
-          notice: newNotice,
-          imageDescription: newImageDescription,
-        } = await getExtractedText(thread.openai_thread_id);
-
-        setImageDescription(newImageDescription);
-        await threadApi.updateThread({
-          thread_id: thread.id,
-          user_id: userInfo.id,
-          raw_text: rawText + newRawText,
-        });
-        setRawText(rawText + newRawText);
-        const savedMessages = await messagesApi.saveMessages({
-          messages: newMessages,
-          thread_id: thread.id,
-          turn,
-        });
-        const messageMaps = savedMessages.map((item: Message) => ({
-          text: item.message,
-          text_en: item.message_en,
-        }));
-        messages.length
-          ? setMessages([...messages, ...messageMaps])
-          : setMessages([...messageMaps]);
-        newNotice && setNotice(newNotice);
-        const savedSelections = await messagesApi.saveSelections({
-          selections: newSelections,
-          thread_id: thread.id,
-          turn,
-        });
-        const selectionMaps = savedSelections.map((item: Selection) => ({
-          text: item.selection,
-          text_en: item.selection_en,
-        }));
-        setSelections([...selectionMaps]);
-        // if (turn === 0 && isImageIncluded) {
-        //   await getImage(rawText);
-        // }
-        setTurn(turn + 1);
-        // }
-
-        setIsLoading(false);
-      } else {
-        setTimeout(check, interval); // Call check again after interval
-      }
-    }
-
-    await check(); // Initial call to check
-  }
-
   return (
     <div>
       {userInfo.id ? (
@@ -241,18 +236,10 @@ export default function Hodam() {
                 <KeywordInput
                   neededBeadCount={neededBeadCount}
                   keywords={keywords}
-                  assistantType={assistantType}
                   isEnglishIncluded={isEnglishIncluded}
                   isImageIncluded={isImageIncluded}
-                  onKeywordsChange={inputKeywords}
-                  onButtonClicked={searchKeywords}
-                  onAssistantTypeChange={(
-                    e: React.ChangeEvent<HTMLSelectElement>,
-                  ) =>
-                    setAssistantType(
-                      e.target.value as "default" | "traditional",
-                    )
-                  }
+                  onKeywordsChange={v => inputKeywords(v)}
+                  onButtonClicked={() => searchKeywords()}
                   onEnglishIncludedChange={(
                     e: React.ChangeEvent<HTMLInputElement>,
                   ) => setIsEnglishIncluded(e.target.checked)}
@@ -268,15 +255,15 @@ export default function Hodam() {
                   </div>
                 ) : (
                   <div className="max-w-80 sm:max-w-screen-sm mx-auto">
-                    {images.map((image, i) => (
-                      <img src={image} key={i} />
+                    {images.map(image => (
+                      <img src={image} key={image} />
                     ))}
                   </div>
                 )}
                 {messages.length > 0 ? (
                   <div>
                     {isEnglishIncluded ? (
-                      <label>
+                      <label htmlFor="showEnglish">
                         <input
                           type="checkbox"
                           checked={isShowEnglish}
@@ -311,7 +298,7 @@ export default function Hodam() {
               <SelectionDisplay
                 selections={selections}
                 isShowEnglish={isShowEnglish}
-                clickSelection={clickSelection}
+                clickSelection={v => clickSelection(v)}
                 notice={notice}
               />
             </div>

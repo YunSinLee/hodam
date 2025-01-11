@@ -7,12 +7,13 @@ const messagesApi = {
     thread_id,
     turn,
   }: {
-    messages: MessagePair[];
+    messages: { korean: string; english: string }[];
     thread_id: number;
     turn: number;
   }): Promise<Message[]> {
-    for (const message of messages) {
-      const { error } = await supabase
+    // Promise.all을 사용하여 모든 삽입 작업을 병렬로 수행
+    const insertPromises = messages.map(message =>
+      supabase
         .from("messages")
         .insert({
           message: message.korean,
@@ -20,12 +21,17 @@ const messagesApi = {
           thread_id,
           turn,
         })
-        .select();
+        .select(),
+    );
 
+    const results = await Promise.all(insertPromises);
+
+    // 에러 처리
+    results.forEach(({ error }) => {
       if (error) {
         console.error("Error saving message", error);
       }
-    }
+    });
 
     const { data } = await supabase
       .from("messages")
@@ -44,8 +50,9 @@ const messagesApi = {
     thread_id: number;
     turn: number;
   }): Promise<Selection[]> {
-    for (const selection of selections) {
-      const { error } = await supabase
+    // Promise.all을 사용하여 모든 삽입 작업을 병렬로 수행
+    const insertPromises = selections.map(selection =>
+      supabase
         .from("selections")
         .insert({
           selection: selection.korean,
@@ -53,12 +60,17 @@ const messagesApi = {
           thread_id,
           turn,
         })
-        .select();
+        .select(),
+    );
 
+    const results = await Promise.all(insertPromises);
+
+    // 에러 처리
+    results.forEach(({ error }) => {
       if (error) {
         console.error("Error saving selection", error);
       }
-    }
+    });
 
     const { data } = await supabase
       .from("selections")
@@ -118,6 +130,7 @@ const messagesApi = {
       {},
     );
 
+    // eslint-disable-next-line guard-for-in, no-restricted-syntax
     for (const threadId in groupedByThreadId) {
       groupedByThreadId[threadId].sort((a, b) => a.id - b.id);
     }

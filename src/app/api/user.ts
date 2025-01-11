@@ -1,5 +1,5 @@
-import { supabase } from "../utils/supabase";
 import { NextResponse } from "next/server";
+import { supabase } from "../utils/supabase";
 // The client you created from the Server-Side Auth instructions
 
 export async function GET(request: Request) {

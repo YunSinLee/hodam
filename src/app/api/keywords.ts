@@ -9,15 +9,19 @@ const keywordsApi = {
     keywords: string[];
     thread_id: number;
   }): Promise<Keyword[]> {
-    for (const keyword of keywords) {
-      const { error } = await supabase
-        .from("keywords")
-        .insert({ keyword, thread_id });
+    // Promise.all을 사용하여 모든 삽입 작업을 병렬로 수행
+    const insertPromises = keywords.map(keyword =>
+      supabase.from("keywords").insert({ keyword, thread_id }),
+    );
 
+    const results = await Promise.all(insertPromises);
+
+    // 에러 처리
+    results.forEach(({ error }) => {
       if (error) {
         console.error("Error saving keyword", error);
       }
-    }
+    });
 
     const { data } = await supabase
       .from("keywords")
