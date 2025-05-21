@@ -93,7 +93,12 @@ export default function MyStoryDetail() {
               <img src={imageUrl} alt="image" />
             </div>
           ) : null}
-          <MessageDisplay messages={messages} isShowEnglish={isShowEnglish} />
+          <MessageDisplay
+            messages={messages}
+            isShowEnglish={isShowEnglish}
+            useGoogleTTS={false} // 브라우저 기본 TTS 사용
+            voice="female" // 여성 목소리 사용
+          />
         </div>
       )}
     </div>

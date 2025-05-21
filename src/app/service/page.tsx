@@ -620,6 +620,7 @@ export default function Hodam() {
                         <MessageDisplay
                           messages={messages}
                           isShowEnglish={isShowEnglish}
+                          useGoogleTTS={true} // Google Translate TTS 사용 (무료)
                         />
                       </div>
                     )}
