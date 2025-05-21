@@ -16,6 +16,25 @@ module.exports = {
         footer: "240px",
         "screen-navbar-footer": "calc(100vh - 82px - 240px)",
       },
+      keyframes: {
+        "sound-wave1": {
+          "0%, 100%": { height: "5px", top: "7px" },
+          "50%": { height: "12px", top: "0px" },
+        },
+        "sound-wave2": {
+          "0%, 100%": { height: "8px", top: "4px" },
+          "40%": { height: "12px", top: "0px" },
+        },
+        "sound-wave3": {
+          "0%, 100%": { height: "6px", top: "6px" },
+          "60%": { height: "12px", top: "0px" },
+        },
+      },
+      animation: {
+        "sound-wave1": "sound-wave1 0.8s infinite ease-in-out",
+        "sound-wave2": "sound-wave2 0.9s infinite ease-in-out",
+        "sound-wave3": "sound-wave3 0.7s infinite ease-in-out",
+      },
     },
   },
   corePlugins: {
