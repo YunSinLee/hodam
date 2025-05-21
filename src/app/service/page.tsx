@@ -45,8 +45,8 @@ export default function Hodam() {
     { text: string; text_en: string }[]
   >([]);
   const [imageDescription, setImageDescription] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
+  const [isStoryLoading, setIsStoryLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
   const [turn, setTurn] = useState<number>(0);
   const [isEnglishIncluded, setIsEnglishIncluded] = useState<boolean>(false);
@@ -80,17 +80,7 @@ export default function Hodam() {
     if (userInfo.id) startThread();
   }, [userInfo.id]);
 
-  useEffect(() => {
-    getImageFn();
-
-    async function getImageFn() {
-      if (turn === 0 && isImageIncluded && imageDescription) {
-        setIsImageLoading(true);
-        await getImage(imageDescription);
-        setIsImageLoading(false);
-      }
-    }
-  }, [imageDescription]);
+  // 이미지 생성은 이제 각 함수 내에서 비동기적으로 처리
 
   async function getSession() {
     const userData = await userApi.getSession();
@@ -131,7 +121,12 @@ export default function Hodam() {
   async function searchKeywords() {
     await consumeBeads();
     setIsStarted(true);
-    setIsLoading(true);
+    setIsStoryLoading(true);
+
+    // 시작부터 이미지 생성이 포함되어 있음을 표시
+    if (isImageIncluded) {
+      setIsImageLoading(false); // 플래그는 이미지 생성 직전에 true로 설정되므로, 초기에는 false로 둠
+    }
 
     try {
       await threadApi.updateThread({
@@ -174,10 +169,6 @@ export default function Hodam() {
         notice: newNotice,
         imageDescription: newImageDescription,
       } = extractInfoFromHTML(storyHtml);
-
-      if (isImageIncluded && storytellingPrompt) {
-        setImageDescription(storytellingPrompt);
-      }
 
       // 영어 번역 처리
       let finalMessages = newMessages;
@@ -235,17 +226,33 @@ export default function Hodam() {
       if (isEnglishIncluded) {
         setIsShowEnglish(true);
       }
+
+      // 이야기 로딩 완료 표시
+      setIsStoryLoading(false);
+
+      // 이미지 생성은 이야기 로딩 완료 후 비동기적으로 처리
+      if (isImageIncluded && storytellingPrompt) {
+        setImageDescription(storytellingPrompt);
+        setIsImageLoading(true);
+        getImage(storytellingPrompt).finally(() => {
+          setIsImageLoading(false);
+        });
+      }
     } catch (error) {
       console.error("Error generating story:", error);
       alert("동화 생성 중 오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setIsLoading(false);
+      setIsStoryLoading(false);
     }
   }
 
   async function clickSelection(selection: string) {
-    setIsLoading(true);
+    setIsStoryLoading(true);
     setSelections([]);
+
+    // 이미지 생성이 포함되어 있으면 초기 상태 설정
+    if (isImageIncluded) {
+      setIsImageLoading(false); // 실제 이미지 생성 직전에 true로 설정
+    }
 
     try {
       // LangChain으로 다음 전개 생성
@@ -274,13 +281,6 @@ export default function Hodam() {
         notice: newNotice,
         imageDescription: newImageDescription,
       } = extractInfoFromHTML(storyHtml);
-
-      if (isImageIncluded && storytellingPrompt) {
-        setImageDescription(storytellingPrompt);
-        setIsImageLoading(true);
-        await getImage(storytellingPrompt);
-        setIsImageLoading(false);
-      }
 
       // 영어 번역 처리
       let finalMessages = newMessages;
@@ -333,11 +333,22 @@ export default function Hodam() {
       );
       setNotice(newNotice);
       setTurn(turn + 1);
+
+      // 이야기 로딩 완료 표시
+      setIsStoryLoading(false);
+
+      // 이미지 생성은 이야기 로딩 완료 후 비동기적으로 처리
+      if (isImageIncluded && storytellingPrompt) {
+        setImageDescription(storytellingPrompt);
+        setIsImageLoading(true);
+        getImage(storytellingPrompt).finally(() => {
+          setIsImageLoading(false);
+        });
+      }
     } catch (error) {
       console.error("Error continuing story:", error);
       alert("이야기 진행 중 오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setIsLoading(false);
+      setIsStoryLoading(false);
     }
   }
 
@@ -519,9 +530,59 @@ export default function Hodam() {
                   }
                 />
               </div>
+              {/* 이미지 로딩 표시가 먼저 나타나도록 변경 */}
+              {isImageIncluded && isStoryLoading && (
+                <div className="flex justify-center mb-4">
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                    <p className="mt-2 text-blue-500">이미지 생성 중...</p>
+                  </div>
+                </div>
+              )}
               {isStarted && (
                 <>
                   <div>
+                    {/* 이미지 영역 - 이야기 위에 배치 */}
+                    {isImageIncluded && (
+                      <div className="mb-4">
+                        <h2 className="mb-2 text-xl">동화 이미지</h2>
+                        <div className="grid grid-cols-1 gap-2">
+                          {images.map((src, index) => (
+                            <img
+                              key={index}
+                              src={src}
+                              className="w-full rounded-md"
+                              alt={`동화 이미지 ${index + 1}`}
+                            />
+                          ))}
+                          {/* 이미 생성된 이미지만 표시하고, 로딩은 위에서 표시 */}
+                          {isImageLoading && !isStoryLoading && (
+                            <div className="relative w-full pb-[100%] bg-gray-100 rounded-md">
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                                <p className="mt-2 text-blue-500">
+                                  이미지 생성 중...
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 이야기 로딩은 이미지 영역 아래에 배치 */}
+                    {isStoryLoading && (
+                      <div className="flex justify-center mb-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-10 h-10 border-4 border-orange-500 rounded-full border-t-transparent animate-spin"></div>
+                          <p className="mt-2 text-orange-500">
+                            이야기 생성 중...
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 이야기 영역 - 이미지 아래로 이동 */}
                     {messages && messages.length > 0 && (
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
@@ -574,28 +635,6 @@ export default function Hodam() {
                           clickSelection={clickSelection}
                           notice={notice}
                         />
-                      </div>
-                    )}
-
-                    {isImageIncluded && images && images.length > 0 && (
-                      <div className="mb-4">
-                        <h2 className="mb-2 text-xl">동화 이미지</h2>
-                        <div className="grid grid-cols-1 gap-2">
-                          {images.map((src, index) => (
-                            <img
-                              key={index}
-                              src={src}
-                              className="w-full rounded-md"
-                              alt={`동화 이미지 ${index + 1}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {isImageLoading && (
-                      <div className="flex justify-center mb-4">
-                        <div className="w-10 h-10 border-4 border-orange-500 rounded-full border-t-transparent animate-spin"></div>
                       </div>
                     )}
                   </div>
