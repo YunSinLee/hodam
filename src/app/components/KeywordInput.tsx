@@ -1,92 +1,90 @@
-import HButton from "@/app/components/atomic/HButton";
+import React from "react";
 
-export default function KeywordInput({
-  neededBeadCount,
-  keywords,
-  assistantType,
-  isEnglishIncluded,
-  isImageIncluded,
-  onKeywordsChange,
-  onButtonClicked,
-  onAssistantTypeChange,
-  onEnglishIncludedChange,
-  onImageIncludedChange,
-}: {
+interface KeywordInputProps {
   neededBeadCount: number;
   keywords: string;
-  assistantType: "default" | "traditional";
   isEnglishIncluded: boolean;
   isImageIncluded: boolean;
   onKeywordsChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onButtonClicked: () => void;
-  onAssistantTypeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   onEnglishIncludedChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onImageIncludedChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  function onAssistantClicked(e: React.ChangeEvent<HTMLInputElement>) {
-    onAssistantTypeChange({
-      target: { value: e.target.checked ? "traditional" : "default" },
-    } as React.ChangeEvent<HTMLSelectElement>);
-  }
-  function onLanguageClicked(e: React.ChangeEvent<HTMLInputElement>) {
-    onEnglishIncludedChange(e);
-  }
+}
+
+export default function KeywordInput({
+  neededBeadCount,
+  keywords,
+  isEnglishIncluded,
+  isImageIncluded,
+  onKeywordsChange,
+  onButtonClicked,
+  onEnglishIncludedChange,
+  onImageIncludedChange,
+}: KeywordInputProps) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && keywords.trim().length > 0) {
+      onButtonClicked();
+    }
+  };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start w-full my-8 px-8">
-      <div className="flex flex-col items-center sm:items-start gap-2 w-full">
+    <div className="p-4 bg-white rounded-md shadow-md border border-orange-300">
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-orange-700 mb-2">
+          키워드로 동화 만들기
+        </h2>
+        <p className="text-sm text-gray-600 mb-1">
+          콤마(,)로 구분된 키워드를 입력하세요. 필요한 곶감: {neededBeadCount}개
+        </p>
         <input
-          className="form-input text-xl w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 shadow-sm"
           type="text"
+          className="w-full px-4 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+          placeholder="예: 숲속, 토끼, 마법, 모험"
           value={keywords}
-          placeholder="예시) 윤신, 마법, 도서관"
           onChange={onKeywordsChange}
+          onKeyDown={handleKeyDown}
         />
-        <div className="flex gap-8">
-          {/* <label>
-            <input
-              type="checkbox"
-              checked={assistantType === "traditional"}
-              onChange={e => onAssistantClicked(e)}
-            />
-            전통적
-          </label> */}
-          <label className="text-sm sm:text-xl">
-            <input
-              className="w-8"
-              type="checkbox"
-              checked={isEnglishIncluded}
-              onChange={e => onLanguageClicked(e)}
-            />
-            영어포함
+      </div>
+
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="english-checkbox"
+            checked={isEnglishIncluded}
+            onChange={onEnglishIncludedChange}
+            className="w-4 h-4 text-orange-600"
+          />
+          <label htmlFor="english-checkbox" className="text-sm">
+            영어 번역 (+1 곶감)
           </label>
-          <label className="text-sm sm:text-xl">
-            <input
-              className="w-8"
-              type="checkbox"
-              checked={isImageIncluded}
-              onChange={onImageIncludedChange}
-            />
-            그림포함
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="image-checkbox"
+            checked={isImageIncluded}
+            onChange={onImageIncludedChange}
+            className="w-4 h-4 text-orange-600"
+          />
+          <label htmlFor="image-checkbox" className="text-sm">
+            그림 생성 (+1 곶감)
           </label>
         </div>
       </div>
-      <HButton
-        children={
-          <div className="flex items-center gap-2 justify-center sm:gap-4 sm:min-w-32">
-            <span className="text-md sm:text-xl">시작!</span>
-            <div className="flex items-center">
-              <img
-                src="persimmon_240424.png"
-                className="w-6 sm:w-8 h-6 sm:h-8 text-md sm:text-xl"
-              />{" "}
-              X {neededBeadCount}{" "}
-            </div>
-          </div>
-        }
+
+      <button
+        className={`w-full py-2 px-4 rounded-md transition-colors ${
+          keywords.length > 0
+            ? "bg-orange-500 text-white hover:bg-orange-600"
+            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+        }`}
         onClick={onButtonClicked}
-        style="filled"
-      />
+        disabled={keywords.length === 0}
+      >
+        동화 만들기 시작
+      </button>
     </div>
   );
 }
