@@ -500,7 +500,7 @@
   dependencies:
     "@types/node" "*"
 
-"@typescript-eslint/eslint-plugin@^6.17.0":
+"@typescript-eslint/eslint-plugin@^5.13.0 || ^6.0.0", "@typescript-eslint/eslint-plugin@^6.0.0":
   version "6.21.0"
   resolved "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-6.21.0.tgz"
   integrity sha512-oy9+hTPCUFpngkEZUSzbf9MxI65wbKFoQYsgPdILTfbUldp5ovUuphZVe4i30emU9M/kP+T64Di0mxl7dSw3MA==
@@ -517,7 +517,7 @@
     semver "^7.5.4"
     ts-api-utils "^1.0.1"
 
-"@typescript-eslint/parser@^5.4.2 || ^6.0.0", "@typescript-eslint/parser@^6.0.0 || ^6.0.0-alpha", "@typescript-eslint/parser@^6.17.0":
+"@typescript-eslint/parser@^5.0.0 || ^6.0.0", "@typescript-eslint/parser@^5.4.2 || ^6.0.0", "@typescript-eslint/parser@^6.0.0", "@typescript-eslint/parser@^6.0.0 || ^6.0.0-alpha":
   version "6.17.0"
   resolved "https://registry.npmjs.org/@typescript-eslint/parser/-/parser-6.17.0.tgz"
   integrity sha512-C4bBaX2orvhK+LlwrY8oWGmSl4WolCfYm513gEccdWZj0CwGadbIADb0FtVEcI+WzUyjyoBj2JRP8g25E6IB8A==
@@ -943,9 +943,9 @@ camelcase@^6.3.0, camelcase@6:
   integrity sha512-Gmy6FhYlCY7uOElZUSbxo2UCDH8owEk996gkbrpsgGtrJLM3J7jGxl9Ic7Qwwj4ivOE5AWZWRMecDdF7hqGjFA==
 
 caniuse-lite@^1.0.30001406, caniuse-lite@^1.0.30001587, caniuse-lite@^1.0.30001591:
-  version "1.0.30001597"
-  resolved "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001597.tgz"
-  integrity sha512-7LjJvmQU6Sj7bL0j5b5WY/3n7utXUJvAe1lxhsHDbLmwX9mdL86Yjtr+5SRCyf8qME4M7pU2hswj0FpyBVCv9w==
+  version "1.0.30001718"
+  resolved "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001718.tgz"
+  integrity sha512-AflseV1ahcSunK53NfEs9gFWgOEmzr0f+kaMFA4xiLZlr9Hzt7HxcSpIFcnNCUkz6R6dWKa54rUz3HUmI3nVcw==
 
 chalk@^4.0.0, chalk@^4.1.2:
   version "4.1.2"
@@ -1321,7 +1321,14 @@ eslint-config-airbnb-base@^15.0.0:
     object.entries "^1.1.5"
     semver "^6.3.0"
 
-eslint-config-airbnb@19.0.4:
+eslint-config-airbnb-typescript@^17.0.0:
+  version "17.1.0"
+  resolved "https://registry.npmjs.org/eslint-config-airbnb-typescript/-/eslint-config-airbnb-typescript-17.1.0.tgz"
+  integrity sha512-GPxI5URre6dDpJ0CtcthSZVBAfI+Uw7un5OYNVxP2EYi3H81Jw701yFP7AU+/vCE7xBtFmjge7kfhhk4+RAiig==
+  dependencies:
+    eslint-config-airbnb-base "^15.0.0"
+
+eslint-config-airbnb@^19.0.4:
   version "19.0.4"
   resolved "https://registry.npmjs.org/eslint-config-airbnb/-/eslint-config-airbnb-19.0.4.tgz"
   integrity sha512-T75QYQVQX57jiNgpF9r1KegMICE94VYwoFQyMGhrvc+lB8YF2E/M/PYDaQe1AJcWaEgqLE+ErXV1Og/+6Vyzew==

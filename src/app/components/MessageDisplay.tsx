@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface MessageDisplayProps {
   messages: {
@@ -7,15 +7,17 @@ interface MessageDisplayProps {
   }[];
   isShowEnglish: boolean;
   useGoogleTTS?: boolean; // Google TTS 사용 여부
+  voice?: string; // 음성 타입 (male, female 등)
 }
 
 export default function MessageDisplay({
   messages,
   isShowEnglish,
   useGoogleTTS = true, // 기본값은 Google TTS API 사용
+  voice = "male", // 기본값은 남성 목소리
 }: MessageDisplayProps) {
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
-  const [isAPILoading, setIsAPILoading] = useState<boolean>(false);
+  const [isAPILoading, _setIsAPILoading] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlsRef = useRef<string[]>([]);
   const currentAudioIndexRef = useRef<number>(0);
@@ -63,6 +65,30 @@ export default function MessageDisplay({
       utterance.rate = speed;
       utterance.pitch = pitch;
 
+      // 목소리 선택 로직 추가
+      try {
+        if (window.speechSynthesis.getVoices().length > 0) {
+          const voices = window.speechSynthesis.getVoices();
+          const langCode = language.startsWith("ko") ? "ko" : "en";
+
+          // 선호하는 성별에 따라 목소리 필터링
+          const preferredVoices = voices.filter(
+            v =>
+              v.lang.includes(langCode) &&
+              (voice === "female"
+                ? v.name.toLowerCase().includes("female")
+                : true),
+          );
+
+          // 적절한 목소리가 있으면 설정
+          if (preferredVoices.length > 0) {
+            utterance.voice = preferredVoices[0];
+          }
+        }
+      } catch (e) {
+        console.error("음성 설정 오류:", e);
+      }
+
       // 음성 재생 시작 설정
       setPlayingIndex(index);
 
@@ -85,7 +111,7 @@ export default function MessageDisplay({
     language: string = "ko",
   ) => {
     try {
-      setIsAPILoading(true);
+      _setIsAPILoading(true);
       setPlayingIndex(index);
 
       // 기존 오디오 중지
@@ -114,7 +140,7 @@ export default function MessageDisplay({
       }
 
       // base64 인코딩된 오디오 데이터 배열 받기
-      const audioDataArray = data.audioDataArray;
+      const { audioDataArray } = data;
       if (!audioDataArray || audioDataArray.length === 0) {
         throw new Error("오디오 데이터를 받지 못했습니다.");
       }
@@ -128,11 +154,11 @@ export default function MessageDisplay({
       // 첫 번째 오디오 재생 시작
       playNextAudio();
 
-      setIsAPILoading(false);
-    } catch (error) {
+      _setIsAPILoading(false);
+    } catch (error: unknown) {
       console.error("TTS API 오류:", error);
       alert("음성 생성 중 오류가 발생했습니다.");
-      setIsAPILoading(false);
+      _setIsAPILoading(false);
       setPlayingIndex(null);
 
       // 오류 발생 시 브라우저 기본 TTS로 폴백
@@ -206,8 +232,7 @@ export default function MessageDisplay({
             // 속도 조정 (원래 속도 유지)
             if (Math.abs(pitch - 1.0) > 0.01) {
               // 피치와 속도의 독립적 조정
-              sourceNodeRef.current.playbackRate.value =
-                speed / Math.pow(pitch, 0.8);
+              sourceNodeRef.current.playbackRate.value = speed / pitch ** 0.8;
             } else {
               sourceNodeRef.current.playbackRate.value = speed;
             }
@@ -413,9 +438,9 @@ export default function MessageDisplay({
                 {/* 재생 중 표시 아이콘 */}
                 {playingIndex === index ? (
                   <span className="absolute inset-0 w-3 h-3">
-                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm animate-sound-wave1"></span>
-                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm left-1 animate-sound-wave2"></span>
-                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm left-2 animate-sound-wave3"></span>
+                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm animate-sound-wave1" />
+                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm left-1 animate-sound-wave2" />
+                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm left-2 animate-sound-wave3" />
                   </span>
                 ) : (
                   /* 호버 시 나타나는 스피커 아이콘 */
@@ -460,9 +485,9 @@ export default function MessageDisplay({
                   {/* 재생 중 표시 아이콘 (영어) */}
                   {playingIndex === index + 1000 ? (
                     <span className="absolute inset-0 w-3 h-3">
-                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm animate-sound-wave1"></span>
-                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm left-1 animate-sound-wave2"></span>
-                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm left-2 animate-sound-wave3"></span>
+                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm animate-sound-wave1" />
+                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm left-1 animate-sound-wave2" />
+                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm left-2 animate-sound-wave3" />
                     </span>
                   ) : (
                     /* 호버 시 나타나는 스피커 아이콘 (영어) */
