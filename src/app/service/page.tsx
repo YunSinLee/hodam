@@ -3,27 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 // LangChain 함수 import
 import {
-  generateFairyTale,
-  generateNextPart,
-  translateToEnglish,
-  integrateEnglishTranslation,
-  generateImage,
-} from "../api/langchain";
-import {
   HumanMessage,
   SystemMessage,
   AIMessage,
 } from "@langchain/core/messages";
-
-import { Message, Thread, Selection } from "../types/openai";
-import { isEmpty } from "../utils";
 
 import threadApi from "@/app/api/thread";
 import keywordsApi from "@/app/api/keywords";
 import messagesApi from "@/app/api/messages";
 import imageApi from "@/app/api/image";
 import userApi from "@/app/api/user";
-import beadApi from "../api/bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 import useBead from "@/services/hooks/use-bead";
 
@@ -32,6 +21,16 @@ import MessageDisplay from "@/app/components/MessageDisplay";
 import SelectionDisplay from "@/app/components/SelectionDisplay";
 import GuideForSign from "@/app/components/GuideForSign";
 import HButton from "@/app/components/atomic/HButton";
+import beadApi from "../api/bead";
+import { isEmpty } from "../utils";
+import { Message, Thread, Selection } from "../types/openai";
+import {
+  generateFairyTale,
+  generateNextPart,
+  translateToEnglish,
+  integrateEnglishTranslation,
+  generateImage,
+} from "../api/langchain";
 
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
@@ -505,14 +504,14 @@ export default function Hodam() {
                       isEnglishIncluded ? "bg-orange-500" : "bg-gray-300"
                     }`}
                     onClick={() => setIsEnglishIncluded(!isEnglishIncluded)}
-                  ></div>
+                  />
                   <span>영어 번역 포함</span>
                   <div
                     className={`w-5 h-5 rounded-full ${
                       isImageIncluded ? "bg-orange-500" : "bg-gray-300"
                     }`}
                     onClick={() => setIsImageIncluded(!isImageIncluded)}
-                  ></div>
+                  />
                   <span>그림 생성 포함</span>
                 </div>
                 <KeywordInput
@@ -534,112 +533,108 @@ export default function Hodam() {
               {isImageIncluded && isStoryLoading && (
                 <div className="flex justify-center mb-4">
                   <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                    <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" />
                     <p className="mt-2 text-blue-500">이미지 생성 중...</p>
                   </div>
                 </div>
               )}
               {isStarted && (
-                <>
-                  <div>
-                    {/* 이미지 영역 - 이야기 위에 배치 */}
-                    {isImageIncluded && (
-                      <div className="mb-4">
-                        <h2 className="mb-2 text-xl">동화 이미지</h2>
-                        <div className="grid grid-cols-1 gap-2">
-                          {images.map((src, index) => (
-                            <img
-                              key={index}
-                              src={src}
-                              className="w-full rounded-md"
-                              alt={`동화 이미지 ${index + 1}`}
-                            />
-                          ))}
-                          {/* 이미 생성된 이미지만 표시하고, 로딩은 위에서 표시 */}
-                          {isImageLoading && !isStoryLoading && (
-                            <div className="relative w-full pb-[100%] bg-gray-100 rounded-md">
-                              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-                                <p className="mt-2 text-blue-500">
-                                  이미지 생성 중...
-                                </p>
-                              </div>
+                <div>
+                  {/* 이미지 영역 - 이야기 위에 배치 */}
+                  {isImageIncluded && (
+                    <div className="mb-4">
+                      <h2 className="mb-2 text-xl">동화 이미지</h2>
+                      <div className="grid grid-cols-1 gap-2">
+                        {images.map((src, index) => (
+                          <img
+                            key={index}
+                            src={src}
+                            className="w-full rounded-md"
+                            alt={`동화 이미지 ${index + 1}`}
+                          />
+                        ))}
+                        {/* 이미 생성된 이미지만 표시하고, 로딩은 위에서 표시 */}
+                        {isImageLoading && !isStoryLoading && (
+                          <div className="relative w-full pb-[100%] bg-gray-100 rounded-md">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" />
+                              <p className="mt-2 text-blue-500">
+                                이미지 생성 중...
+                              </p>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* 이야기 로딩은 이미지 영역 아래에 배치 */}
-                    {isStoryLoading && (
-                      <div className="flex justify-center mb-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 border-4 border-orange-500 rounded-full border-t-transparent animate-spin"></div>
-                          <p className="mt-2 text-orange-500">
-                            이야기 생성 중...
-                          </p>
-                        </div>
+                  {/* 이야기 로딩은 이미지 영역 아래에 배치 */}
+                  {isStoryLoading && (
+                    <div className="flex justify-center mb-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 border-4 border-orange-500 rounded-full border-t-transparent animate-spin" />
+                        <p className="mt-2 text-orange-500">
+                          이야기 생성 중...
+                        </p>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* 이야기 영역 - 이미지 아래로 이동 */}
-                    {messages && messages.length > 0 && (
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h2 className="text-xl">동화 내용</h2>
-                          {isEnglishIncluded && (
-                            <button
-                              className={`px-3 py-1 text-sm rounded-md ${
-                                isShowEnglish
-                                  ? "bg-orange-500 text-white"
-                                  : "bg-gray-200"
-                              }`}
-                              onClick={() => setIsShowEnglish(!isShowEnglish)}
-                            >
-                              {isShowEnglish
-                                ? "한국어만 보기"
-                                : "영어 함께 보기"}
-                            </button>
-                          )}
-                          {!isEnglishIncluded && messages.length > 0 && (
-                            <button
-                              className={`px-3 py-1 text-sm rounded-md ${
-                                translationInProgress
-                                  ? "bg-gray-400 cursor-not-allowed"
-                                  : "bg-orange-500 text-white"
-                              }`}
-                              onClick={translateStory}
-                              disabled={translationInProgress}
-                            >
-                              {translationInProgress
-                                ? "번역 중..."
-                                : "영어로 번역하기"}
-                            </button>
-                          )}
-                        </div>
-                        <MessageDisplay
-                          messages={messages}
-                          isShowEnglish={isShowEnglish}
-                          useGoogleTTS={true} // Google Translate TTS 사용 (무료)
-                        />
+                  {/* 이야기 영역 - 이미지 아래로 이동 */}
+                  {messages && messages.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-xl">동화 내용</h2>
+                        {isEnglishIncluded && (
+                          <button
+                            className={`px-3 py-1 text-sm rounded-md ${
+                              isShowEnglish
+                                ? "bg-orange-500 text-white"
+                                : "bg-gray-200"
+                            }`}
+                            onClick={() => setIsShowEnglish(!isShowEnglish)}
+                          >
+                            {isShowEnglish ? "한국어만 보기" : "영어 함께 보기"}
+                          </button>
+                        )}
+                        {!isEnglishIncluded && messages.length > 0 && (
+                          <button
+                            className={`px-3 py-1 text-sm rounded-md ${
+                              translationInProgress
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-orange-500 text-white"
+                            }`}
+                            onClick={translateStory}
+                            disabled={translationInProgress}
+                          >
+                            {translationInProgress
+                              ? "번역 중..."
+                              : "영어로 번역하기"}
+                          </button>
+                        )}
                       </div>
-                    )}
+                      <MessageDisplay
+                        messages={messages}
+                        isShowEnglish={isShowEnglish}
+                        useGoogleTTS // Google Translate TTS 사용 (무료)
+                      />
+                    </div>
+                  )}
 
-                    {notice && <p className="mb-4 text-orange-500">{notice}</p>}
+                  {notice && <p className="mb-4 text-orange-500">{notice}</p>}
 
-                    {selections && selections.length > 0 && (
-                      <div className="mb-4">
-                        <h2 className="mb-2 text-xl">다음 전개를 선택하세요</h2>
-                        <SelectionDisplay
-                          selections={selections}
-                          isShowEnglish={isShowEnglish}
-                          clickSelection={clickSelection}
-                          notice={notice}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </>
+                  {selections && selections.length > 0 && (
+                    <div className="mb-4">
+                      <h2 className="mb-2 text-xl">다음 전개를 선택하세요</h2>
+                      <SelectionDisplay
+                        selections={selections}
+                        isShowEnglish={isShowEnglish}
+                        clickSelection={clickSelection}
+                        notice={notice}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ) : (
