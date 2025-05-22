@@ -66,7 +66,7 @@ export default function MyStoryDetail() {
             className="font-medium"
             label="← 목록으로"
             size="sm"
-            style="outlined"
+            styleType="outlined"
             color="neutral"
           />
         </Link>

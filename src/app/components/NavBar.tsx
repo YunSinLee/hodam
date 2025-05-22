@@ -115,7 +115,7 @@ export default function NavBar() {
               <HButton
                 className="py-0 font-medium text-lg"
                 label="로그아웃"
-                style="outlined"
+                styleType="outlined"
                 onClick={signOut}
               />
             ) : (
@@ -159,7 +159,7 @@ export default function NavBar() {
             <HButton
               className="py-0 font-medium text-lg"
               label="로그아웃"
-              style="outlined"
+              styleType="outlined"
               onClick={signOut}
             />
           ) : (
