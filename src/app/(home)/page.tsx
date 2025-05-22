@@ -28,7 +28,7 @@ export default function Home() {
           <p>시작하기 버튼을 눌러 호담을 시작해보세요.</p>
         </div>
         <Link href="./service">
-          <HButton label="시작하기" size="xl" style="filled" />
+          <HButton label="시작하기" size="xl" styleType="filled" />
         </Link>
         <div className="text-xl text-gray-500 max-w-xl flex flex-col items-center gap-2">
           <p>
