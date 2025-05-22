@@ -17,7 +17,7 @@ export default function MessageDisplay({
   voice = "male", // 기본값은 남성 목소리
 }: MessageDisplayProps) {
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
-  const [isAPILoading, _setIsAPILoading] = useState<boolean>(false);
+  const [isAPILoading, setIsAPILoadingState] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlsRef = useRef<string[]>([]);
   const currentAudioIndexRef = useRef<number>(0);
@@ -111,7 +111,7 @@ export default function MessageDisplay({
     language: string = "ko",
   ) => {
     try {
-      _setIsAPILoading(true);
+      setIsAPILoadingState(true);
       setPlayingIndex(index);
 
       // 기존 오디오 중지
@@ -154,11 +154,11 @@ export default function MessageDisplay({
       // 첫 번째 오디오 재생 시작
       playNextAudio();
 
-      _setIsAPILoading(false);
+      setIsAPILoadingState(false);
     } catch (error: unknown) {
       console.error("TTS API 오류:", error);
       alert("음성 생성 중 오류가 발생했습니다.");
-      _setIsAPILoading(false);
+      setIsAPILoadingState(false);
       setPlayingIndex(null);
 
       // 오류 발생 시 브라우저 기본 TTS로 폴백
