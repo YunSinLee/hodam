@@ -32,7 +32,7 @@ const googleTtsApi = {
   ): string {
     // 텍스트가 너무 길면 잘라내기 (Google TTS 최대 제한)
     if (text.length > 200) {
-      text = text.substring(0, 197) + "...";
+      text = `${text.substring(0, 197)}...`;
     }
 
     // 텍스트 URL 인코딩
@@ -148,7 +148,7 @@ const googleTtsApi = {
 
     const audioDataArray: string[] = [];
     let currentChunk = "";
-    let chunks: string[] = [];
+    const chunks: string[] = [];
 
     // 청크 단위로 묶기 (최대 200자)
     for (const sentence of sentences) {

@@ -11,7 +11,7 @@ import {
 } from "@langchain/core/messages";
 import { OpenAI } from "openai";
 
-const OPEN_AI_API_KEY = process.env.OPEN_AI_API_KEY;
+const { OPEN_AI_API_KEY } = process.env;
 
 // 동화 생성을 위한 챗 모델 초기화 (높은 temperature로 창의성 향상)
 const chatModel = new ChatOpenAI({
@@ -317,7 +317,7 @@ export async function generateImage(prompt: string) {
 
     // 향상된 프롬프트 생성
     const enhancedPrompt = await imagePromptChain.invoke({
-      prompt: prompt,
+      prompt,
     });
 
     // DALL-E로 이미지 생성

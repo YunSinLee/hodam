@@ -7,7 +7,7 @@ import beadApi from "@/app/api/bead";
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog"; // Dialog 컴포넌트 추가
 
-const BeadPage: React.FC = () => {
+function BeadPage() {
   const { bead, setBead } = useBead();
   const { userInfo } = useUserInfo();
   const [displayDialog, setDisplayDialog] = useState(false); // 다이얼로그 상태 추가
@@ -95,6 +95,6 @@ const BeadPage: React.FC = () => {
       </Dialog>
     </div>
   );
-};
+}
 
 export default BeadPage;
