@@ -96,7 +96,7 @@ export default function Hodam() {
   }
 
   async function startThread() {
-    // 새로운 스레드 생성
+    // 새로운 스레드 생성 (기본값으로 생성)
     const thread = await threadApi.createThread({
       thread_id: `langchain_${Date.now()}`, // 임의의 ID 생성
       user_id: userInfo.id,
@@ -162,18 +162,27 @@ export default function Hodam() {
     }
 
     try {
-      await threadApi.updateThread({
-        thread_id: thread.id,
-        user_id: userInfo.id,
-        able_english: isEnglishIncluded,
-        has_image: isImageIncluded,
-      });
+      // thread가 없거나 설정이 다르면 새로 생성
+      let currentThread = thread;
+      if (
+        !thread.id ||
+        thread.able_english !== isEnglishIncluded ||
+        thread.has_image !== isImageIncluded
+      ) {
+        currentThread = await threadApi.createThread({
+          thread_id: `langchain_${Date.now()}`,
+          user_id: userInfo.id,
+          able_english: isEnglishIncluded,
+          has_image: isImageIncluded,
+        });
+        setThread(currentThread);
+      }
 
       // 키워드 저장
       const keywordArray = keywords.split(",").map(k => k.trim());
       await keywordsApi.saveKeywords({
         keywords: keywordArray,
-        thread_id: thread.id,
+        thread_id: currentThread.id,
       });
 
       // LangChain으로 동화 생성
@@ -189,7 +198,7 @@ export default function Hodam() {
       }
 
       await threadApi.updateThread({
-        thread_id: thread.id,
+        thread_id: currentThread.id,
         user_id: userInfo.id,
         raw_text: storyHtml,
       });
@@ -237,7 +246,7 @@ export default function Hodam() {
 
       const savedMessages = await messagesApi.saveMessages({
         messages: messageObjects,
-        thread_id: thread.id,
+        thread_id: currentThread.id,
         turn,
       });
 
@@ -268,7 +277,7 @@ export default function Hodam() {
       if (isImageIncluded && storytellingPrompt) {
         setImageDescription(storytellingPrompt);
         setIsImageLoading(true);
-        getImage(storytellingPrompt).finally(() => {
+        getImage(storytellingPrompt, currentThread.id).finally(() => {
           setIsImageLoading(false);
         });
       }
@@ -382,7 +391,7 @@ export default function Hodam() {
       if (isImageIncluded && storytellingPrompt) {
         setImageDescription(storytellingPrompt);
         setIsImageLoading(true);
-        getImage(storytellingPrompt).finally(() => {
+        getImage(storytellingPrompt, thread.id).finally(() => {
           setIsImageLoading(false);
         });
       }
@@ -393,14 +402,21 @@ export default function Hodam() {
     }
   }
 
-  async function getImage(description: string) {
+  async function getImage(description: string, thread_id: number) {
     try {
       const response = await generateImage(description);
       const imageData = await imageApi.uploadImage(
         response.data?.[0]?.b64_json ?? "",
-        thread.id,
+        thread_id,
       );
       setImages([...images, URL.createObjectURL(imageData!)]);
+
+      // 이미지 저장 후 has_image 플래그 업데이트
+      await threadApi.updateThread({
+        thread_id,
+        user_id: userInfo.id,
+        has_image: true,
+      });
     } catch (error) {
       console.error("Error fetching image:", error);
     }
