@@ -1,14 +1,16 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import threadApi from "@/app/api/thread";
-import messagesApi from "@/app/api/messages";
-import imageApi from "@/app/api/image";
-import type { Message, Thread } from "@/app/types/openai";
-import MessageDisplay from "@/app/components/MessageDisplay";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
+
+import imageApi from "@/app/api/image";
+import messagesApi from "@/app/api/messages";
+import threadApi from "@/app/api/thread";
 import HButton from "@/app/components/atomic/HButton";
+import MessageDisplay from "@/app/components/MessageDisplay";
+import type { Message, Thread } from "@/app/types/openai";
 
 export default function MyStoryDetail() {
   const [isLoading, setIsLoading] = useState<boolean>(false);

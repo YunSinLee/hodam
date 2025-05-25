@@ -1,5 +1,5 @@
-import { supabase } from "../utils/supabase";
 import { Keyword } from "../types/openai";
+import { supabase } from "../utils/supabase";
 
 const keywordsApi = {
   async saveKeywords({

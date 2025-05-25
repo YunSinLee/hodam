@@ -1,16 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import beadApi from "@/app/api/bead";
+import userApi from "@/app/api/user";
+import HButton from "@/app/components/atomic/HButton";
+import { supabase } from "@/app/utils/supabase";
+import useBead from "@/services/hooks/use-bead";
 import useUserInfo, {
   defaultState as defaultUserInfoState,
 } from "@/services/hooks/use-user-info";
-import useBead from "@/services/hooks/use-bead";
-import userApi from "@/app/api/user";
-import beadApi from "@/app/api/bead";
-import { useEffect, useState } from "react";
-import { supabase } from "@/app/utils/supabase";
-import HButton from "@/app/components/atomic/HButton";
 
 export default function NavBar() {
   const { userInfo, setUserInfo } = useUserInfo();
