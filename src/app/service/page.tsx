@@ -32,7 +32,7 @@ import {
 import { Message, Thread } from "../types/openai";
 
 export default function Hodam() {
-  const [thread, setThread] = useState<Thread>({} as Thread);
+  const [thread, setThread] = useState<Thread | null>(null);
   const [keywords, setKeywords] = useState<string>("");
   const [rawText, setRawText] = useState<string>("");
   const [messages, setMessages] = useState<{ text: string; text_en: string }[]>(
@@ -77,10 +77,6 @@ export default function Hodam() {
     getSession();
   }, []);
 
-  useEffect(() => {
-    if (userInfo.id) startThread();
-  }, [userInfo.id]);
-
   // 이미지 생성은 이제 각 함수 내에서 비동기적으로 처리
 
   async function getSession() {
@@ -96,12 +92,15 @@ export default function Hodam() {
   }
 
   async function startThread() {
-    // 새로운 스레드 생성 (기본값으로 생성)
+    // 이 함수는 이제 searchKeywords에서만 호출됨
     const thread = await threadApi.createThread({
-      thread_id: `langchain_${Date.now()}`, // 임의의 ID 생성
+      thread_id: `langchain_${Date.now()}`,
       user_id: userInfo.id,
+      able_english: isEnglishIncluded,
+      has_image: isImageIncluded,
     });
     setThread(thread);
+    return thread;
   }
 
   async function consumeBeads() {
@@ -158,25 +157,12 @@ export default function Hodam() {
 
     // 시작부터 이미지 생성이 포함되어 있음을 표시
     if (isImageIncluded) {
-      setIsImageLoading(false); // 플래그는 이미지 생성 직전에 true로 설정되므로, 초기에는 false로 둠
+      setIsImageLoading(false);
     }
 
     try {
-      // thread가 없거나 설정이 다르면 새로 생성
-      let currentThread = thread;
-      if (
-        !thread.id ||
-        thread.able_english !== isEnglishIncluded ||
-        thread.has_image !== isImageIncluded
-      ) {
-        currentThread = await threadApi.createThread({
-          thread_id: `langchain_${Date.now()}`,
-          user_id: userInfo.id,
-          able_english: isEnglishIncluded,
-          has_image: isImageIncluded,
-        });
-        setThread(currentThread);
-      }
+      // 항상 새로운 thread 생성 (동화 생성 시작 시점)
+      const currentThread = await startThread();
 
       // 키워드 저장
       const keywordArray = keywords.split(",").map(k => k.trim());
@@ -289,6 +275,15 @@ export default function Hodam() {
   }
 
   async function clickSelection(selection: string) {
+    // thread가 없으면 선택지를 클릭할 수 없음
+    if (!thread?.id) {
+      alert("동화를 먼저 시작해주세요.");
+      return;
+    }
+
+    // 이 시점에서 thread는 null이 아님이 보장됨
+    const currentThread = thread;
+
     setIsStoryLoading(true);
     setSelections([]);
 
@@ -317,7 +312,7 @@ export default function Hodam() {
       }
 
       await threadApi.updateThread({
-        thread_id: thread.id,
+        thread_id: currentThread.id,
         user_id: userInfo.id,
         raw_text: rawText + storyHtml,
       });
@@ -365,7 +360,7 @@ export default function Hodam() {
 
       const savedMessages = await messagesApi.saveMessages({
         messages: messageObjects,
-        thread_id: thread.id,
+        thread_id: currentThread.id,
         turn,
       });
 
@@ -391,7 +386,7 @@ export default function Hodam() {
       if (isImageIncluded && storytellingPrompt) {
         setImageDescription(storytellingPrompt);
         setIsImageLoading(true);
-        getImage(storytellingPrompt, thread.id).finally(() => {
+        getImage(storytellingPrompt, currentThread.id).finally(() => {
           setIsImageLoading(false);
         });
       }
@@ -490,7 +485,7 @@ export default function Hodam() {
 
   // 한국어 동화를 영어로 번역하는 함수
   async function translateStory() {
-    if (!isStarted || messages.length === 0) return;
+    if (!isStarted || messages.length === 0 || !thread?.id) return;
 
     setTranslationInProgress(true);
     try {
@@ -533,7 +528,7 @@ export default function Hodam() {
           message: msg.text,
           message_en: msg.text_en,
           turn,
-          thread_id: thread.id,
+          thread_id: thread.id, // thread가 null이 아님을 위에서 확인했으므로 안전
           position: index,
         })),
       );
