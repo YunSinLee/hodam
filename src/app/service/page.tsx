@@ -1,36 +1,35 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
 // LangChain 함수 import
 import {
+  AIMessage,
   HumanMessage,
   SystemMessage,
-  AIMessage,
 } from "@langchain/core/messages";
 
-import threadApi from "@/app/api/thread";
+import imageApi from "@/app/api/image";
 import keywordsApi from "@/app/api/keywords";
 import messagesApi from "@/app/api/messages";
-import imageApi from "@/app/api/image";
+import threadApi from "@/app/api/thread";
 import userApi from "@/app/api/user";
-import useUserInfo from "@/services/hooks/use-user-info";
-import useBead from "@/services/hooks/use-bead";
-
+import GuideForSign from "@/app/components/GuideForSign";
 import KeywordInput from "@/app/components/KeywordInput";
 import MessageDisplay from "@/app/components/MessageDisplay";
 import SelectionDisplay from "@/app/components/SelectionDisplay";
-import GuideForSign from "@/app/components/GuideForSign";
-import HButton from "@/app/components/atomic/HButton";
+import useBead from "@/services/hooks/use-bead";
+import useUserInfo from "@/services/hooks/use-user-info";
+
 import beadApi from "../api/bead";
-import { isEmpty } from "../utils";
-import { Message, Thread, Selection } from "../types/openai";
 import {
   generateFairyTale,
-  generateNextPart,
-  translateToEnglish,
-  integrateEnglishTranslation,
   generateImage,
+  generateNextPart,
+  integrateEnglishTranslation,
+  translateToEnglish,
 } from "../api/langchain";
+import { Message, Thread } from "../types/openai";
 
 export default function Hodam() {
   const [thread, setThread] = useState<Thread>({} as Thread);
@@ -56,9 +55,12 @@ export default function Hodam() {
   // 번역 상태
   const [translationInProgress, setTranslationInProgress] =
     useState<boolean>(false);
-  // 대화 기록 유지를 위한 상태
+  // 대화 기록 유지를 위한 상태 (직렬화 가능한 형태로 변경)
   const [langchainMessages, setLangchainMessages] = useState<
-    (HumanMessage | AIMessage | SystemMessage)[]
+    {
+      type: string;
+      content: string;
+    }[]
   >([]);
 
   const { userInfo, setUserInfo } = useUserInfo();
@@ -117,6 +119,38 @@ export default function Hodam() {
     setBead(beadInfo);
   }
 
+  // 메시지 직렬화 및 역직렬화 유틸리티 함수
+  const serializeMessages = (
+    messages: (HumanMessage | AIMessage | SystemMessage)[],
+  ) => {
+    return messages.map(msg => ({
+      type:
+        msg instanceof SystemMessage
+          ? "system"
+          : msg instanceof HumanMessage
+            ? "human"
+            : "ai",
+      content:
+        typeof msg.content === "string"
+          ? msg.content
+          : JSON.stringify(msg.content),
+    }));
+  };
+
+  const deserializeMessages = (
+    serialized: { type: string; content: string }[],
+  ) => {
+    return serialized.map(msg => {
+      if (msg.type === "system") {
+        return new SystemMessage(msg.content);
+      }
+      if (msg.type === "human") {
+        return new HumanMessage(msg.content);
+      }
+      return new AIMessage(msg.content);
+    });
+  };
+
   async function searchKeywords() {
     await consumeBeads();
     setIsStarted(true);
@@ -150,7 +184,8 @@ export default function Hodam() {
       } = await generateFairyTale(keywords);
 
       if (updatedMessages) {
-        setLangchainMessages(updatedMessages);
+        // 직렬화 가능한 형태로 메시지 저장
+        setLangchainMessages(serializeMessages(updatedMessages));
       }
 
       await threadApi.updateThread({
@@ -259,10 +294,17 @@ export default function Hodam() {
         storyHtml,
         storytellingPrompt,
         messages: updatedMessages,
-      } = await generateNextPart(rawText, selection, langchainMessages);
+      } = await generateNextPart(
+        rawText,
+        selection,
+        langchainMessages.length > 0
+          ? deserializeMessages(langchainMessages)
+          : [],
+      );
 
       if (updatedMessages) {
-        setLangchainMessages(updatedMessages);
+        // 직렬화 가능한 형태로 메시지 저장
+        setLangchainMessages(serializeMessages(updatedMessages));
       }
 
       await threadApi.updateThread({
@@ -629,8 +671,9 @@ export default function Hodam() {
                       <SelectionDisplay
                         selections={selections}
                         isShowEnglish={isShowEnglish}
-                        clickSelection={clickSelection}
+                        onSelectionClick={clickSelection}
                         notice={notice}
+                        onClear={() => {}}
                       />
                     </div>
                   )}

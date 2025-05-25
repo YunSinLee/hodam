@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface MessageDisplayProps {
   messages: {
@@ -17,7 +17,7 @@ export default function MessageDisplay({
   voice = "male", // 기본값은 남성 목소리
 }: MessageDisplayProps) {
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
-  const [isAPILoading, setIsAPILoadingState] = useState<boolean>(false);
+  const [_isAPILoading, setIsAPILoadingState] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlsRef = useRef<string[]>([]);
   const currentAudioIndexRef = useRef<number>(0);

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+
 import HButton from "@/app/components/atomic/HButton";
 
 export default function Home() {

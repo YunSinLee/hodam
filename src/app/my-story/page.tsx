@@ -1,12 +1,13 @@
 "use client";
 
-import threadApi from "@/app/api/thread";
-import useUserInfo from "@/services/hooks/use-user-info";
-
 import { useEffect, useState } from "react";
-import type { ThreadWithUser } from "@/app/types/openai";
+
 import Link from "next/link";
+
+import threadApi from "@/app/api/thread";
+import type { ThreadWithUser } from "@/app/types/openai";
 import { formatTime } from "@/app/utils";
+import useUserInfo from "@/services/hooks/use-user-info";
 
 export default function MyStory() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -64,7 +65,7 @@ export default function MyStory() {
                     영어
                   </th>
                   <th className="py-2 px-2 border-b text-center">이미지</th>
-                  <th className="py-2 px-2 border-b text-center"></th>
+                  <th className="py-2 px-2 border-b text-center" />
                 </tr>
               </thead>
               <tbody>

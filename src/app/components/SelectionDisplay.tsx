@@ -1,20 +1,17 @@
-import HButton from "@/app/components/atomic/HButton";
-
 interface SelectionDisplayProps {
-  selections: {
-    text: string;
-    text_en: string;
-  }[];
-  isShowEnglish: boolean;
-  clickSelection: (selection: string) => void;
+  selections: { text: string; text_en: string }[];
+  onSelectionClick: (selection: string) => void;
+  onClear?: () => void;
   notice: string;
+  isShowEnglish?: boolean;
 }
 
 export default function SelectionDisplay({
   selections,
-  isShowEnglish,
-  clickSelection,
+  onSelectionClick,
+  onClear: _onClear,
   notice,
+  isShowEnglish = false,
 }: SelectionDisplayProps) {
   return (
     <div className="flex flex-col items-center">
@@ -24,11 +21,13 @@ export default function SelectionDisplay({
           <div
             key={index}
             className="p-4 bg-white rounded-md shadow-sm hover:shadow-md cursor-pointer transition-all border border-orange-200 hover:border-orange-500"
-            onClick={() => clickSelection(selection.text)}
+            onClick={() => onSelectionClick(selection.text)}
           >
             <p className="text-gray-800 font-medium">{selection.text}</p>
             {isShowEnglish && selection.text_en && (
-              <p className="text-gray-600 italic mt-2">{selection.text_en}</p>
+              <p className="text-gray-600 font-medium italic mt-1">
+                {selection.text_en}
+              </p>
             )}
           </div>
         ))}

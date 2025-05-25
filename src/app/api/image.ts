@@ -39,7 +39,7 @@ const imageApi = {
     try {
       await imageApi.saveImage({
         image_file: imageBlob,
-        thread_id: thread_id,
+        thread_id,
       });
 
       return imageBlob;

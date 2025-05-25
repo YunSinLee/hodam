@@ -1,4 +1,5 @@
 import { supabase } from "../utils/supabase";
+
 import type { Thread, ThreadWithUser } from "../types/openai";
 
 const threadApi = {
@@ -13,7 +14,7 @@ const threadApi = {
       .from("thread")
       .insert({
         openai_thread_id: thread_id,
-        user_id: user_id ? user_id : null,
+        user_id: user_id || null,
       })
       .select();
 

@@ -1,16 +1,15 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog"; // Dialog 컴포넌트 추가
 
-import beadApi from "@/app/api/bead";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 function BeadPage() {
-  const { bead, setBead } = useBead();
+  const { bead, setBead: _setBead } = useBead();
   const { userInfo } = useUserInfo();
   const [displayDialog, setDisplayDialog] = useState(false); // 다이얼로그 상태 추가
 

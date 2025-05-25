@@ -28,7 +28,7 @@ const googleTtsApi = {
   getAudioUrl(
     text: string,
     language: string = "ko",
-    pitch: number = 1.0,
+    _pitch: number = 1.0,
   ): string {
     // 텍스트가 너무 길면 잘라내기 (Google TTS 최대 제한)
     if (text.length > 200) {
@@ -146,7 +146,7 @@ const googleTtsApi = {
     // 문장 단위로 텍스트 분할
     const sentences = text.split(/(?<=[.!?])\s+/);
 
-    const audioDataArray: string[] = [];
+    const _audioDataArray: string[] = [];
     let currentChunk = "";
     const chunks: string[] = [];
 

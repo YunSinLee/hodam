@@ -1,14 +1,14 @@
 "use server";
 
-import { ChatOpenAI } from "@langchain/openai";
-import { PromptTemplate } from "@langchain/core/prompts";
-import { RunnableSequence } from "@langchain/core/runnables";
-import { StringOutputParser } from "@langchain/core/output_parsers";
 import {
+  AIMessage,
   HumanMessage,
   SystemMessage,
-  AIMessage,
 } from "@langchain/core/messages";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { ChatOpenAI } from "@langchain/openai";
 import { OpenAI } from "openai";
 
 const { OPEN_AI_API_KEY } = process.env;
@@ -76,14 +76,14 @@ const fairyTalePromptTemplate = PromptTemplate.fromTemplate(`
 `);
 
 // 키워드에서 동화를 생성하는 체인
-const fairyTaleChain = RunnableSequence.from([
+const _fairyTaleChain = RunnableSequence.from([
   fairyTalePromptTemplate,
   chatModel,
   new StringOutputParser(),
 ]);
 
 // 전체 대화 기록을 사용하는 체인
-const chatHistoryChain = async (
+const _chatHistoryChain = async (
   messages: (HumanMessage | AIMessage | SystemMessage)[],
   input: string,
 ) => {
