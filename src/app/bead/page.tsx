@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import useBead from "@/services/hooks/use-bead";
-import useUserInfo from "@/services/hooks/use-user-info";
-import beadApi from "@/app/api/bead";
+
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog"; // Dialog 컴포넌트 추가
+
+import beadApi from "@/app/api/bead";
+import useBead from "@/services/hooks/use-bead";
+import useUserInfo from "@/services/hooks/use-user-info";
 
 function BeadPage() {
   const { bead, setBead } = useBead();
