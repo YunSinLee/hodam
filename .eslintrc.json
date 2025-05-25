@@ -22,7 +22,10 @@
     "react/jsx-filename-extension": [1, { "extensions": [".ts", ".tsx"] }],
     // 빌드를 위한 규칙 완화
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/no-unused-vars": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
     "react/prop-types": "off",
     "no-plusplus": "off",
     "no-use-before-define": "off",
@@ -50,7 +53,43 @@
     "consistent-return": "warn",
     "object-shorthand": "warn",
     "no-nested-ternary": "warn",
-    "import/order": "warn",
+    "import/order": [
+      "error",
+      {
+        "groups": [
+          "builtin",
+          "external",
+          "internal",
+          ["parent", "sibling"],
+          "index",
+          "object",
+          "type"
+        ],
+        "pathGroups": [
+          {
+            "pattern": "react",
+            "group": "builtin",
+            "position": "before"
+          },
+          {
+            "pattern": "next/**",
+            "group": "builtin",
+            "position": "before"
+          },
+          {
+            "pattern": "@/**",
+            "group": "internal",
+            "position": "after"
+          }
+        ],
+        "pathGroupsExcludedImportTypes": ["react", "next"],
+        "newlines-between": "always",
+        "alphabetize": {
+          "order": "asc",
+          "caseInsensitive": true
+        }
+      }
+    ],
     "import/prefer-default-export": "off",
     "@typescript-eslint/naming-convention": "warn",
     "react/jsx-boolean-value": "warn",
