@@ -53,6 +53,10 @@ const threadApi = {
           id,
           thread_id,
           keyword
+        ),
+        messages:messages (
+          id,
+          thread_id
         )
       `,
       )
@@ -64,7 +68,14 @@ const threadApi = {
       return [];
     }
 
-    return data as ThreadWithUser[];
+    // 키워드가 있거나 메시지가 있는 thread만 필터링
+    const filteredData = data.filter((thread: any) => {
+      const hasKeywords = thread.keywords && thread.keywords.length > 0;
+      const hasMessages = thread.messages && thread.messages.length > 0;
+      return hasKeywords || hasMessages;
+    });
+
+    return filteredData as ThreadWithUser[];
   },
   async fetchThreadsByUserId({
     user_id,
@@ -85,6 +96,10 @@ const threadApi = {
             id,
             thread_id,
             keyword
+          ),
+          messages:messages (
+            id,
+            thread_id
           )
         `,
       )
@@ -96,7 +111,14 @@ const threadApi = {
       return [];
     }
 
-    return data as ThreadWithUser[];
+    // 키워드가 있거나 메시지가 있는 thread만 필터링
+    const filteredData = data.filter((thread: any) => {
+      const hasKeywords = thread.keywords && thread.keywords.length > 0;
+      const hasMessages = thread.messages && thread.messages.length > 0;
+      return hasKeywords || hasMessages;
+    });
+
+    return filteredData as ThreadWithUser[];
   },
   async updateThread({
     thread_id,
