@@ -27,7 +27,7 @@ const openaiClient = new OpenAI({
 
 // 시스템 프롬프트 - 호담 역할 정의
 const HODAM_SYSTEM_PROMPT = `당신은 '호담(Hodam)'이라는 어린이 동화 생성 AI입니다. 
-어린이들을 위한 매혹적이고 도덕적 교훈이 담긴 이야기를 만들고, 그에 어울리는 생생한 일러스트레이션을 위한 설명을 함께 제공합니다.
+어린이들을 위한 매혹적이고 도덕적 교훈이 담긴 이야기를 만듭니다.
 
 1. 매혹적이고 교훈적인 어린이 이야기 생성: 어린이들을 대상으로 하는 이야기를 만들어야 합니다. 이야기는 교훈과 흥미로운 모험을 포함해야 합니다.
 
@@ -49,8 +49,6 @@ const HODAM_SYSTEM_PROMPT = `당신은 '호담(Hodam)'이라는 어린이 동화
   <li class="korean">다음 전개 선택지 2</li>
 </ol>
 
-<p class="image">이 장면에 대한 그림 설명 (어린이용 동화책 일러스트레이션에 적합한 스타일로 자세히 묘사)</p>
-
 5. 창의성: 주어진 키워드를 최대한 창의적으로 활용하여 매력적인 이야기를 만들어야 합니다. 동일한 패턴의 이야기를 반복하지 말고, 다양한 플롯과 캐릭터를 만들어보세요.`;
 
 // 동화 생성을 위한 프롬프트 템플릿 (개선됨)
@@ -71,8 +69,6 @@ const fairyTalePromptTemplate = PromptTemplate.fromTemplate(`
   <li class="korean">다음 전개 선택지 1</li>
   <li class="korean">다음 전개 선택지 2</li>
 </ol>
-
-<p class="image">이야기 장면을 묘사하는 일러스트레이션 설명 (어린이용 동화책 스타일로 자세히 묘사)</p>
 `);
 
 // 키워드에서 동화를 생성하는 체인
@@ -108,7 +104,6 @@ const _chatHistoryChain = async (
 
 interface FairyTaleResponse {
   storyHtml: string;
-  storytellingPrompt?: string;
   messages?: (HumanMessage | AIMessage | SystemMessage)[];
 }
 
@@ -133,16 +128,8 @@ export async function generateFairyTale(
     const response = await chatModel.invoke(messages);
     const storyHtml = response.content as string;
 
-    // 이미지 생성을 위한 프롬프트 추출
-    let storytellingPrompt = "";
-    const imageMatch = storyHtml.match(/<p class="image">(.+?)<\/p>/);
-    if (imageMatch && imageMatch[1]) {
-      storytellingPrompt = imageMatch[1];
-    }
-
     return {
       storyHtml,
-      storytellingPrompt,
       messages: [...messages, response],
     };
   } catch (error) {
@@ -181,16 +168,8 @@ export async function generateNextPart(
     const response = await chatModel.invoke(messages);
     const storyHtml = response.content as string;
 
-    // 이미지 생성을 위한 프롬프트 추출
-    let storytellingPrompt = "";
-    const imageMatch = storyHtml.match(/<p class="image">(.+?)<\/p>/);
-    if (imageMatch && imageMatch[1]) {
-      storytellingPrompt = imageMatch[1];
-    }
-
     return {
       storyHtml,
-      storytellingPrompt,
       messages: [...messages, response],
     };
   } catch (error) {
@@ -282,30 +261,38 @@ export async function integrateEnglishTranslation(
 }
 
 /**
- * LangChain을 통해 이미지를 생성하는 함수
- * @param prompt 이미지 생성을 위한 설명
+ * 동화 내용을 바탕으로 이미지를 생성하는 함수
+ * @param storyContent 동화 내용 (실제 동화 텍스트)
  * @returns 생성된 이미지 데이터
  */
-export async function generateImage(prompt: string) {
+export async function generateImage(storyContent: string) {
   try {
-    // 이미지 생성을 위한 프롬프트 향상
+    // 동화 내용에서 이미지 생성을 위한 프롬프트 생성
     const imagePromptTemplate = PromptTemplate.fromTemplate(`
-당신은 어린이 동화책을 위한 일러스트레이션 생성 전문가입니다.
-아래 설명을 바탕으로 3~7세 어린이를 위한 애니메이션 스타일의 선명하고 생생한 동화책 일러스트레이션을 생성하기 위한 
-자세한 설명을 작성해주세요.
+You are an expert in creating illustrations for children's storybooks.
+Read the following Korean fairy tale content and select the most important and visually appealing scene to create a detailed description for generating a vibrant children's storybook illustration for ages 3-7.
 
-일러스트레이션에 대한 설명:
-{prompt}
+Korean Fairy Tale Content:
+{storyContent}
 
-동화책 스타일 가이드라인:
-- 밝고 선명한 색상 사용
-- 단순하고 이해하기 쉬운 구도
-- (가능하면) 친근하고 귀여운 캐릭터
-- 어린이가 이해하기 쉬운 표현
-- 디테일은 있되 너무 복잡하지 않게
-- 따뜻하고 포근한 분위기
+Illustration Generation Guidelines:
+1. Select the most important and visually appealing scene from the story
+2. Clearly express the characteristics and emotions of the characters
+3. Describe the background and environment in detail
+4. Use bright and vivid colors
+5. Simple and easy-to-understand composition
+6. Friendly and cute character style
+7. Child-friendly expressions
+8. Warm and cozy atmosphere
+9. Reflect the core message or lesson of the story
 
-위 가이드라인에 맞게 설명을 확장하고 명확하게 해주세요.
+Please analyze the fairy tale content according to the above guidelines, select the most suitable scene, and write a detailed and specific image generation prompt.
+
+IMPORTANT: Respond ONLY in English. Do not include any Korean text in your response.
+
+Response Format:
+Selected Scene: [Description of the key scene selected from the fairy tale]
+Image Prompt: [Detailed English prompt for DALL-E]
 `);
 
     // 이미지 프롬프트 생성 체인 실행
@@ -315,14 +302,43 @@ export async function generateImage(prompt: string) {
       new StringOutputParser(),
     ]);
 
-    // 향상된 프롬프트 생성
-    const enhancedPrompt = await imagePromptChain.invoke({
-      prompt,
+    // 동화 내용 기반 프롬프트 생성
+    const promptResponse = await imagePromptChain.invoke({
+      storyContent,
     });
+
+    console.log("AI Response:", promptResponse);
+
+    // 응답에서 실제 이미지 프롬프트 추출
+    let imagePrompt = promptResponse;
+    const promptMatch = promptResponse.match(/Image Prompt:\s*([\s\S]+)/);
+    if (promptMatch && promptMatch[1]) {
+      imagePrompt = promptMatch[1].trim();
+    }
+
+    // 한국어가 포함되어 있는지 확인하고 제거
+    const koreanRegex = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/g;
+    if (koreanRegex.test(imagePrompt)) {
+      console.warn("Korean text detected in image prompt, using fallback");
+      // 한국어가 포함된 경우 기본 프롬프트 사용
+      imagePrompt =
+        "A cheerful children's storybook illustration featuring friendly characters in a warm, colorful setting with simple composition and bright colors";
+    }
+
+    // 어린이 동화책 스타일 강화를 위한 추가 프롬프트
+    const enhancedPrompt = `Children's storybook illustration, vibrant colors, friendly characters, warm atmosphere, simple composition, ${imagePrompt}`;
+
+    // 프롬프트 길이 제한 (DALL-E 제한사항)
+    const finalPrompt =
+      enhancedPrompt.length > 1000
+        ? enhancedPrompt.substring(0, 1000)
+        : enhancedPrompt;
+
+    console.log("Final image prompt:", finalPrompt);
 
     // DALL-E로 이미지 생성
     const response = await openaiClient.images.generate({
-      prompt: enhancedPrompt,
+      prompt: finalPrompt,
       model: "dall-e-3",
       n: 1,
       response_format: "b64_json",
@@ -332,6 +348,25 @@ export async function generateImage(prompt: string) {
     return response;
   } catch (error) {
     console.error("Error generating image:", error);
-    throw error;
+
+    // 오류 발생 시 기본 이미지 프롬프트로 재시도
+    try {
+      console.log("Retrying with fallback prompt...");
+      const fallbackPrompt =
+        "A beautiful children's storybook illustration with friendly cartoon characters, bright colors, simple composition, warm and cheerful atmosphere, suitable for ages 3-7";
+
+      const response = await openaiClient.images.generate({
+        prompt: fallbackPrompt,
+        model: "dall-e-3",
+        n: 1,
+        response_format: "b64_json",
+        size: "1024x1024",
+      });
+
+      return response;
+    } catch (fallbackError) {
+      console.error("Fallback image generation also failed:", fallbackError);
+      throw error; // 원래 오류를 던짐
+    }
   }
 }

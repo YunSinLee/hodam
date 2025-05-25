@@ -42,7 +42,6 @@ export default function Hodam() {
   const [selections, setSelections] = useState<
     { text: string; text_en: string }[]
   >([]);
-  const [imageDescription, setImageDescription] = useState<string>("");
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [isStoryLoading, setIsStoryLoading] = useState<boolean>(false);
   const [images, setImages] = useState<string[]>([]);
@@ -172,11 +171,8 @@ export default function Hodam() {
       });
 
       // LangChain으로 동화 생성
-      const {
-        storyHtml,
-        storytellingPrompt,
-        messages: updatedMessages,
-      } = await generateFairyTale(keywords);
+      const { storyHtml, messages: updatedMessages } =
+        await generateFairyTale(keywords);
 
       if (updatedMessages) {
         // 직렬화 가능한 형태로 메시지 저장
@@ -196,7 +192,6 @@ export default function Hodam() {
         messages: newMessages,
         selections: newSelections,
         notice: newNotice,
-        imageDescription: newImageDescription,
       } = extractInfoFromHTML(storyHtml);
 
       // 영어 번역 처리
@@ -260,10 +255,11 @@ export default function Hodam() {
       setIsStoryLoading(false);
 
       // 이미지 생성은 이야기 로딩 완료 후 비동기적으로 처리
-      if (isImageIncluded && storytellingPrompt) {
-        setImageDescription(storytellingPrompt);
+      if (isImageIncluded) {
         setIsImageLoading(true);
-        getImage(storytellingPrompt, currentThread.id).finally(() => {
+        // 실제 동화 내용을 이미지 생성에 사용
+        const storyText = finalMessages.map(msg => msg.korean).join("\n\n");
+        getImage(storyText, currentThread.id).finally(() => {
           setIsImageLoading(false);
         });
       }
@@ -294,11 +290,7 @@ export default function Hodam() {
 
     try {
       // LangChain으로 다음 전개 생성
-      const {
-        storyHtml,
-        storytellingPrompt,
-        messages: updatedMessages,
-      } = await generateNextPart(
+      const { storyHtml, messages: updatedMessages } = await generateNextPart(
         rawText,
         selection,
         langchainMessages.length > 0
@@ -324,7 +316,6 @@ export default function Hodam() {
         messages: newMessages,
         selections: newSelections,
         notice: newNotice,
-        imageDescription: newImageDescription,
       } = extractInfoFromHTML(storyHtml);
 
       // 영어 번역 처리
@@ -383,10 +374,11 @@ export default function Hodam() {
       setIsStoryLoading(false);
 
       // 이미지 생성은 이야기 로딩 완료 후 비동기적으로 처리
-      if (isImageIncluded && storytellingPrompt) {
-        setImageDescription(storytellingPrompt);
+      if (isImageIncluded) {
         setIsImageLoading(true);
-        getImage(storytellingPrompt, currentThread.id).finally(() => {
+        // 새로 추가된 동화 내용을 이미지 생성에 사용
+        const newStoryText = finalMessages.map(msg => msg.korean).join("\n\n");
+        getImage(newStoryText, currentThread.id).finally(() => {
           setIsImageLoading(false);
         });
       }
@@ -397,9 +389,9 @@ export default function Hodam() {
     }
   }
 
-  async function getImage(description: string, thread_id: number) {
+  async function getImage(storyContent: string, thread_id: number) {
     try {
-      const response = await generateImage(description);
+      const response = await generateImage(storyContent);
       const imageData = await imageApi.uploadImage(
         response.data?.[0]?.b64_json ?? "",
         thread_id,
@@ -462,18 +454,10 @@ export default function Hodam() {
     const noticeMatch = noticeRegex.exec(htmlString);
     const notice = noticeMatch ? noticeMatch[1] : "";
 
-    // 이미지 설명 추출
-    const imageDescriptionRegex = /<p class="image">(.+?)<\/p>/;
-    const imageDescriptionMatch = imageDescriptionRegex.exec(htmlString);
-    const imageDescription = imageDescriptionMatch
-      ? imageDescriptionMatch[1]
-      : "";
-
     return {
       messages,
       selections,
       notice,
-      imageDescription,
     };
   }
 
