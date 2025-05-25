@@ -6,15 +6,21 @@ const threadApi = {
   async createThread({
     thread_id,
     user_id,
+    able_english,
+    has_image,
   }: {
     thread_id: string;
     user_id: string | undefined;
+    able_english?: boolean;
+    has_image?: boolean;
   }): Promise<Thread> {
     const { data, error } = await supabase
       .from("thread")
       .insert({
         openai_thread_id: thread_id,
         user_id: user_id || null,
+        able_english: able_english || false,
+        has_image: has_image || false,
       })
       .select();
 
@@ -50,26 +56,22 @@ const threadApi = {
         )
       `,
       )
-      .not("user_id", "is", null); // user_id가 NULL이 아닌 경우만 가져옴
+      .not("user_id", "is", null) // user_id가 NULL이 아닌 경우만 가져옴
+      .order("created_at", { ascending: false }); // 최신순 정렬
 
     if (error) {
       console.error("Error fetching threads:", error);
       return [];
     }
 
-    // TODO: 추후 keywords가 없는 경우를 SQL로 처리하도록 변경
-    const filteredData = (data ?? []).filter(
-      thread => thread.keywords && thread.keywords.length > 0,
-    );
-
-    return filteredData as ThreadWithUser[];
+    return data as ThreadWithUser[];
   },
   async fetchThreadsByUserId({
     user_id,
   }: {
     user_id: string;
   }): Promise<ThreadWithUser[]> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("thread")
       .select(
         `
@@ -86,14 +88,15 @@ const threadApi = {
           )
         `,
       )
-      .eq("user_id", user_id);
+      .eq("user_id", user_id)
+      .order("created_at", { ascending: false }); // 최신순 정렬
 
-    // TODO: 추후 keywords가 없는 경우를 SQL로 처리하도록 변경
-    const filteredData = (data ?? []).filter(
-      thread => thread.keywords && thread.keywords.length > 0,
-    );
+    if (error) {
+      console.error("Error fetching threads:", error);
+      return [];
+    }
 
-    return filteredData as ThreadWithUser[];
+    return data as ThreadWithUser[];
   },
   async updateThread({
     thread_id,
