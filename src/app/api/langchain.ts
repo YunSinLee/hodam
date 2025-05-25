@@ -16,7 +16,7 @@ const { OPEN_AI_API_KEY } = process.env;
 // 동화 생성을 위한 챗 모델 초기화 (높은 temperature로 창의성 향상)
 const chatModel = new ChatOpenAI({
   apiKey: OPEN_AI_API_KEY,
-  modelName: "gpt-3.5-turbo",
+  modelName: "gpt-4o-mini",
   temperature: 0.75,
 });
 
