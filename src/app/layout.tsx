@@ -7,6 +7,7 @@ import "primereact/resources/primereact.min.css";
 import "primereact/resources/themes/lara-light-amber/theme.css";
 import "../styles/globals.css";
 
+import FooterWrapper from "./components/FooterWrapper";
 import NavBar from "./components/NavBar";
 
 export const metadata: Metadata = {
@@ -25,13 +26,16 @@ export default function RootLayout({
   const gaId = process.env.NEXT_PUBLIC_GA_ID!;
 
   return (
-    <html lang="en">
+    <html lang="ko">
       <PrimeReactProvider value={{ ripple: true }}>
         <body>
-          <div className="h-navbar fixed top-0 z-10 w-full  border-b-2 border-gray-300 bg-white">
-            <NavBar />
+          <div className="min-h-screen flex flex-col">
+            <div className="h-navbar fixed top-0 z-10 w-full border-b-2 border-gray-300 bg-white">
+              <NavBar />
+            </div>
+            <main className="flex-1 pt-20">{children}</main>
+            <FooterWrapper />
           </div>
-          <div className="absolute top-20 w-full">{children}</div>
         </body>
       </PrimeReactProvider>
       <GoogleAnalytics gaId={gaId} />
