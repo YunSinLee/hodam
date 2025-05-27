@@ -39,3 +39,15 @@ yarn-error.log*
 next-env.d.ts
 
 .env
+
+# Cursor MCP configuration (contains sensitive tokens)
+.cursor/
+.cursor/mcp.json
+
+# Other AI tool configurations
+.vscode/mcp.json
+.mcp.json
+
+# IDE specific files
+.vscode/settings.json
+.idea/
