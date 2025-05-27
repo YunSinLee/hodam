@@ -8,7 +8,9 @@ import { usePathname } from "next/navigation";
 import beadApi from "@/app/api/bead";
 import userApi from "@/app/api/user";
 import { supabase } from "@/app/utils/supabase";
-import useBead from "@/services/hooks/use-bead";
+import useBead, {
+  defaultState as defaultBeadState,
+} from "@/services/hooks/use-bead";
 import useUserInfo, {
   defaultState as defaultUserInfoState,
 } from "@/services/hooks/use-user-info";
@@ -37,27 +39,49 @@ export default function NavBar() {
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.email);
+
         if (event === "SIGNED_OUT") {
           setUserInfo(defaultUserInfoState);
+          setBead(defaultBeadState);
         }
-        if (session) {
-          const user = session?.user! ?? null;
+
+        if (event === "SIGNED_IN" && session?.user) {
+          const { user } = session;
           const userData = {
-            profileUrl: "",
+            profileUrl: user.user_metadata?.avatar_url || "",
             id: user.id,
             email: user.email,
           };
           setUserInfo(userData);
-          if (pathname === "/sign-in") {
-            location.href = "/";
+
+          // 사용자 정보가 users 테이블에 있는지 확인하고 없으면 생성
+          try {
+            const existingUser = await userApi.getUserProfile(user.id);
+            if (!existingUser) {
+              console.log("Creating user profile in database...");
+              // 트리거가 자동으로 처리하지만, 혹시 모를 경우를 대비
+            }
+          } catch (error) {
+            console.error("Error checking user profile:", error);
           }
+
+          // 로그인 페이지에서 메인으로 리다이렉트
+          if (pathname === "/sign-in") {
+            window.location.href = "/";
+          }
+        }
+
+        if (event === "TOKEN_REFRESHED") {
+          console.log("Token refreshed successfully");
         }
       },
     );
+
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname, setUserInfo, setBead]);
 
   useEffect(() => {
     const fetchBead = async () => {
