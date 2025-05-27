@@ -77,25 +77,50 @@ const userApi = {
     }
   },
   async signInWithKakao() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "kakao",
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "kakao",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    if (error) {
-      console.error("Google Sign In Error:", error.message);
+      if (error) {
+        console.error("Kakao Sign In Error:", error.message);
+        alert(`카카오 로그인 중 오류가 발생했습니다: ${error.message}`);
+        return null;
+      }
+
+      // OAuth는 리다이렉트 방식이므로 URL을 반환하지 않고 자동으로 리다이렉트됨
+      return data;
+    } catch (error) {
+      console.error("Kakao Sign In Error:", error);
+      alert("카카오 로그인 중 예상치 못한 오류가 발생했습니다.");
+      return null;
     }
-
-    return data.url;
   },
   async signInWithGoogle() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-    });
-    if (error) {
-      console.error("Google Sign In Error:", error.message);
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    return data.url;
+      if (error) {
+        console.error("Google Sign In Error:", error.message);
+        alert(`구글 로그인 중 오류가 발생했습니다: ${error.message}`);
+        return null;
+      }
+
+      // OAuth는 리다이렉트 방식이므로 URL을 반환하지 않고 자동으로 리다이렉트됨
+      return data;
+    } catch (error) {
+      console.error("Google Sign In Error:", error);
+      alert("구글 로그인 중 예상치 못한 오류가 발생했습니다.");
+      return null;
+    }
   },
   async signOut() {
     const { error } = await supabase.auth.signOut();
@@ -109,15 +134,48 @@ const userApi = {
   async getSession() {
     const { data } = await supabase.auth.getSession();
 
-    if (data) {
+    if (data?.session?.user) {
       const userData = {
         profileUrl: "",
-        id: data.session?.user?.id,
-        email: data.session?.user?.email,
+        id: data.session.user.id,
+        email: data.session.user.email,
       };
 
       return userData;
     }
+    return null;
+  },
+  async updateUserProfile(
+    userId: string,
+    updates: { display_name?: string; email?: string },
+  ) {
+    const { data, error } = await supabase
+      .from("users")
+      .update(updates)
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating user profile:", error);
+      throw error;
+    }
+
+    return data;
+  },
+  async getUserProfile(userId: string) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
+    }
+
+    return data;
   },
 };
 
