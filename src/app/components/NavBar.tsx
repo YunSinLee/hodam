@@ -36,6 +36,31 @@ export default function NavBar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // 초기 세션 복원
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user && !userInfo.id) {
+          console.log("세션 복원 중:", session.user.email);
+          const userData = {
+            profileUrl: session.user.user_metadata?.avatar_url || "",
+            id: session.user.id,
+            email: session.user.email,
+          };
+          setUserInfo(userData);
+        }
+      } catch (error) {
+        console.error("세션 복원 오류:", error);
+      }
+    };
+
+    initializeAuth();
+  }, []);
+
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface Bead {
   id: string | undefined;
@@ -23,14 +24,22 @@ export const defaultState = {
   user_id: undefined,
 };
 
-const useBead = create<BeadState & BeadActions>(set => ({
-  bead: defaultState,
-  setBead: (bead: Bead) => {
-    set({ bead });
-  },
-  deleteBead: () => {
-    set({ bead: defaultState });
-  },
-}));
+const useBead = create<BeadState & BeadActions>()(
+  persist(
+    set => ({
+      bead: defaultState,
+      setBead: (bead: Bead) => {
+        set({ bead });
+      },
+      deleteBead: () => {
+        set({ bead: defaultState });
+      },
+    }),
+    {
+      name: "hodam-bead-info", // localStorage 키 이름
+      partialize: state => ({ bead: state.bead }), // 저장할 상태만 선택
+    },
+  ),
+);
 
 export default useBead;
