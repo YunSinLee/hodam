@@ -1,6 +1,7 @@
 import type { Bead } from "@/services/hooks/use-bead";
 
 import { supabase } from "../utils/supabase";
+// eslint-disable-next-line import/order
 import paymentApi, { PaymentRequest } from "./payment";
 
 const beadApi = {

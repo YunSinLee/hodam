@@ -1,18 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-interface userInfoType {
+interface UserInfoType {
   profileUrl: string;
   id: string | undefined;
   email: string | undefined;
 }
 
 interface UserInfoState {
-  userInfo: userInfoType;
+  userInfo: UserInfoType;
 }
 
 interface UserInfoActions {
-  setUserInfo: (userinfo: userInfoType) => void;
+  setUserInfo: (userinfo: UserInfoType) => void;
   deleteUserInfo: () => void;
 }
 
@@ -22,7 +22,7 @@ const useUserInfo = create<UserInfoState & UserInfoActions>()(
   persist(
     set => ({
       userInfo: defaultState,
-      setUserInfo: (userInfo: userInfoType) => {
+      setUserInfo: (userInfo: UserInfoType) => {
         set({ userInfo });
       },
       deleteUserInfo: () => {
