@@ -18,15 +18,15 @@
 
 #### 구글 로그인
 
-- **사용자**: sinsangsubae@gmail.com
-- **Display Name**: 신상수배
+- **사용자**: user1@example.com
+- **Display Name**: 테스트유저1
 - **곶감**: 10개 자동 지급
 - **생성 시간**: 2025-05-27 13:37:05
 
 #### 카카오 로그인
 
-- **사용자**: dldbstls8888@naver.com
-- **Display Name**: HodamTest
+- **사용자**: user2@example.com
+- **Display Name**: 테스트유저2
 - **Provider ID**: 4279746588
 - **곶감**: 10개 자동 지급
 - **생성 시간**: 2025-05-27 13:41:27
