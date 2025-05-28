@@ -63,7 +63,10 @@ export default function MyStory() {
             <div
               key={index}
               className="bg-white rounded-lg shadow-md p-5 border border-gray-100 animate-pulse"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              style={{
+                animation: `pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite`,
+                animationDelay: `${index * 0.1}s`,
+              }}
             >
               <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
               <div className="h-3 bg-gray-200 rounded w-1/2 mb-3" />
@@ -141,8 +144,8 @@ export default function MyStory() {
               <div
                 className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-5 border border-gray-100 h-full flex flex-col cursor-pointer transform hover:-translate-y-1 hover:border-orange-200"
                 style={{
+                  animation: `fadeInUp 0.5s ease-out forwards`,
                   animationDelay: `${index * 0.1}s`,
-                  animation: "fadeInUp 0.5s ease-out forwards",
                 }}
               >
                 <div className="absolute top-0 right-0 w-24 h-24 overflow-hidden">
