@@ -24,8 +24,6 @@ function BeadPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
   const [processedPayments, setProcessedPayments] = useState<Set<string>>(
     new Set(),
   );
@@ -65,11 +63,6 @@ function BeadPage() {
       setProcessedPayments(prev => new Set(prev).add(paymentId));
 
       handlePaymentSuccess(paymentKey, orderId, parseInt(amount, 10));
-    }
-
-    // 결제 내역 로드
-    if (userInfo.id) {
-      loadPaymentHistory();
     }
   }, [searchParams, userInfo.id]);
 
@@ -168,9 +161,6 @@ function BeadPage() {
 
       // URL 파라미터 제거
       router.replace("/bead");
-
-      // 결제 내역 새로고침
-      loadPaymentHistory();
     } catch (error: any) {
       console.error("결제 완료 처리 오류:", error);
 
@@ -187,17 +177,6 @@ function BeadPage() {
       alert("결제 처리 중 오류가 발생했습니다. 고객센터로 문의해주세요.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadPaymentHistory = async () => {
-    if (!userInfo.id) return;
-
-    try {
-      const history = await beadApi.getPaymentHistory(userInfo.id);
-      setPaymentHistory(history);
-    } catch (error) {
-      console.error("결제 내역 로드 오류:", error);
     }
   };
 
@@ -347,70 +326,16 @@ function BeadPage() {
         ))}
       </div>
 
-      {/* 결제 내역 */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-800">결제 내역</h2>
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="text-orange-600 hover:text-orange-700 font-medium"
-          >
-            {showHistory ? "숨기기" : "보기"}
-          </button>
-        </div>
-
-        {showHistory && (
-          <div className="space-y-3">
-            {paymentHistory.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
-                결제 내역이 없습니다.
-              </p>
-            ) : (
-              paymentHistory.map(payment => (
-                <div
-                  key={payment.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src="/persimmon_240424.png"
-                      alt="곶감"
-                      className="w-6 h-6"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-800">
-                        곶감 {payment.bead_quantity}개
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(payment.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium text-gray-800">
-                      {payment.amount.toLocaleString()}원
-                    </div>
-                    <div
-                      className={`text-sm ${
-                        payment.status === "completed"
-                          ? "text-green-600"
-                          : payment.status === "failed"
-                            ? "text-red-600"
-                            : "text-yellow-600"
-                      }`}
-                    >
-                      {payment.status === "completed"
-                        ? "완료"
-                        : payment.status === "failed"
-                          ? "실패"
-                          : "대기중"}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+      {/* 결제 내역 링크 */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+        <h2 className="text-xl font-bold text-gray-800 mb-2">결제 내역</h2>
+        <p className="text-gray-600 mb-4">곶감 구매 내역을 확인하세요</p>
+        <button
+          onClick={() => router.push("/payment-history")}
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+        >
+          결제 내역 보기
+        </button>
       </div>
 
       {/* 안내사항 */}

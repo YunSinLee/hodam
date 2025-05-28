@@ -212,8 +212,8 @@ TOSS_PAYMENTS_SECRET_KEY=live_sk_실제키
 
 ### 호담 프로젝트 문의
 
-- 이메일: dldbstls7777@naver.com
-- 개발자: 이윤신
+- 이메일: your-email@example.com
+- 개발자: 개발팀
 
 ---
 

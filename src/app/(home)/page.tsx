@@ -179,10 +179,7 @@ export default function Home() {
                   muted
                   poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 675'%3E%3Crect width='1200' height='675' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-size='48' fill='%236b7280'%3E호담 튜토리얼%3C/text%3E%3C/svg%3E"
                 >
-                  <source
-                    src="https://zdvnlojkptjgalxgcqxa.supabase.co/storage/v1/object/sign/dev_src/hodam_tutorial.mov?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJkZXZfc3JjL2hvZGFtX3R1dG9yaWFsLm1vdiIsImlhdCI6MTcyNjQ2NDkyNiwiZXhwIjoxODIxMDcyOTI2fQ.eiiVBvAzMS56mxJMYHsafe2x8cAllpdo0dco2CQk2mc&t=2024-09-16T05%3A35%3A27.052Z"
-                    type="video/mp4"
-                  />
+                  <source src="/hodam_tutorial.mp4" type="video/mp4" />
                 </video>
               </div>
             </div>

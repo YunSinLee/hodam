@@ -23,7 +23,7 @@ export interface PaymentHistory {
   id: string;
   user_id: string;
   order_id: string;
-  payment_key: string;
+  payment_key?: string;
   amount: number;
   bead_quantity: number;
   status: "pending" | "completed" | "failed" | "cancelled";

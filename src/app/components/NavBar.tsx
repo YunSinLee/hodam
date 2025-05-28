@@ -202,16 +202,18 @@ export default function NavBar() {
               <div className="hidden lg:block">
                 {userInfo.id ? (
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-full">
-                      <div className="w-6 h-6 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full flex items-center justify-center">
-                        <span className="text-xs text-white font-bold">
-                          {userInfo.email?.charAt(0).toUpperCase()}
+                    <Link href="/profile" className="group">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors duration-200">
+                        <div className="w-6 h-6 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full flex items-center justify-center">
+                          <span className="text-xs text-white font-bold">
+                            {userInfo.email?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-600 max-w-[100px] truncate group-hover:text-gray-800">
+                          {userInfo.email}
                         </span>
                       </div>
-                      <span className="text-sm text-gray-600 max-w-[100px] truncate">
-                        {userInfo.email}
-                      </span>
-                    </div>
+                    </Link>
                     <button
                       onClick={signOut}
                       className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-orange-600 border border-gray-200 hover:border-orange-300 rounded-full transition-all duration-200 hover:bg-orange-50"
@@ -292,21 +294,42 @@ export default function NavBar() {
               <div className="pt-4 border-t border-gray-100">
                 {userInfo.id ? (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
-                      <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full flex items-center justify-center">
-                        <span className="text-sm text-white font-bold">
-                          {userInfo.email?.charAt(0).toUpperCase()}
-                        </span>
+                    <Link
+                      href="/profile"
+                      onClick={() => setIsShowMenu(false)}
+                      className="block"
+                    >
+                      <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200">
+                        <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full flex items-center justify-center">
+                          <span className="text-sm text-white font-bold">
+                            {userInfo.email?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">
+                            내 프로필
+                          </p>
+                          <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                            {userInfo.email}
+                          </p>
+                        </div>
+                        <div className="ml-auto">
+                          <svg
+                            className="w-4 h-4 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          로그인됨
-                        </p>
-                        <p className="text-xs text-gray-500 truncate max-w-[200px]">
-                          {userInfo.email}
-                        </p>
-                      </div>
-                    </div>
+                    </Link>
                     <button
                       onClick={() => {
                         signOut();
