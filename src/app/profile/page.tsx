@@ -25,6 +25,15 @@ export default function ProfilePage() {
   const [recentStories, setRecentStories] = useState<RecentStory[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
 
+  // 닉네임 편집 관련 상태
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [newNickname, setNewNickname] = useState("");
+  const [isUpdatingNickname, setIsUpdatingNickname] = useState(false);
+
+  // 프로필 이미지 관련 상태
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showImageOptions, setShowImageOptions] = useState(false);
+
   useEffect(() => {
     if (!userInfo.id) {
       router.push("/sign-in");
@@ -66,6 +75,112 @@ export default function ProfilePage() {
     if (confirm("정말 로그아웃하시겠습니까?")) {
       deleteUserInfo();
       router.push("/");
+    }
+  };
+
+  const handleNicknameEdit = () => {
+    setNewNickname(profile?.display_name || "");
+    setIsEditingNickname(true);
+  };
+
+  const handleNicknameUpdate = async () => {
+    if (!userInfo.id || !newNickname.trim()) return;
+
+    setIsUpdatingNickname(true);
+    try {
+      console.log("닉네임 업데이트 시작:", {
+        userId: userInfo.id,
+        newNickname: newNickname.trim(),
+      });
+
+      const success = await profileApi.updateDisplayName(
+        userInfo.id,
+        newNickname.trim(),
+      );
+
+      if (success) {
+        console.log("닉네임 업데이트 성공, 프로필 데이터 다시 로드");
+        // 프로필 정보 다시 로드
+        await loadProfileData();
+        setIsEditingNickname(false);
+        alert("닉네임이 성공적으로 변경되었습니다.");
+      } else {
+        console.error("닉네임 업데이트 실패");
+        alert("닉네임 업데이트에 실패했습니다. 다시 시도해주세요.");
+      }
+    } catch (error) {
+      console.error("닉네임 업데이트 오류:", error);
+      alert("닉네임 업데이트 중 오류가 발생했습니다.");
+    } finally {
+      setIsUpdatingNickname(false);
+    }
+  };
+
+  const handleNicknameCancel = () => {
+    setIsEditingNickname(false);
+    setNewNickname("");
+  };
+
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file || !userInfo.id) return;
+
+    // 파일 크기 체크 (5MB 제한)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("파일 크기는 5MB 이하여야 합니다.");
+      return;
+    }
+
+    // 파일 타입 체크
+    if (!file.type.startsWith("image/")) {
+      alert("이미지 파일만 업로드 가능합니다.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const imageUrl = await profileApi.uploadProfileImage(userInfo.id, file);
+      if (imageUrl) {
+        // 프로필 정보 다시 로드
+        await loadProfileData();
+        setShowImageOptions(false);
+      } else {
+        alert("이미지 업로드에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("이미지 업로드 오류:", error);
+      alert("이미지 업로드 중 오류가 발생했습니다.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleImageRemove = async () => {
+    if (!userInfo.id) return;
+
+    if (
+      confirm(
+        "커스텀 프로필 이미지를 삭제하고 소셜 로그인 이미지로 되돌리시겠습니까?",
+      )
+    ) {
+      setIsUploadingImage(true);
+      try {
+        const success = await profileApi.removeCustomProfileImage(userInfo.id);
+        if (success) {
+          // 프로필 정보 다시 로드
+          await loadProfileData();
+          setShowImageOptions(false);
+        } else {
+          alert("이미지 삭제에 실패했습니다.");
+        }
+      } catch (error) {
+        console.error("이미지 삭제 오류:", error);
+        alert("이미지 삭제 중 오류가 발생했습니다.");
+      } finally {
+        setIsUploadingImage(false);
+      }
     }
   };
 
@@ -123,22 +238,111 @@ export default function ProfilePage() {
             {/* 기본 정보 카드 */}
             <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
               <div className="text-center">
-                <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center">
-                  {profile.profileUrl ? (
-                    <img
-                      src={profile.profileUrl}
-                      alt="프로필"
-                      className="w-24 h-24 rounded-full object-cover"
-                    />
+                {/* 프로필 이미지 */}
+                <div className="relative w-24 h-24 mx-auto mb-4">
+                  <div
+                    className="w-24 h-24 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setShowImageOptions(true)}
+                  >
+                    {profile.profileUrl ? (
+                      <img
+                        src={profile.profileUrl}
+                        alt="프로필"
+                        className="w-24 h-24 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-white text-2xl font-bold">
+                        {profile.display_name?.charAt(0).toUpperCase() ||
+                          profile.email.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 카메라 아이콘 */}
+                  <button
+                    onClick={() => setShowImageOptions(true)}
+                    className="absolute bottom-0 right-0 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white hover:bg-purple-700 transition-colors shadow-lg"
+                    title="프로필 이미지 변경"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 닉네임 표시 및 편집 */}
+                <div className="mb-2">
+                  {isEditingNickname ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={newNickname}
+                        onChange={e => setNewNickname(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="닉네임을 입력하세요"
+                        maxLength={20}
+                      />
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={handleNicknameUpdate}
+                          disabled={isUpdatingNickname || !newNickname.trim()}
+                          className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        >
+                          {isUpdatingNickname ? "저장 중..." : "저장"}
+                        </button>
+                        <button
+                          onClick={handleNicknameCancel}
+                          disabled={isUpdatingNickname}
+                          className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400 disabled:cursor-not-allowed"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <span className="text-white text-2xl font-bold">
-                      {profile.email.charAt(0).toUpperCase()}
-                    </span>
+                    <div className="flex items-center justify-center gap-2">
+                      <h2 className="text-xl font-bold text-gray-800">
+                        {profile.display_name || "닉네임 없음"}
+                      </h2>
+                      <button
+                        onClick={handleNicknameEdit}
+                        className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                        title="닉네임 편집"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-1">
-                  {profile.email.split("@")[0]}
-                </h2>
+
                 <p className="text-gray-600 text-sm mb-4">{profile.email}</p>
                 <p className="text-gray-500 text-xs">
                   가입일: {formatDate(profile.created_at)}
@@ -334,6 +538,58 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* 프로필 이미지 옵션 모달 */}
+      {showImageOptions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">
+              프로필 이미지 설정
+            </h3>
+
+            <div className="space-y-3">
+              {/* 이미지 업로드 */}
+              <label className="block">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  disabled={isUploadingImage}
+                />
+                <div className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors cursor-pointer text-center disabled:bg-gray-400">
+                  {isUploadingImage ? "업로드 중..." : "새 이미지 업로드"}
+                </div>
+              </label>
+
+              {/* 커스텀 이미지 삭제 (커스텀 이미지가 있을 때만) */}
+              {profile.custom_profile_url && (
+                <button
+                  onClick={handleImageRemove}
+                  disabled={isUploadingImage}
+                  className="w-full px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:bg-gray-400"
+                >
+                  {isUploadingImage ? "삭제 중..." : "기본 이미지로 되돌리기"}
+                </button>
+              )}
+
+              {/* 취소 */}
+              <button
+                onClick={() => setShowImageOptions(false)}
+                disabled={isUploadingImage}
+                className="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400"
+              >
+                취소
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              • 최대 5MB까지 업로드 가능
+              <br />• JPG, PNG, GIF 형식 지원
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
