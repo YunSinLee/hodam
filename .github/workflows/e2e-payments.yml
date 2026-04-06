@@ -1,0 +1,58 @@
+name: E2E Payments
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 * * 1"
+
+jobs:
+  payments-local-mock:
+    if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' && (secrets.HODAM_TEST_ACCESS_TOKEN != '' || (secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      HODAM_E2E_ENSURE_TEST_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '' && '1' || '' }}
+      HODAM_TEST_ACCESS_TOKEN: ${{ secrets.HODAM_TEST_ACCESS_TOKEN }}
+      HODAM_TEST_USER_EMAIL: ${{ secrets.HODAM_TEST_USER_EMAIL }}
+      HODAM_TEST_USER_PASSWORD: ${{ secrets.HODAM_TEST_USER_PASSWORD }}
+      HODAM_TEST_PAYMENT_PACKAGE_ID: bead_5
+      HODAM_TEST_PAYMENT_KEY: mock_payment_key
+      TOSS_PAYMENTS_SECRET_KEY: mock_secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve test access token
+        id: token
+        run: |
+          if [ -n "${HODAM_TEST_ACCESS_TOKEN}" ]; then
+            echo "Using provided HODAM_TEST_ACCESS_TOKEN secret."
+          else
+            echo "Resolving token via HODAM_TEST_USER_EMAIL/HODAM_TEST_USER_PASSWORD."
+          fi
+          TOKEN="$(npm run -s token:test:access)"
+          if [ -z "$TOKEN" ]; then
+            echo "Failed to resolve test access token" >&2
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "access_token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Run local mock payment e2e
+        env:
+          HODAM_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+        run: npm run test:e2e:payments:local

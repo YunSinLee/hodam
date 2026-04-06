@@ -1,0 +1,43 @@
+name: Security Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 1"
+
+jobs:
+  supabase-security:
+    if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS }}
+      HODAM_SUPABASE_SECURITY_ENFORCE_STRICT: ${{ vars.HODAM_SUPABASE_SECURITY_ENFORCE_STRICT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Supabase security check
+        run: npm run check:supabase:security
+
+      - name: Run strict Supabase security check
+        env:
+          # Temporary baseline ignores: remove each entry once the underlying platform constraint is resolved.
+          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version' }}
+        run: npm run check:supabase:security:strict

@@ -11,6 +11,7 @@
 
 # next.js
 /.next/
+/.next-dev/
 /out/
 
 # production
@@ -69,6 +70,7 @@ next-env.d.ts
 
 # Database dumps
 *.sql
+!supabase/migrations/*.sql
 *.db
 *.sqlite
 *.sqlite3

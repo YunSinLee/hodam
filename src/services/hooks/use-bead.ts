@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { createSafePersistStorage } from "@/lib/client/zustand-storage";
+
 export interface Bead {
   id: string | undefined;
   count: number | undefined;
@@ -38,6 +40,7 @@ const useBead = create<BeadState & BeadActions>()(
     {
       name: "hodam-bead-info", // localStorage 키 이름
       partialize: state => ({ bead: state.bead }), // 저장할 상태만 선택
+      storage: createSafePersistStorage(),
     },
   ),
 );

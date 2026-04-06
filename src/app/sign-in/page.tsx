@@ -1,29 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import userApi from "@/app/api/user";
+import Image from "next/image";
+
+import { resolveOAuthRedirectUrl } from "@/lib/auth/oauth-redirect";
+import {
+  clearPostLoginRedirectPath,
+  sanitizePostLoginRedirectPath,
+  savePostLoginRedirectPath,
+} from "@/lib/auth/post-login-redirect";
+import { getSignInRecoveryHint } from "@/lib/auth/sign-in-recovery";
+import userApi from "@/lib/client/api/user";
 // import useUserInfo from "@/services/hooks/use-user-info";
 
 export default function SignIn() {
   const [isKakaoLoading, setIsKakaoLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [welcomeMessage, setWelcomeMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authConfigWarning, setAuthConfigWarning] = useState<string | null>(
+    null,
+  );
+  const [resolvedRedirectUrl, setResolvedRedirectUrl] = useState<string | null>(
+    null,
+  );
+  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
+  const recoveryHint = getSignInRecoveryHint(authErrorCode);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    setAuthErrorCode(searchParams.get("auth_error"));
+
+    const rawNextPath = searchParams.get("next");
+    const safeNextPath = sanitizePostLoginRedirectPath(rawNextPath);
+    if (safeNextPath) {
+      savePostLoginRedirectPath(safeNextPath);
+    } else {
+      clearPostLoginRedirectPath();
+    }
+
+    const { warnings, redirectTo } = resolveOAuthRedirectUrl({
+      runtimeOrigin: window.location.origin,
+      configuredSiteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+      configuredAuthRedirectUrl: process.env.NEXT_PUBLIC_AUTH_REDIRECT_URL,
+    });
+    setResolvedRedirectUrl(redirectTo);
+
+    if (warnings.length > 0) {
+      setAuthConfigWarning(warnings.join(" "));
+    }
+  }, []);
 
   async function signinWithKakao() {
     if (isKakaoLoading || isGoogleLoading) return;
 
     setIsKakaoLoading(true);
+    setErrorMessage(null);
     try {
-      console.log("카카오 로그인 시도 중...");
-      const result = await userApi.signInWithKakao();
-      console.log("카카오 로그인 결과:", result);
-
-      if (result) {
-        setWelcomeMessage("카카오 로그인 성공! 잠시 후 이동합니다...");
-      }
+      await userApi.signInWithKakao();
     } catch (error) {
-      console.error("Kakao login error:", error);
+      const detail = error instanceof Error ? ` (${error.message})` : "";
+      setErrorMessage(
+        `카카오 로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.${detail}`,
+      );
     } finally {
       setIsKakaoLoading(false);
     }
@@ -33,14 +74,14 @@ export default function SignIn() {
     if (isKakaoLoading || isGoogleLoading) return;
 
     setIsGoogleLoading(true);
+    setErrorMessage(null);
     try {
-      const result = await userApi.signInWithGoogle();
-
-      if (result) {
-        setWelcomeMessage("구글 로그인 성공! 잠시 후 이동합니다...");
-      }
+      await userApi.signInWithGoogle();
     } catch (error) {
-      console.error("Google login error:", error);
+      const detail = error instanceof Error ? ` (${error.message})` : "";
+      setErrorMessage(
+        `구글 로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.${detail}`,
+      );
     } finally {
       setIsGoogleLoading(false);
     }
@@ -55,10 +96,32 @@ export default function SignIn() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* 환영 메시지 */}
-        {welcomeMessage && (
-          <div className="mb-4 p-4 bg-green-100 border border-green-200 rounded-2xl text-center">
-            <p className="text-green-700 font-medium">{welcomeMessage}</p>
+        {errorMessage && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-2xl text-left">
+            <p className="text-red-700 text-sm leading-relaxed">
+              {errorMessage}
+            </p>
+          </div>
+        )}
+        {recoveryHint && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left">
+            <p className="text-amber-700 text-sm leading-relaxed">
+              이전 로그인 시도 안내: {recoveryHint}
+            </p>
+          </div>
+        )}
+        {authConfigWarning && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left">
+            <p className="text-amber-700 text-sm leading-relaxed">
+              로그인 설정 점검 필요: {authConfigWarning}
+            </p>
+          </div>
+        )}
+        {!authConfigWarning && resolvedRedirectUrl && (
+          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-2xl text-left">
+            <p className="text-gray-600 text-xs break-all">
+              OAuth callback URL: {resolvedRedirectUrl}
+            </p>
           </div>
         )}
 
@@ -69,10 +132,12 @@ export default function SignIn() {
             {/* 로고 */}
             <div className="flex justify-center mb-6">
               <div className="w-20 h-20 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform duration-300">
-                <img
+                <Image
                   src="/hodam.png"
                   className="w-12 h-12 filter brightness-0 invert"
                   alt="호담 로고"
+                  width={48}
+                  height={48}
                 />
               </div>
             </div>
@@ -90,6 +155,7 @@ export default function SignIn() {
           <div className="space-y-4">
             {/* 카카오 로그인 */}
             <button
+              type="button"
               onClick={signinWithKakao}
               disabled={isKakaoLoading || isGoogleLoading}
               className="w-full group relative overflow-hidden bg-[#FEE500] hover:bg-[#FFEB3B] disabled:bg-gray-300 disabled:cursor-not-allowed rounded-2xl px-6 py-4 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg disabled:transform-none disabled:shadow-none"
@@ -98,10 +164,12 @@ export default function SignIn() {
                 {isKakaoLoading ? (
                   <div className="w-6 h-6 border-2 border-[#3C1E1E] border-t-transparent rounded-full animate-spin mr-3" />
                 ) : (
-                  <img
+                  <Image
                     src="/kakao_logo.svg"
                     alt="카카오 로그인"
                     className="h-6 mr-3"
+                    width={24}
+                    height={24}
                   />
                 )}
                 <span className="text-[#3C1E1E] font-semibold text-lg">
@@ -116,6 +184,7 @@ export default function SignIn() {
 
             {/* 구글 로그인 */}
             <button
+              type="button"
               onClick={signinWithGoogle}
               disabled={isKakaoLoading || isGoogleLoading}
               className="w-full group relative overflow-hidden bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed border-2 border-gray-200 hover:border-gray-300 disabled:border-gray-200 rounded-2xl px-6 py-4 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg disabled:transform-none disabled:shadow-none"
@@ -124,10 +193,12 @@ export default function SignIn() {
                 {isGoogleLoading ? (
                   <div className="w-6 h-6 border-2 border-gray-600 border-t-transparent rounded-full animate-spin mr-3" />
                 ) : (
-                  <img
+                  <Image
                     src="/google_logo.svg"
                     alt="구글 로그인"
                     className="h-6 mr-3"
+                    width={24}
+                    height={24}
                   />
                 )}
                 <span className="text-gray-700 font-semibold text-lg">

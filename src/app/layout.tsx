@@ -7,6 +7,7 @@ import "primereact/resources/primereact.min.css";
 import "primereact/resources/themes/lara-light-amber/theme.css";
 import "../styles/globals.css";
 
+import ChunkErrorRecovery from "./components/ChunkErrorRecovery";
 import FooterWrapper from "./components/FooterWrapper";
 import NavBar from "./components/NavBar";
 
@@ -23,12 +24,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const gaId = process.env.NEXT_PUBLIC_GA_ID!;
+  const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
-    <html lang="ko">
-      <PrimeReactProvider value={{ ripple: true }}>
-        <body>
+    <html lang="ko" suppressHydrationWarning>
+      <body>
+        <PrimeReactProvider value={{ ripple: true }}>
+          <ChunkErrorRecovery />
           <div className="min-h-screen flex flex-col">
             <div className="h-navbar fixed top-0 z-10 w-full border-b-2 border-gray-300 bg-white">
               <NavBar />
@@ -36,9 +38,9 @@ export default function RootLayout({
             <main className="flex-1 pt-20">{children}</main>
             <FooterWrapper />
           </div>
-        </body>
-      </PrimeReactProvider>
-      <GoogleAnalytics gaId={gaId} />
+          {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
+        </PrimeReactProvider>
+      </body>
     </html>
   );
 }

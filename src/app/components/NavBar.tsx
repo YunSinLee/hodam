@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
-import beadApi from "@/app/api/bead";
-import userApi from "@/app/api/user";
 import { supabase } from "@/app/utils/supabase";
+import {
+  shouldRedirectAfterSignIn,
+  toSessionUserInfo,
+} from "@/lib/auth/session-state";
+import beadApi from "@/lib/client/api/bead";
+import userApi from "@/lib/client/api/user";
 import useBead, {
   defaultState as defaultBeadState,
 } from "@/services/hooks/use-bead";
@@ -15,16 +20,40 @@ import useUserInfo, {
   defaultState as defaultUserInfoState,
 } from "@/services/hooks/use-user-info";
 
+import type { Session } from "@supabase/supabase-js";
+
 export default function NavBar() {
-  const { userInfo, setUserInfo } = useUserInfo();
+  const { userInfo, setUserInfo, hasHydrated } = useUserInfo();
   const { bead, setBead } = useBead();
   const [isShowMenu, setIsShowMenu] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const applySession = useCallback(
+    (session: Session | null) => {
+      const sessionUserInfo = toSessionUserInfo(session);
+      if (!sessionUserInfo) {
+        setUserInfo(defaultUserInfoState);
+        setBead(defaultBeadState);
+        return;
+      }
+
+      setUserInfo(sessionUserInfo);
+    },
+    [setUserInfo, setBead],
+  );
 
   async function signOut() {
-    await userApi.signOut();
-    location.reload();
+    try {
+      await userApi.signOut();
+    } catch {
+      // Ignore local sign-out error and continue clearing local state.
+    }
+    applySession(null);
+    setIsShowMenu(false);
+    router.replace("/");
+    router.refresh();
   }
 
   useEffect(() => {
@@ -36,69 +65,40 @@ export default function NavBar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 초기 세션 복원
   useEffect(() => {
+    let mounted = true;
+
     const initializeAuth = async () => {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-
-        if (session?.user && !userInfo.id) {
-          console.log("세션 복원 중:", session.user.email);
-          const userData = {
-            profileUrl: session.user.user_metadata?.avatar_url || "",
-            id: session.user.id,
-            email: session.user.email,
-          };
-          setUserInfo(userData);
+        if (!mounted) return;
+        applySession(session || null);
+      } catch {
+        if (mounted) {
+          applySession(null);
         }
-      } catch (error) {
-        console.error("세션 복원 오류:", error);
       }
     };
 
     initializeAuth();
-  }, []);
+    return () => {
+      mounted = false;
+    };
+  }, [applySession]);
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.email);
+      (event, session) => {
+        applySession(session || null);
 
-        if (event === "SIGNED_OUT") {
-          setUserInfo(defaultUserInfoState);
-          setBead(defaultBeadState);
-        }
-
-        if (event === "SIGNED_IN" && session?.user) {
-          const { user } = session;
-          const userData = {
-            profileUrl: user.user_metadata?.avatar_url || "",
-            id: user.id,
-            email: user.email,
-          };
-          setUserInfo(userData);
-
-          // 사용자 정보가 users 테이블에 있는지 확인하고 없으면 생성
-          try {
-            const existingUser = await userApi.getUserProfile(user.id);
-            if (!existingUser) {
-              console.log("Creating user profile in database...");
-              // 트리거가 자동으로 처리하지만, 혹시 모를 경우를 대비
-            }
-          } catch (error) {
-            console.error("Error checking user profile:", error);
-          }
-
-          // 로그인 페이지에서 메인으로 리다이렉트
-          if (pathname === "/sign-in") {
-            window.location.href = "/";
-          }
-        }
-
-        if (event === "TOKEN_REFRESHED") {
-          console.log("Token refreshed successfully");
+        if (
+          event === "SIGNED_IN" &&
+          session?.user &&
+          shouldRedirectAfterSignIn(pathname)
+        ) {
+          router.replace("/");
         }
       },
     );
@@ -106,18 +106,24 @@ export default function NavBar() {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [pathname, setUserInfo, setBead]);
+  }, [applySession, pathname, router]);
 
   useEffect(() => {
     const fetchBead = async () => {
       if (userInfo.id) {
-        const beadInfo = await beadApi.initializeBead(userInfo.id);
-        setBead(beadInfo);
+        try {
+          const beadInfo = await beadApi.initializeBead();
+          setBead(beadInfo);
+        } catch {
+          setBead(defaultBeadState);
+        }
+      } else {
+        setBead(defaultBeadState);
       }
     };
 
     fetchBead();
-  }, [userInfo.id]);
+  }, [userInfo.id, setBead]);
 
   const navItems = [
     { href: "/", label: "홈", icon: "🏠" },
@@ -140,10 +146,12 @@ export default function NavBar() {
             <Link href="/" className="group flex items-center space-x-3">
               <div className="relative">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                  <img
+                  <Image
                     src="/hodam.png"
                     className="w-6 h-6 sm:w-8 sm:h-8 filter brightness-0 invert"
                     alt="호담 로고"
+                    width={32}
+                    height={32}
                   />
                 </div>
                 <div className="absolute -inset-1 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full opacity-0 group-hover:opacity-20 blur transition-all duration-300" />
@@ -185,10 +193,12 @@ export default function NavBar() {
                 <Link href="/bead" className="group">
                   <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-orange-100 to-amber-100 rounded-full border border-orange-200 hover:border-orange-300 transition-all duration-200 hover:shadow-md">
                     <div className="relative">
-                      <img
+                      <Image
                         src="/persimmon_240424.png"
                         className="w-6 h-6 group-hover:scale-110 transition-transform duration-200"
                         alt="곶감"
+                        width={24}
+                        height={24}
                       />
                     </div>
                     <span className="text-sm font-semibold text-orange-700 min-w-[20px] text-center">
@@ -200,7 +210,10 @@ export default function NavBar() {
 
               {/* 로그인/로그아웃 버튼 (데스크톱) */}
               <div className="hidden lg:block">
-                {userInfo.id ? (
+                {!hasHydrated && (
+                  <div className="h-10 w-24 animate-pulse rounded-full bg-gray-200" />
+                )}
+                {hasHydrated && userInfo.id && (
                   <div className="flex items-center gap-3">
                     <Link href="/profile" className="group">
                       <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors duration-200">
@@ -215,13 +228,15 @@ export default function NavBar() {
                       </div>
                     </Link>
                     <button
+                      type="button"
                       onClick={signOut}
                       className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-orange-600 border border-gray-200 hover:border-orange-300 rounded-full transition-all duration-200 hover:bg-orange-50"
                     >
                       로그아웃
                     </button>
                   </div>
-                ) : (
+                )}
+                {hasHydrated && !userInfo.id && (
                   <Link href="/sign-in">
                     <div className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200">
                       로그인
@@ -232,6 +247,7 @@ export default function NavBar() {
 
               {/* 모바일 메뉴 버튼 */}
               <button
+                type="button"
                 className="lg:hidden p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
                 onClick={() => setIsShowMenu(!isShowMenu)}
                 aria-label="메뉴 열기"
@@ -292,7 +308,10 @@ export default function NavBar() {
 
               {/* 모바일 로그인/로그아웃 */}
               <div className="pt-4 border-t border-gray-100">
-                {userInfo.id ? (
+                {!hasHydrated && (
+                  <div className="h-11 w-full animate-pulse rounded-xl bg-gray-200" />
+                )}
+                {hasHydrated && userInfo.id && (
                   <div className="space-y-3">
                     <Link
                       href="/profile"
@@ -331,6 +350,7 @@ export default function NavBar() {
                       </div>
                     </Link>
                     <button
+                      type="button"
                       onClick={() => {
                         signOut();
                         setIsShowMenu(false);
@@ -353,7 +373,8 @@ export default function NavBar() {
                       <span className="font-medium">로그아웃</span>
                     </button>
                   </div>
-                ) : (
+                )}
+                {hasHydrated && !userInfo.id && (
                   <Link
                     href="/sign-in"
                     onClick={() => setIsShowMenu(false)}

@@ -1,22 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
-import beadApi from "@/app/api/bead";
+import beadApi from "@/lib/client/api/bead";
 import useBead from "@/services/hooks/use-bead";
-import useUserInfo from "@/services/hooks/use-user-info";
 
-export default function PaymentSuccessPage() {
-  const router = useRouter();
+interface PaymentInfo {
+  orderId: string;
+  amount: number;
+  paymentKey: string;
+}
+
+function PaymentSuccessPageContent() {
   const searchParams = useSearchParams();
-  const { userInfo } = useUserInfo();
   const { setBead } = useBead();
 
   const [isProcessing, setIsProcessing] = useState(true);
-  const [paymentInfo, setPaymentInfo] = useState<any>(null);
+  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
@@ -25,7 +29,7 @@ export default function PaymentSuccessPage() {
       const orderId = searchParams.get("orderId");
       const amount = searchParams.get("amount");
 
-      if (!paymentKey || !orderId || !amount || !userInfo.id) {
+      if (!paymentKey || !orderId || !amount) {
         setError("결제 정보가 올바르지 않습니다.");
         setIsProcessing(false);
         return;
@@ -36,7 +40,6 @@ export default function PaymentSuccessPage() {
           paymentKey,
           orderId,
           parseInt(amount, 10),
-          userInfo.id,
         );
 
         setBead(updatedBead);
@@ -45,18 +48,23 @@ export default function PaymentSuccessPage() {
           amount: parseInt(amount, 10),
           paymentKey,
         });
-      } catch (error) {
-        console.error("결제 처리 오류:", error);
-        setError("결제 처리 중 오류가 발생했습니다.");
+      } catch (caughtError) {
+        if (
+          caughtError instanceof Error &&
+          caughtError.message &&
+          caughtError.message.includes("처리 중")
+        ) {
+          setError(caughtError.message);
+        } else {
+          setError("결제 처리 중 오류가 발생했습니다.");
+        }
       } finally {
         setIsProcessing(false);
       }
     };
 
-    if (userInfo.id) {
-      processPayment();
-    }
-  }, [searchParams, userInfo.id, setBead]);
+    processPayment();
+  }, [searchParams, setBead]);
 
   if (isProcessing) {
     return (
@@ -95,12 +103,18 @@ export default function PaymentSuccessPage() {
           <p className="text-gray-600 mb-6">{error}</p>
           <div className="space-y-3">
             <Link href="/bead">
-              <button className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors">
+              <button
+                type="button"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
+              >
                 다시 시도하기
               </button>
             </Link>
             <Link href="/">
-              <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-colors">
+              <button
+                type="button"
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-colors"
+              >
                 홈으로 돌아가기
               </button>
             </Link>
@@ -158,28 +172,63 @@ export default function PaymentSuccessPage() {
 
         {/* 곶감 아이콘 */}
         <div className="flex justify-center mb-6">
-          <img src="/persimmon_240424.png" alt="곶감" className="w-12 h-12" />
+          <Image
+            src="/persimmon_240424.png"
+            alt="곶감"
+            className="w-12 h-12"
+            width={48}
+            height={48}
+          />
         </div>
 
         {/* 액션 버튼 */}
         <div className="space-y-3">
           <Link href="/service">
-            <button className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors">
+            <button
+              type="button"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
+            >
               동화 만들러 가기
             </button>
           </Link>
           <Link href="/bead">
-            <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-colors">
+            <button
+              type="button"
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-colors"
+            >
               곶감 충전 페이지
             </button>
           </Link>
           <Link href="/">
-            <button className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 transition-colors">
+            <button
+              type="button"
+              className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 transition-colors"
+            >
               홈으로 돌아가기
             </button>
           </Link>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
+          <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
+            <div className="w-16 h-16 mx-auto mb-6 border-4 border-green-200 border-t-green-500 rounded-full animate-spin" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              결제 처리 준비 중
+            </h2>
+            <p className="text-gray-600">잠시만 기다려주세요...</p>
+          </div>
+        </div>
+      }
+    >
+      <PaymentSuccessPageContent />
+    </Suspense>
   );
 }

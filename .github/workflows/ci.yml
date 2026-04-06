@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "codex/**"
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm run check:audit:prod
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Threads API contract check
+        run: |
+          npx next dev -p 3100 &
+          APP_PID=$!
+          trap "kill $APP_PID" EXIT
+
+          for i in {1..60}; do
+            if curl -s http://localhost:3100/api/v1/threads >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+            if [ "$i" -eq 60 ]; then
+              echo "threads API contract check: app did not become ready in time"
+              exit 1
+            fi
+          done
+
+          HODAM_API_BASE_URL=http://localhost:3100 npm run check:threads:local
+
+      - name: Supabase security check
+        if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS }}
+          HODAM_SUPABASE_SECURITY_ENFORCE_STRICT: ${{ vars.HODAM_SUPABASE_SECURITY_ENFORCE_STRICT }}
+        run: npm run check:supabase:security
+
+      - name: Supabase strict security gate
+        if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Temporary baseline ignores: remove each entry once the underlying platform constraint is resolved.
+          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version' }}
+        run: npm run check:supabase:security:strict
