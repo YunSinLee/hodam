@@ -2,13 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import threadApi, { isThreadListUnavailable } from "@/lib/client/api/thread";
 
-const { authorizedFetchMock, authorizedFetchWithMetaMock } = vi.hoisted(() => ({
-  authorizedFetchMock: vi.fn(),
+const { authorizedFetchWithMetaMock } = vi.hoisted(() => ({
   authorizedFetchWithMetaMock: vi.fn(),
 }));
 
 vi.mock("@/lib/client/api/http", () => ({
-  authorizedFetch: authorizedFetchMock,
   authorizedFetchWithMeta: authorizedFetchWithMetaMock,
 }));
 
@@ -18,22 +16,53 @@ describe("threadApi", () => {
   });
 
   it("loads thread detail through /api/v1/threads/:id", async () => {
-    authorizedFetchMock.mockResolvedValue({
-      thread: { id: 12 },
-      messages: [],
-      imageUrl: null,
+    authorizedFetchWithMetaMock.mockResolvedValue({
+      data: {
+        thread: { id: 12 },
+        messages: [],
+        imageUrl: null,
+      },
+      status: 200,
+      headers: new Headers({
+        "x-hodam-threads-source": "rpc",
+      }),
     });
 
     const response = await threadApi.getThreadDetail(12);
 
     expect(response.thread.id).toBe(12);
-    expect(authorizedFetchMock).toHaveBeenCalledWith(
+    expect(authorizedFetchWithMetaMock).toHaveBeenCalledWith(
       "/api/v1/threads/12",
       {
         method: "GET",
       },
       expect.anything(),
     );
+  });
+
+  it("returns diagnostics from thread detail response headers", async () => {
+    authorizedFetchWithMetaMock.mockResolvedValue({
+      data: {
+        thread: { id: 12 },
+        messages: [],
+        imageUrl: null,
+      },
+      status: 200,
+      headers: new Headers({
+        "x-hodam-threads-source": "fallback",
+        "x-hodam-threads-degraded": "1",
+        "x-hodam-threads-degraded-reasons": "rpc_error,rpc_missing_messages",
+      }),
+    });
+
+    const result = await threadApi.getThreadDetailWithDiagnostics(12);
+
+    expect(result.detail.thread.id).toBe(12);
+    expect(result.diagnostics).toEqual({
+      source: "fallback",
+      degraded: true,
+      reasons: ["rpc_error", "rpc_missing_messages"],
+    });
   });
 
   it("loads thread list through /api/v1/threads", async () => {
