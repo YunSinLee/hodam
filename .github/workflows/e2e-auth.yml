@@ -14,6 +14,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      HODAM_ENFORCE_SECRET_CHECKS: ${{ vars.HODAM_ENFORCE_SECRET_CHECKS || '0' }}
       NEXT_PUBLIC_SITE_URL: http://localhost:3003
       HODAM_E2E_APP_PORT: 3003
       HODAM_E2E_OAUTH_PROVIDERS: google,kakao
@@ -28,11 +29,24 @@ jobs:
         run: |
           if [ -n "${NEXT_PUBLIC_SUPABASE_URL}" ] && [ -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
             echo "enabled=1" >> "$GITHUB_OUTPUT"
+            echo "missing=0" >> "$GITHUB_OUTPUT"
             echo "Auth e2e checks are enabled."
           else
             echo "enabled=0" >> "$GITHUB_OUTPUT"
+            echo "missing=1" >> "$GITHUB_OUTPUT"
             echo "Auth e2e checks are skipped because required secrets are missing."
           fi
+
+      - name: Fail when required secrets are missing (strict mode)
+        if: ${{ steps.guard.outputs.missing == '1' && env.HODAM_ENFORCE_SECRET_CHECKS == '1' }}
+        run: |
+          echo "Required secrets are missing and strict mode is enabled." >&2
+          exit 1
+
+      - name: Report skipped auth e2e checks
+        if: ${{ steps.guard.outputs.enabled != '1' }}
+        run: |
+          echo "::notice::Auth e2e skipped (missing NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY)."
 
       - name: Checkout
         if: ${{ steps.guard.outputs.enabled == '1' }}

@@ -97,6 +97,9 @@ npm run dev
 - 저장소 변수 `HODAM_SUPABASE_SECURITY_IGNORE_LINTS`로 strict 무시 목록을 설정할 수 있습니다.
 - 기본 fallback 무시 목록은 `auth_leaked_password_protection,vulnerable_postgres_version` 입니다.
 - 위 fallback은 임시 조치이므로 Supabase 플랜/DB 패치 이후 제거해야 합니다.
+- `Security Check` / `E2E Auth` / `E2E Payments`는 required secret이 없으면 기본적으로 `skip`(성공 종료)됩니다.
+- 저장소 변수 `HODAM_ENFORCE_SECRET_CHECKS=1`을 설정하면 required secret 누락 시 즉시 `fail` 처리됩니다.
+- 운영에서 정기 검증을 강제하려면, secret 세팅 완료 후 `HODAM_ENFORCE_SECRET_CHECKS`를 `1`로 올리세요.
 - GitHub Actions `E2E Payments` 워크플로우는 수동 실행/주간 실행으로 `npm run test:e2e:payments:local`를 수행합니다.
 - `E2E Payments`에 필요한 주요 secret:
 - `NEXT_PUBLIC_SUPABASE_URL`
