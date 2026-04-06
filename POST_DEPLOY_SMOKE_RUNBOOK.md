@@ -10,6 +10,12 @@
 - 테스트 사용자 계정 확보
 - 테스트 결제/웹훅 검증 환경 확보
 
+빠른 통합 실행:
+
+```bash
+npm run check:post-upgrade -- --runtime-origin=https://<production-domain>
+```
+
 ## 2) API/보안 게이트
 
 1. 환경/빌드 게이트

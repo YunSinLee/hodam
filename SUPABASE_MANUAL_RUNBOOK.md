@@ -35,6 +35,8 @@
 - `npm run build`
 - `npm run check:supabase:security`
 - 결제 1회 + 동화 생성 1회 E2E
+- 통합 검증 커맨드:
+- `npm run check:post-upgrade -- --runtime-origin=https://<production-domain>`
 
 ## 3) Leaked Password Protection(HIBP)
 

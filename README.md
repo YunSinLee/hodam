@@ -115,6 +115,10 @@ npm run check:env:strict
 npm run check:all
 # 릴리즈 게이트(로컬)
 npm run check:release:gate
+# Supabase 수동 업그레이드 직후 후속 검증(통합)
+npm run check:post-upgrade
+# runtime origin 지정 예시
+npm run check:post-upgrade -- --runtime-origin=https://your-domain.com
 # 의존성 취약점 점검
 npm run check:audit:prod
 npm run check:audit:all

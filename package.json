@@ -20,6 +20,7 @@
     "check:audit:prod": "npm audit --omit=dev",
     "check:audit:all": "npm audit",
     "check:oauth": "node scripts/check-oauth.mjs",
+    "check:post-upgrade": "node scripts/check-post-upgrade.mjs",
     "check:threads:local": "node scripts/check-threads-local.mjs",
     "check:supabase:security": "node scripts/check-supabase-security.mjs",
     "check:supabase:security:strict": "node scripts/check-supabase-security.mjs --strict",
