@@ -57,6 +57,7 @@ const runtimeOrigin = resolveRuntimeOrigin();
 const continueOnError = args.has("--continue-on-error");
 const skipAuthE2E = args.has("--skip-e2e-auth");
 const skipPaymentsE2E = args.has("--skip-e2e-payments");
+const skipSupabasePerformance = args.has("--skip-supabase-performance");
 const postDbUpgrade = args.has("--post-db-upgrade");
 
 const steps = [
@@ -69,6 +70,14 @@ const steps = [
     name: "supabase-security",
     command: "npm run check:supabase:security",
   },
+  ...(!skipSupabasePerformance
+    ? [
+        {
+          name: "supabase-performance",
+          command: "npm run check:supabase:performance",
+        },
+      ]
+    : []),
   {
     name: postDbUpgrade
       ? "supabase-security-strict-post-upgrade"
@@ -104,6 +113,7 @@ console.log(`- runtime origin: ${runtimeOrigin}`);
 console.log(`- continue on error: ${continueOnError}`);
 console.log(`- skip auth e2e: ${skipAuthE2E}`);
 console.log(`- skip payments e2e: ${skipPaymentsE2E}`);
+console.log(`- skip supabase performance: ${skipSupabasePerformance}`);
 console.log(`- post db upgrade mode: ${postDbUpgrade}`);
 
 const results = [];

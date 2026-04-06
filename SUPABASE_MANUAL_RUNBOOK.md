@@ -10,6 +10,7 @@
 
 1. 현재 advisor 상태 확인
 - `npm run check:supabase:security`
+- `npm run check:supabase:performance`
 - 남은 경고:
 - `auth_leaked_password_protection`
 - `vulnerable_postgres_version`
@@ -34,6 +35,7 @@
 4. 업그레이드 후 즉시 검증
 - `npm run build`
 - `npm run check:supabase:security`
+- `npm run check:supabase:performance`
 - 결제 1회 + 동화 생성 1회 E2E
 - 통합 검증 커맨드:
 - `npm run check:post-upgrade -- --runtime-origin=https://<production-domain>`
