@@ -11,54 +11,70 @@ interface SelectionDisplayProps {
 export default function SelectionDisplay({
   selections,
   onSelectionClick,
-  onClear: _onClear,
+  onClear,
   notice,
   isShowEnglish = false,
   selectedChoice = "",
   isSelectionLoading = false,
 }: SelectionDisplayProps) {
-  // 안전한 선택지 클릭 핸들러
   const handleSelectionClick = (selection: {
     text: string;
     text_en: string;
   }) => {
-    try {
-      // 로딩 중이면 클릭 무시
-      if (isSelectionLoading) {
-        return;
-      }
+    if (isSelectionLoading) return;
 
-      // 선택지 텍스트가 유효한지 확인
-      if (!selection?.text || typeof selection.text !== "string") {
-        console.error("Invalid selection text:", selection);
-        alert("선택지 정보가 올바르지 않습니다.");
-        return;
-      }
+    const normalizedSelectionText = selection?.text?.trim();
+    if (!normalizedSelectionText) return;
 
-      // 선택지 텍스트가 비어있지 않은지 확인
-      if (selection.text.trim().length === 0) {
-        console.error("Empty selection text");
-        alert("선택지가 비어있습니다.");
-        return;
-      }
-
-      // 콜백 함수 호출
-      onSelectionClick(selection.text);
-    } catch (error) {
-      console.error("Error in selection click handler:", error);
-      alert("선택지 처리 중 오류가 발생했습니다.");
-    }
+    onClear?.();
+    onSelectionClick(normalizedSelectionText);
   };
 
-  // selections 배열이 유효한지 확인
   if (!Array.isArray(selections)) {
-    console.error("Invalid selections array:", selections);
     return (
       <div className="flex flex-col items-center">
         <p className="text-red-500">선택지를 불러올 수 없습니다.</p>
       </div>
     );
   }
+
+  const getSelectionContainerClass = (
+    isSelected: boolean,
+    isDisabled: boolean,
+  ) => {
+    if (isSelected) {
+      return "bg-orange-100 border-orange-400 shadow-md";
+    }
+    if (isDisabled) {
+      return "bg-gray-100 border-gray-300 cursor-not-allowed opacity-60";
+    }
+    return "bg-white border-orange-200 hover:border-orange-500 hover:shadow-md";
+  };
+
+  const getSelectionBadgeClass = (isSelected: boolean, isDisabled: boolean) => {
+    if (isSelected) {
+      return "bg-orange-500 text-white";
+    }
+    if (isDisabled) {
+      return "bg-gray-400 text-white";
+    }
+    return "bg-orange-200 text-orange-700";
+  };
+
+  const getSelectionTextClass = (isSelected: boolean, isDisabled: boolean) => {
+    if (isSelected) return "text-orange-800";
+    if (isDisabled) return "text-gray-500";
+    return "text-gray-800";
+  };
+
+  const getSelectionEnglishTextClass = (
+    isSelected: boolean,
+    isDisabled: boolean,
+  ) => {
+    if (isSelected) return "text-orange-600";
+    if (isDisabled) return "text-gray-400";
+    return "text-gray-600";
+  };
 
   return (
     <div className="flex flex-col items-center">
@@ -86,54 +102,42 @@ export default function SelectionDisplay({
             </div>
           </div>
         ) : (
-          // 일반 선택지 표시
           selections.map((selection, index) => {
-            // 각 선택지가 유효한지 확인
-            if (!selection || typeof selection.text !== "string") {
-              console.warn(`Invalid selection at index ${index}:`, selection);
-              return null;
-            }
-
+            if (!selection || typeof selection.text !== "string") return null;
             const isSelected = selectedChoice === selection.text;
             const isDisabled = isSelectionLoading;
 
             return (
               <div
-                key={`selection-${index}-${selection.text.substring(0, 10)}`}
+                key={`${selection.text}-${selection.text_en}`}
                 className={`p-4 rounded-md shadow-sm transition-all border cursor-pointer
-                  ${
-                    isSelected
-                      ? "bg-orange-100 border-orange-400 shadow-md"
-                      : isDisabled
-                        ? "bg-gray-100 border-gray-300 cursor-not-allowed opacity-60"
-                        : "bg-white border-orange-200 hover:border-orange-500 hover:shadow-md"
-                  }`}
+                  ${getSelectionContainerClass(isSelected, isDisabled)}`}
                 onClick={() => !isDisabled && handleSelectionClick(selection)}
               >
                 <div className="flex items-start gap-3">
                   {/* 선택지 번호 */}
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
-                    ${
-                      isSelected
-                        ? "bg-orange-500 text-white"
-                        : isDisabled
-                          ? "bg-gray-400 text-white"
-                          : "bg-orange-200 text-orange-700"
-                    }`}
+                    ${getSelectionBadgeClass(isSelected, isDisabled)}`}
                   >
                     {index + 1}
                   </div>
 
                   <div className="flex-1">
                     <p
-                      className={`font-medium ${isSelected ? "text-orange-800" : isDisabled ? "text-gray-500" : "text-gray-800"}`}
+                      className={`font-medium ${getSelectionTextClass(
+                        isSelected,
+                        isDisabled,
+                      )}`}
                     >
                       {selection.text}
                     </p>
                     {isShowEnglish && selection.text_en && (
                       <p
-                        className={`font-medium italic mt-1 ${isSelected ? "text-orange-600" : isDisabled ? "text-gray-400" : "text-gray-600"}`}
+                        className={`font-medium italic mt-1 ${getSelectionEnglishTextClass(
+                          isSelected,
+                          isDisabled,
+                        )}`}
                       >
                         {selection.text_en}
                       </p>

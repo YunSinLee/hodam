@@ -4,32 +4,32 @@ import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
+const FEATURES = [
+  {
+    icon: "🎯",
+    title: "키워드 기반 생성",
+    description: "원하는 키워드만 입력하면 맞춤형 동화가 완성됩니다",
+  },
+  {
+    icon: "🌍",
+    title: "다국어 지원",
+    description: "한국어와 영어로 동화를 즐길 수 있습니다",
+  },
+  {
+    icon: "🎨",
+    title: "AI 일러스트",
+    description: "동화에 어울리는 아름다운 그림을 자동으로 생성합니다",
+  },
+];
+
 export default function Home() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentFeature, setCurrentFeature] = useState(0);
 
-  const features = [
-    {
-      icon: "🎯",
-      title: "키워드 기반 생성",
-      description: "원하는 키워드만 입력하면 맞춤형 동화가 완성됩니다",
-    },
-    {
-      icon: "🌍",
-      title: "다국어 지원",
-      description: "한국어와 영어로 동화를 즐길 수 있습니다",
-    },
-    {
-      icon: "🎨",
-      title: "AI 일러스트",
-      description: "동화에 어울리는 아름다운 그림을 자동으로 생성합니다",
-    },
-  ];
-
   useEffect(() => {
     setIsLoaded(true);
     const interval = setInterval(() => {
-      setCurrentFeature(prev => (prev + 1) % features.length);
+      setCurrentFeature(prev => (prev + 1) % FEATURES.length);
     }, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -132,9 +132,9 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
+            {FEATURES.map((feature, index) => (
               <div
-                key={index}
+                key={feature.title}
                 className={`relative p-6 bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-500 transform hover:-translate-y-2 ${
                   currentFeature === index
                     ? "ring-2 ring-orange-400 ring-opacity-50"

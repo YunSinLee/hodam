@@ -1,37 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import beadApi from "@/app/api/bead";
 import { supabase } from "@/app/utils/supabase";
+import beadApi from "@/lib/client/api/bead";
+import type { BeadPackage } from "@/lib/payments/packages";
+import { resolveTossClientKey } from "@/lib/payments/toss-client";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 // 토스페이먼츠 SDK 타입 정의
+interface TossPaymentsInstance {
+  requestPayment: (
+    method: string,
+    options: {
+      amount: number;
+      orderId: string;
+      orderName: string;
+      customerName: string;
+      customerEmail: string;
+      successUrl: string;
+      failUrl: string;
+    },
+  ) => Promise<void>;
+}
+
+type TossPaymentsFactory = (clientKey: string) => TossPaymentsInstance;
+
 declare global {
   interface Window {
-    TossPayments: any;
+    TossPayments?: TossPaymentsFactory;
   }
 }
 
-function BeadPage() {
+interface PageFeedback {
+  type: "error" | "success";
+  message: string;
+}
+
+function BeadPageContent() {
   const { bead, setBead } = useBead();
-  const { userInfo, setUserInfo } = useUserInfo();
+  const { userInfo, setUserInfo, hasHydrated } = useUserInfo();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [selectedPackage, setSelectedPackage] = useState<BeadPackage | null>(
+    null,
+  );
   const [processedPayments, setProcessedPayments] = useState<Set<string>>(
     new Set(),
   );
+  const [pageFeedback, setPageFeedback] = useState<PageFeedback | null>(null);
 
-  // 토스페이먼츠 클라이언트 키 (환경변수에서 가져오기)
-  const clientKey =
-    process.env.NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY ||
-    "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq";
+  const tossClientKey = useMemo(() => resolveTossClientKey(), []);
 
   useEffect(() => {
     // 토스페이먼츠 SDK 로드
@@ -45,183 +70,203 @@ function BeadPage() {
     };
   }, []);
 
+  const syncUserFromSession = useCallback(async (): Promise<string | null> => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user?.id) {
+      return null;
+    }
+
+    setUserInfo({
+      profileUrl: session.user.user_metadata?.avatar_url || "",
+      id: session.user.id,
+      email: session.user.email,
+    });
+
+    return session.user.id;
+  }, [setUserInfo]);
+
+  const waitForSessionUserId = useCallback(
+    async (attempt = 0): Promise<string | null> => {
+      const restoredUserId = await syncUserFromSession();
+      if (restoredUserId) return restoredUserId;
+
+      if (attempt >= 4) return null;
+
+      await new Promise<void>(resolve => {
+        setTimeout(resolve, 200);
+      });
+      return waitForSessionUserId(attempt + 1);
+    },
+    [syncUserFromSession],
+  );
+
+  const handlePaymentSuccess = useCallback(
+    async (paymentKey: string, orderId: string, amount: number) => {
+      if (isLoading) return;
+      setPageFeedback(null);
+
+      const currentUserId = userInfo.id || (await waitForSessionUserId());
+      if (!currentUserId) {
+        setPageFeedback({
+          type: "error",
+          message: "로그인 정보를 찾을 수 없습니다. 다시 로그인해주세요.",
+        });
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const updatedBead = await beadApi.completeBeadPurchase(
+          paymentKey,
+          orderId,
+          amount,
+        );
+        setBead(updatedBead);
+        setPageFeedback({
+          type: "success",
+          message: "곶감 충전이 완료되었습니다.",
+        });
+
+        // URL 파라미터 제거
+        router.replace("/bead");
+      } catch (error) {
+        const alreadyProcessed =
+          (error instanceof Error && error.message.includes("이미 처리된")) ||
+          (typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code?: string }).code === "ALREADY_PROCESSED_PAYMENT");
+
+        // 이미 처리된 결제인 경우 조용히 처리
+        if (alreadyProcessed) {
+          setPageFeedback({
+            type: "success",
+            message: "이미 처리된 결제입니다.",
+          });
+          router.replace("/bead");
+          return;
+        }
+
+        const message =
+          error instanceof Error &&
+          error.message &&
+          (error.message.includes("처리 중") ||
+            error.message.includes("로그인"))
+            ? error.message
+            : "결제 처리 중 오류가 발생했습니다. 고객센터로 문의해주세요.";
+
+        setPageFeedback({
+          type: "error",
+          message,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isLoading, router, setBead, userInfo.id, waitForSessionUserId],
+  );
+
   useEffect(() => {
     // 결제 성공/실패 처리
     const paymentKey = searchParams.get("paymentKey");
     const orderId = searchParams.get("orderId");
-    const amount = searchParams.get("amount");
+    const amountRaw = searchParams.get("amount");
 
-    if (paymentKey && orderId && amount) {
-      // 이미 처리된 결제인지 확인
-      const paymentId = `${paymentKey}_${orderId}`;
-      if (processedPayments.has(paymentId)) {
-        console.log("이미 처리된 결제입니다:", paymentId);
-        return;
-      }
+    if (!paymentKey || !orderId || !amountRaw) return;
 
-      // 처리 중인 결제로 표시
-      setProcessedPayments(prev => new Set(prev).add(paymentId));
-
-      handlePaymentSuccess(paymentKey, orderId, parseInt(amount, 10));
-    }
-  }, [searchParams, userInfo.id]);
-
-  const handlePaymentSuccess = async (
-    paymentKey: string,
-    orderId: string,
-    amount: number,
-  ) => {
-    const paymentId = `${paymentKey}_${orderId}`;
-    console.log("결제 성공 처리 시작:", {
-      paymentKey,
-      orderId,
-      amount,
-      userId: userInfo.id,
-      paymentId,
-    });
-
-    // 이미 로딩 중이면 중복 처리 방지
-    if (isLoading) {
-      console.log("이미 결제 처리 중입니다.");
-      return;
-    }
-
-    let currentUserId = userInfo.id;
-
-    // userInfo.id가 없으면 세션 복원을 기다림
-    if (!currentUserId) {
-      console.log("userInfo.id가 없음, 세션 복원 시도 중...");
-
-      // 즉시 세션 확인
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user?.id) {
-        console.log("세션 즉시 복원됨:", session.user.id);
-        const userData = {
-          profileUrl: session.user.user_metadata?.avatar_url || "",
-          id: session.user.id,
-          email: session.user.email,
-        };
-        setUserInfo(userData);
-        currentUserId = session.user.id;
-      } else {
-        // 세션이 없으면 짧은 대기 후 재시도
-        console.log("세션 없음, 잠시 대기 후 재시도...");
-
-        for (let i = 0; i < 5; i++) {
-          await new Promise<void>(resolve => {
-            setTimeout(() => resolve(), 200);
-          });
-
-          const {
-            data: { session: retrySession },
-          } = await supabase.auth.getSession();
-
-          if (retrySession?.user?.id) {
-            console.log(
-              `세션 복원됨 (${i + 1}번째 시도):`,
-              retrySession.user.id,
-            );
-            const userData = {
-              profileUrl: retrySession.user.user_metadata?.avatar_url || "",
-              id: retrySession.user.id,
-              email: retrySession.user.email,
-            };
-            setUserInfo(userData);
-            currentUserId = retrySession.user.id;
-            break;
-          }
-
-          console.log(`세션 복원 재시도 중... (${i + 1}/5)`);
-        }
-      }
-
-      // 여전히 세션이 없으면 에러
-      if (!currentUserId) {
-        console.error("세션 복원 실패");
-        alert("로그인 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
-        return;
-      }
-    }
-
-    setIsLoading(true);
-    try {
-      console.log("결제 완료 처리 시작, userId:", currentUserId);
-      const updatedBead = await beadApi.completeBeadPurchase(
-        paymentKey,
-        orderId,
-        amount,
-        currentUserId,
-      );
-      setBead(updatedBead);
-
-      alert("곶감 충전이 완료되었습니다! 🎉");
-
-      // URL 파라미터 제거
-      router.replace("/bead");
-    } catch (error: any) {
-      console.error("결제 완료 처리 오류:", error);
-
-      // 이미 처리된 결제인 경우 조용히 처리
-      if (
-        error?.message?.includes("이미 처리된") ||
-        error?.code === "ALREADY_PROCESSED_PAYMENT"
-      ) {
-        console.log("이미 처리된 결제입니다. URL 파라미터를 제거합니다.");
-        router.replace("/bead");
-        return;
-      }
-
-      alert("결제 처리 중 오류가 발생했습니다. 고객센터로 문의해주세요.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePurchase = async (packageInfo: any) => {
-    if (!userInfo.id || !userInfo.email) {
-      alert("로그인이 필요합니다.");
-      return;
-    }
-
-    setIsLoading(true);
-    setSelectedPackage(packageInfo);
-
-    try {
-      // 결제 요청 생성
-      const { orderId, amount } = await beadApi.purchaseBeads(
-        userInfo.id,
-        userInfo.email,
-        userInfo.email.split("@")[0], // 이메일에서 사용자명 추출
-        packageInfo.quantity,
-        packageInfo.price,
-      );
-
-      // 토스페이먼츠 결제 위젯 초기화
-      const tossPayments = window.TossPayments(clientKey);
-
-      // 결제 요청
-      await tossPayments.requestPayment("카드", {
-        amount,
-        orderId,
-        orderName: `곶감 ${packageInfo.quantity}개`,
-        customerName: userInfo.email.split("@")[0],
-        customerEmail: userInfo.email,
-        successUrl: `${window.location.protocol}//${window.location.host}/bead`,
-        failUrl: `${window.location.protocol}//${window.location.host}/bead?failed=true`,
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPageFeedback({
+        type: "error",
+        message: "결제 파라미터가 올바르지 않습니다.",
       });
-    } catch (error) {
-      console.error("결제 요청 오류:", error);
-      alert("결제 요청 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
-      setSelectedPackage(null);
+      return;
     }
-  };
 
-  const packages = beadApi.getBeadPackages();
+    const paymentId = `${paymentKey}_${orderId}`;
+    if (processedPayments.has(paymentId)) return;
+
+    setProcessedPayments(prev => new Set(prev).add(paymentId));
+    handlePaymentSuccess(paymentKey, orderId, amount);
+  }, [handlePaymentSuccess, processedPayments, searchParams]);
+
+  const handlePurchase = useCallback(
+    async (packageInfo: BeadPackage) => {
+      if (!userInfo.id || !userInfo.email) {
+        setPageFeedback({ type: "error", message: "로그인이 필요합니다." });
+        return;
+      }
+
+      setPageFeedback(null);
+      setIsLoading(true);
+      setSelectedPackage(packageInfo);
+
+      try {
+        // 결제 요청 생성
+        const { orderId, amount } = await beadApi.purchaseBeads(
+          packageInfo.quantity,
+          packageInfo.price,
+        );
+
+        if (!tossClientKey) {
+          throw new Error("MISSING_TOSS_CLIENT_KEY");
+        }
+
+        // 토스페이먼츠 결제 위젯 초기화
+        if (!window.TossPayments) {
+          throw new Error("결제 모듈이 아직 로드되지 않았습니다.");
+        }
+        const tossPayments = window.TossPayments(tossClientKey);
+
+        // 결제 요청
+        await tossPayments.requestPayment("카드", {
+          amount,
+          orderId,
+          orderName: `곶감 ${packageInfo.quantity}개`,
+          customerName: userInfo.email.split("@")[0],
+          customerEmail: userInfo.email,
+          successUrl: `${window.location.protocol}//${window.location.host}/bead`,
+          failUrl: `${window.location.protocol}//${window.location.host}/bead?failed=true`,
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes("MISSING_TOSS_CLIENT_KEY")
+        ) {
+          setPageFeedback({
+            type: "error",
+            message: "결제 설정이 올바르지 않습니다. 관리자에게 문의해주세요.",
+          });
+          return;
+        }
+
+        setPageFeedback({
+          type: "error",
+          message: "결제 요청 중 오류가 발생했습니다.",
+        });
+      } finally {
+        setIsLoading(false);
+        setSelectedPackage(null);
+      }
+    },
+    [tossClientKey, userInfo.email, userInfo.id],
+  );
+
+  const packages = useMemo(() => beadApi.getBeadPackages(), []);
+
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-orange-200 border-t-orange-500" />
+          <p className="text-gray-600">로그인 상태를 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!userInfo.id) {
     return (
@@ -236,21 +281,63 @@ function BeadPage() {
     );
   }
 
+  const getPurchaseButtonClass = (pkg: BeadPackage) => {
+    if (isLoading && selectedPackage?.id === pkg.id) {
+      return "bg-gray-300 text-gray-500 cursor-not-allowed";
+    }
+    if (pkg.popular) {
+      return "bg-orange-500 hover:bg-orange-600 text-white shadow-lg hover:shadow-xl";
+    }
+    return "bg-gray-100 hover:bg-orange-100 text-gray-800 hover:text-orange-700";
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* 헤더 */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-4">
-          <img src="/persimmon_240424.png" alt="곶감" className="w-20 h-20" />
+          <Image
+            src="/persimmon_240424.png"
+            alt="곶감"
+            className="w-20 h-20"
+            width={80}
+            height={80}
+          />
         </div>
         <h1 className="text-3xl font-bold text-gray-800 mb-2">곶감 충전</h1>
         <p className="text-gray-600">AI 동화 생성에 필요한 곶감을 충전하세요</p>
       </div>
 
+      {pageFeedback && (
+        <div
+          className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+            pageFeedback.type === "error"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-green-200 bg-green-50 text-green-700"
+          }`}
+        >
+          {pageFeedback.message}
+        </div>
+      )}
+
+      {!tossClientKey && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          결제 클라이언트 키가 설정되지 않아 결제를 진행할 수 없습니다.
+          <br />
+          `NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY` 환경변수를 확인해주세요.
+        </div>
+      )}
+
       {/* 현재 곶감 수량 */}
       <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 mb-8 text-center">
         <div className="flex items-center justify-center gap-3 mb-2">
-          <img src="/persimmon_240424.png" alt="곶감" className="w-8 h-8" />
+          <Image
+            src="/persimmon_240424.png"
+            alt="곶감"
+            className="w-8 h-8"
+            width={32}
+            height={32}
+          />
           <span className="text-2xl font-bold text-orange-700">
             {bead?.count || 0}개
           </span>
@@ -278,10 +365,12 @@ function BeadPage() {
             )}
 
             <div className="flex items-center justify-center mb-4">
-              <img
+              <Image
                 src="/persimmon_240424.png"
                 alt="곶감"
                 className="w-12 h-12 mr-2"
+                width={48}
+                height={48}
               />
               <span className="text-2xl font-bold text-gray-800">
                 ×{pkg.quantity}
@@ -303,15 +392,12 @@ function BeadPage() {
             <p className="text-sm text-gray-500 mb-4">{pkg.description}</p>
 
             <button
+              type="button"
               onClick={() => handlePurchase(pkg)}
               disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-xl font-medium transition-all duration-300 ${
-                isLoading && selectedPackage?.id === pkg.id
-                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                  : pkg.popular
-                    ? "bg-orange-500 hover:bg-orange-600 text-white shadow-lg hover:shadow-xl"
-                    : "bg-gray-100 hover:bg-orange-100 text-gray-800 hover:text-orange-700"
-              }`}
+              className={`w-full py-3 px-4 rounded-xl font-medium transition-all duration-300 ${getPurchaseButtonClass(
+                pkg,
+              )}`}
             >
               {isLoading && selectedPackage?.id === pkg.id ? (
                 <div className="flex items-center justify-center">
@@ -331,6 +417,7 @@ function BeadPage() {
         <h2 className="text-xl font-bold text-gray-800 mb-2">결제 내역</h2>
         <p className="text-gray-600 mb-4">곶감 구매 내역을 확인하세요</p>
         <button
+          type="button"
           onClick={() => router.push("/payment-history")}
           className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
         >
@@ -353,4 +440,19 @@ function BeadPage() {
   );
 }
 
-export default BeadPage;
+export default function BeadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />
+            <p className="text-gray-600">결제 정보를 불러오는 중...</p>
+          </div>
+        </div>
+      }
+    >
+      <BeadPageContent />
+    </Suspense>
+  );
+}

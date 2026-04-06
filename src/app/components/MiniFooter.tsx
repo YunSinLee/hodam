@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function MiniFooter() {
@@ -8,10 +9,12 @@ export default function MiniFooter() {
           {/* 로고 및 기본 정보 */}
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center">
-              <img
+              <Image
                 src="/hodam.png"
                 className="w-5 h-5 filter brightness-0 invert"
                 alt="호담 로고"
+                width={20}
+                height={20}
               />
             </div>
             <span className="text-lg font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">

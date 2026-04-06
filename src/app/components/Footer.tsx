@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function Footer() {
@@ -9,10 +10,12 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center">
-                <img
+                <Image
                   src="/hodam.png"
                   className="w-6 h-6 filter brightness-0 invert"
                   alt="호담 로고"
+                  width={24}
+                  height={24}
                 />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">

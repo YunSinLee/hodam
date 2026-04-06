@@ -75,6 +75,7 @@ export default function KeywordInput({
       </div>
 
       <button
+        type="button"
         className={`w-full py-2 px-4 rounded-md transition-colors ${
           keywords.length > 0
             ? "bg-orange-500 text-white hover:bg-orange-600"

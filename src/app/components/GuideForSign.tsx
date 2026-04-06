@@ -42,7 +42,10 @@ export default function GuideForSign() {
 
           {/* 로그인 버튼 */}
           <Link href="/sign-in">
-            <button className="w-full group relative overflow-hidden bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg">
+            <button
+              type="button"
+              className="w-full group relative overflow-hidden bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg"
+            >
               <span className="relative z-10 flex items-center justify-center">
                 <svg
                   className="w-5 h-5 mr-2"
