@@ -137,6 +137,28 @@ function extractScriptSrcList(html) {
   return result;
 }
 
+async function assertAppChunksReachable(pageName, pageUrl) {
+  const pageHtml = await expectStatus(
+    pageUrl,
+    200,
+    {},
+    { maxAttempts: 4, retryDelayMs: 700 },
+  );
+  const appChunkSrcList = extractScriptSrcList(pageHtml).filter(src =>
+    src.startsWith("/_next/static/chunks/app/"),
+  );
+
+  if (appChunkSrcList.length === 0) {
+    throw new Error(`${pageName} page missing app chunk script tags`);
+  }
+
+  for (const chunkSrc of appChunkSrcList) {
+    const chunkUrl = new URL(chunkSrc, appBaseUrl).toString();
+    await expectStatus(chunkUrl, 200, {}, { maxAttempts: 3, retryDelayMs: 400 });
+  }
+  console.log(`✓ ${pageName} app chunks are reachable`);
+}
+
 function killChild(child) {
   if (!child || child.killed) return;
 
@@ -307,25 +329,8 @@ async function main() {
   }
   console.log("✓ social login CTAs rendered");
 
-  const homeHtml = await expectStatus(
-    `${appBaseUrl}/`,
-    200,
-    {},
-    { maxAttempts: 4, retryDelayMs: 700 },
-  );
-  const homeChunkSrcList = extractScriptSrcList(homeHtml).filter(src =>
-    src.startsWith("/_next/static/chunks/app/"),
-  );
-
-  if (homeChunkSrcList.length === 0) {
-    throw new Error("home page missing app chunk script tags");
-  }
-
-  for (const chunkSrc of homeChunkSrcList) {
-    const chunkUrl = new URL(chunkSrc, appBaseUrl).toString();
-    await expectStatus(chunkUrl, 200, {}, { maxAttempts: 3, retryDelayMs: 400 });
-  }
-  console.log("✓ home app chunks are reachable");
+  await assertAppChunksReachable("home", `${appBaseUrl}/`);
+  await assertAppChunksReachable("sign-in", `${appBaseUrl}/sign-in`);
 
   const noAuthResponse = await expectStatus(`${appBaseUrl}/api/v1/threads`, 401);
   if (!noAuthResponse.includes("Unauthorized")) {
@@ -398,6 +403,7 @@ async function main() {
 
   await waitForUrl(`${appBaseUrl}/auth/callback`, { timeoutMs: 20_000 });
   console.log("✓ auth callback page reachable");
+  await assertAppChunksReachable("auth callback", `${appBaseUrl}/auth/callback`);
 
   await expectStatus(
     `${appBaseUrl}/auth/callback?code=e2e-placeholder-code`,
