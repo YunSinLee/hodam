@@ -239,7 +239,7 @@ describe("GET /api/v1/threads", () => {
     expect(body).toEqual({ threads: [] });
   });
 
-  it("returns 500 when client creation throws", async () => {
+  it("returns degraded empty list when client creation throws", async () => {
     const GET = await loadGetHandler();
     authenticateRequestMock.mockResolvedValue({
       accessToken: "token-1",
@@ -254,8 +254,13 @@ describe("GET /api/v1/threads", () => {
     const response = await GET({ headers: new Headers() } as never);
     const body = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to fetch threads" });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-hodam-threads-source")).toBe("none");
+    expect(response.headers.get("x-hodam-threads-degraded")).toBe("1");
+    expect(response.headers.get("x-hodam-threads-degraded-reasons")).toContain(
+      "unexpected_exception",
+    );
+    expect(body).toEqual({ threads: [] });
   });
 
   it("returns empty thread list when rpc and fallback both throw", async () => {
