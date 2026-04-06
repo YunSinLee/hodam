@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 
+import AuthBrandMark from "@/app/components/auth/AuthBrandMark";
+import AuthCard from "@/app/components/auth/AuthCard";
+import AuthShell from "@/app/components/auth/AuthShell";
+import AuthStatusIcon from "@/app/components/auth/AuthStatusIcon";
 import { supabase } from "@/app/utils/supabase";
 import {
   formatSessionErrorMessage,
@@ -477,66 +480,20 @@ export default function AuthCallback() {
   }, [router, setUserInfo]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center p-4">
-      <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8 max-w-md w-full text-center">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center shadow-lg">
-            <Image
-              src="/hodam.png"
-              className="w-10 h-10 filter brightness-0 invert"
-              alt="호담 로고"
-              width={40}
-              height={40}
-            />
-          </div>
+    <AuthShell>
+      <AuthCard className="w-full text-center">
+        <AuthBrandMark className="mb-6" />
+
+        <div className="mb-6 flex justify-center">
+          <AuthStatusIcon status={status} />
         </div>
 
-        <div className="mb-6">
-          {status === "loading" && (
-            <div className="w-12 h-12 mx-auto border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-          )}
-          {status === "success" && (
-            <div className="w-12 h-12 mx-auto bg-green-100 rounded-full flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-          )}
-          {status === "error" && (
-            <div className="w-12 h-12 mx-auto bg-red-100 rounded-full flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </div>
-          )}
-        </div>
-
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">
+        <h2 className="mb-2 text-lg font-semibold text-gray-800 sm:text-xl">
           {status === "loading" && "로그인 처리 중"}
           {status === "success" && "로그인 성공!"}
           {status === "error" && "로그인 실패"}
         </h2>
-        <p className="text-gray-600 mb-6">{message}</p>
+        <p className="mb-6 text-sm text-gray-600 sm:text-base">{message}</p>
 
         {status === "loading" && showManualRecovery && (
           <button
@@ -546,7 +503,7 @@ export default function AuthCallback() {
                 `/sign-in?auth_error=${encodeURIComponent("timeout")}`,
               )
             }
-            className="mb-4 w-full border border-amber-300 bg-amber-50 text-amber-700 font-medium py-3 px-6 rounded-2xl transition-all duration-300 hover:bg-amber-100"
+            className="mb-4 w-full rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-medium text-amber-700 transition-all duration-300 hover:bg-amber-100 sm:text-base"
           >
             로그인이 오래 걸리면 다시 시도하기
           </button>
@@ -560,12 +517,12 @@ export default function AuthCallback() {
                 `/sign-in?auth_error=${encodeURIComponent(recoveryCode)}`,
               )
             }
-            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-300"
+            className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 hover:from-orange-600 hover:to-amber-600 sm:text-base"
           >
             다시 로그인하기
           </button>
         )}
-      </div>
-    </div>
+      </AuthCard>
+    </AuthShell>
   );
 }
