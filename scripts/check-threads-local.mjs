@@ -85,6 +85,33 @@ async function callThreads(headers = {}) {
   };
 }
 
+async function callThreadDetail(threadId, headers = {}) {
+  const response = await fetch(`${baseUrl}/api/v1/threads/${threadId}`, {
+    method: "GET",
+    headers,
+  });
+  const text = await response.text();
+
+  let payload = null;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = null;
+  }
+
+  return {
+    status: response.status,
+    text,
+    payload,
+    headers: {
+      requestId: response.headers.get("x-request-id") || "-",
+      source: response.headers.get("x-hodam-threads-source") || "-",
+      degraded: response.headers.get("x-hodam-threads-degraded") || "-",
+      reasons: response.headers.get("x-hodam-threads-degraded-reasons") || "-",
+    },
+  };
+}
+
 function summarizeResult(label, result) {
   const hasThreadsArray = Boolean(result.payload && Array.isArray(result.payload.threads));
   const threadsCount = hasThreadsArray ? result.payload.threads.length : "-";
@@ -95,6 +122,26 @@ function summarizeResult(label, result) {
 
   console.log(
     `${label}: status=${result.status} requestId=${result.headers.requestId} source=${result.headers.source} degraded=${result.headers.degraded} reasons=${result.headers.reasons} threads=${threadsCount} error=${errorMessage}`,
+  );
+}
+
+function summarizeDetailResult(label, result) {
+  const hasThreadObject = Boolean(result.payload && result.payload.thread);
+  const threadId =
+    hasThreadObject && Number.isFinite(Number(result.payload.thread.id))
+      ? Number(result.payload.thread.id)
+      : "-";
+  const messagesCount =
+    result.payload && Array.isArray(result.payload.messages)
+      ? result.payload.messages.length
+      : "-";
+  const errorMessage =
+    result.payload && typeof result.payload.error === "string"
+      ? result.payload.error
+      : "-";
+
+  console.log(
+    `${label}: status=${result.status} requestId=${result.headers.requestId} source=${result.headers.source} degraded=${result.headers.degraded} reasons=${result.headers.reasons} threadId=${threadId} messages=${messagesCount} error=${errorMessage}`,
   );
 }
 
@@ -176,6 +223,29 @@ async function main() {
 
   if (!authorized.payload || !Array.isArray(authorized.payload.threads)) {
     throw new Error("Authorized response missing threads array");
+  }
+
+  if (authorized.payload.threads.length === 0) {
+    console.log(
+      "• Authorized thread list is empty; skipping /api/v1/threads/:id detail check",
+    );
+    return;
+  }
+
+  const firstThreadId = Number(authorized.payload.threads[0]?.id);
+  if (!Number.isFinite(firstThreadId) || firstThreadId <= 0) {
+    throw new Error("Authorized thread list returned invalid first thread id");
+  }
+
+  const detail = await callThreadDetail(firstThreadId, {
+    Authorization: `Bearer ${resolution.token}`,
+  });
+  summarizeDetailResult(`detail(threadId=${firstThreadId})`, detail);
+  assertRequestIdPresent(detail, "authorized thread detail request");
+  if (detail.status !== 200) {
+    throw new Error(
+      `Expected 200 for thread detail request, got ${detail.status}: ${detail.text.slice(0, 300)}`,
+    );
   }
 }
 
