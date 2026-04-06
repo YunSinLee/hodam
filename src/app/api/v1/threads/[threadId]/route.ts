@@ -15,10 +15,43 @@ import { createApiRequestContext } from "@/lib/server/request-context";
 
 interface ThreadResponseRow {
   id: number;
+  openai_thread_id: string;
+  created_at: string;
   user_id: string;
   able_english: boolean;
   has_image: boolean;
-  raw_text: string | null;
+}
+
+interface ThreadLikeInput {
+  id?: unknown;
+  openai_thread_id?: unknown;
+  created_at?: unknown;
+  user_id?: unknown;
+  able_english?: unknown;
+  has_image?: unknown;
+}
+
+function toThreadSummary(
+  thread: ThreadLikeInput | null,
+): ThreadResponseRow | null {
+  if (!thread || typeof thread !== "object") return null;
+
+  const threadId = Number(thread.id);
+  if (!Number.isFinite(threadId) || threadId <= 0) {
+    return null;
+  }
+
+  return {
+    id: threadId,
+    openai_thread_id:
+      typeof thread.openai_thread_id === "string"
+        ? thread.openai_thread_id
+        : "",
+    created_at: typeof thread.created_at === "string" ? thread.created_at : "",
+    user_id: typeof thread.user_id === "string" ? thread.user_id : "",
+    able_english: Boolean(thread.able_english),
+    has_image: Boolean(thread.has_image),
+  };
 }
 
 interface ThreadMessageRow {
@@ -93,6 +126,11 @@ export async function GET(
       messages = await getMessagesForThread(userClient, threadId);
     }
 
+    const threadSummary = toThreadSummary(thread);
+    if (!threadSummary) {
+      throw new Error("INVALID_THREAD_DETAIL_ROW");
+    }
+
     const imageUrl = await getLatestThreadImageSignedUrl(
       userClient,
       auth.userId,
@@ -100,7 +138,7 @@ export async function GET(
     );
 
     return okWithRequestId({
-      thread,
+      thread: threadSummary,
       imageUrl,
       messages: messages.map(item => ({
         id: item.id,

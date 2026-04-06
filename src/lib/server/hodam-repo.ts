@@ -6,6 +6,8 @@ import { StoryTurnResult } from "@/lib/ai/story-service";
 
 interface ThreadRow {
   id: number;
+  openai_thread_id: string;
+  created_at: string;
   user_id: string;
   able_english: boolean;
   has_image: boolean;
@@ -140,7 +142,9 @@ export async function createStoryThread(
       has_image: options.includeImage,
       raw_text: "",
     })
-    .select("id, user_id, able_english, has_image, raw_text")
+    .select(
+      "id, openai_thread_id, created_at, user_id, able_english, has_image, raw_text",
+    )
     .single();
 
   if (error || !data) {
@@ -237,7 +241,9 @@ export async function getThreadForUser(
 ): Promise<ThreadRow> {
   const { data, error } = await admin
     .from("thread")
-    .select("id, user_id, able_english, has_image, raw_text")
+    .select(
+      "id, openai_thread_id, created_at, user_id, able_english, has_image, raw_text",
+    )
     .eq("id", threadId)
     .eq("user_id", userId)
     .single();
