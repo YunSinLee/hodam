@@ -27,6 +27,7 @@
     "check:supabase:security:strict:baseline": "HODAM_SUPABASE_SECURITY_IGNORE_LINTS=auth_leaked_password_protection,vulnerable_postgres_version,missing_service_role_key,missing_management_credentials npm run check:supabase:security:strict",
     "check:kpi": "node scripts/check-kpi.mjs",
     "check:all": "npm run check:env && npm run check:audit:prod && npm run lint && npm run test && npm run build",
+    "check:release:gate": "OPENAI_API_KEY=dummy npm run check:all && npm run check:supabase:security:strict:baseline",
     "supabase:auth:harden": "node scripts/harden-supabase-auth.mjs",
     "supabase:auth:harden:apply": "node scripts/harden-supabase-auth.mjs --apply",
     "test:e2e:auth:local": "node scripts/e2e-auth-local.mjs",
