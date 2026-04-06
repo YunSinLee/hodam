@@ -61,8 +61,22 @@ jobs:
 
           HODAM_API_BASE_URL=http://localhost:3100 npm run check:threads:local
 
+      - name: Resolve Supabase security check availability
+        id: supabase-security-guard
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "${NEXT_PUBLIC_SUPABASE_URL}" ] && [ -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
+            echo "enabled=1" >> "$GITHUB_OUTPUT"
+            echo "Supabase security checks are enabled."
+          else
+            echo "enabled=0" >> "$GITHUB_OUTPUT"
+            echo "Supabase security checks are skipped because required secrets are missing."
+          fi
+
       - name: Supabase security check
-        if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        if: ${{ steps.supabase-security-guard.outputs.enabled == '1' }}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
@@ -74,7 +88,7 @@ jobs:
         run: npm run check:supabase:security
 
       - name: Supabase strict security gate
-        if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        if: ${{ steps.supabase-security-guard.outputs.enabled == '1' }}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

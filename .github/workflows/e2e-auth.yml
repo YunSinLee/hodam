@@ -7,7 +7,6 @@ on:
 
 jobs:
   auth-local-check:
-    if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -24,17 +23,32 @@ jobs:
       HODAM_TEST_USER_PASSWORD: ${{ secrets.HODAM_TEST_USER_PASSWORD }}
 
     steps:
+      - name: Resolve auth e2e availability
+        id: guard
+        run: |
+          if [ -n "${NEXT_PUBLIC_SUPABASE_URL}" ] && [ -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
+            echo "enabled=1" >> "$GITHUB_OUTPUT"
+            echo "Auth e2e checks are enabled."
+          else
+            echo "enabled=0" >> "$GITHUB_OUTPUT"
+            echo "Auth e2e checks are skipped because required secrets are missing."
+          fi
+
       - name: Checkout
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         uses: actions/checkout@v4
 
       - name: Setup Node
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         run: npm ci
 
       - name: Run local auth e2e checks
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         run: npm run test:e2e:auth:local

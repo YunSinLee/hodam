@@ -7,7 +7,6 @@ on:
 
 jobs:
   payments-local-mock:
-    if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' && (secrets.HODAM_TEST_ACCESS_TOKEN != '' || (secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -24,19 +23,47 @@ jobs:
       TOSS_PAYMENTS_SECRET_KEY: mock_secret
 
     steps:
+      - name: Resolve payments e2e availability
+        id: guard
+        run: |
+          has_supabase=0
+          has_test_auth=0
+
+          if [ -n "${NEXT_PUBLIC_SUPABASE_URL}" ] && [ -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
+            has_supabase=1
+          fi
+
+          if [ -n "${HODAM_TEST_ACCESS_TOKEN}" ]; then
+            has_test_auth=1
+          elif [ -n "${HODAM_TEST_USER_EMAIL}" ] && [ -n "${HODAM_TEST_USER_PASSWORD}" ]; then
+            has_test_auth=1
+          fi
+
+          if [ "$has_supabase" -eq 1 ] && [ "$has_test_auth" -eq 1 ]; then
+            echo "enabled=1" >> "$GITHUB_OUTPUT"
+            echo "Payments e2e checks are enabled."
+          else
+            echo "enabled=0" >> "$GITHUB_OUTPUT"
+            echo "Payments e2e checks are skipped because required secrets are missing."
+          fi
+
       - name: Checkout
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         uses: actions/checkout@v4
 
       - name: Setup Node
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         run: npm ci
 
       - name: Resolve test access token
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         id: token
         run: |
           if [ -n "${HODAM_TEST_ACCESS_TOKEN}" ]; then
@@ -53,6 +80,7 @@ jobs:
           echo "access_token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Run local mock payment e2e
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         env:
           HODAM_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
         run: npm run test:e2e:payments:local
