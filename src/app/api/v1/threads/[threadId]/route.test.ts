@@ -115,6 +115,8 @@ describe("GET /api/v1/threads/[threadId]", () => {
         {
           thread_row: {
             id: 1,
+            openai_thread_id: "thread_1",
+            created_at: "2026-04-05T00:00:00.000Z",
             user_id: "user-1",
             able_english: true,
             has_image: true,
@@ -167,6 +169,8 @@ describe("GET /api/v1/threads/[threadId]", () => {
         created_at: "2026-04-05T00:00:00.000Z",
       },
     ]);
+    expect(body.thread.raw_text).toBeUndefined();
+    expect(body.thread.created_at).toBe("2026-04-05T00:00:00.000Z");
   });
 
   it("falls back to repository lookups when rpc detail query fails", async () => {
@@ -186,6 +190,8 @@ describe("GET /api/v1/threads/[threadId]", () => {
 
     getThreadForUserMock.mockResolvedValue({
       id: 1,
+      openai_thread_id: "thread_1",
+      created_at: "2026-04-05T00:00:00.000Z",
       user_id: "user-1",
       able_english: true,
       has_image: true,
@@ -217,6 +223,8 @@ describe("GET /api/v1/threads/[threadId]", () => {
     expect(getThreadForUserMock).toHaveBeenCalledWith(userClient, 1, "user-1");
     expect(getMessagesForThreadMock).toHaveBeenCalledWith(userClient, 1);
     expect(body.messages).toHaveLength(1);
+    expect(body.thread.raw_text).toBeUndefined();
+    expect(body.thread.openai_thread_id).toBe("thread_1");
   });
 
   it("returns 404 when thread is not found", async () => {
