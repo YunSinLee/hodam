@@ -149,6 +149,8 @@ describe("GET /api/v1/threads/[threadId]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-hodam-threads-source")).toBe("rpc");
+    expect(response.headers.get("x-hodam-threads-degraded")).toBeNull();
     expect(requireUserClientMock).toHaveBeenCalledWith("token-1");
     expect(rpcMock).toHaveBeenCalledWith("get_thread_detail", {
       p_thread_id: 1,
@@ -217,6 +219,11 @@ describe("GET /api/v1/threads/[threadId]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-hodam-threads-source")).toBe("fallback");
+    expect(response.headers.get("x-hodam-threads-degraded")).toBe("1");
+    expect(
+      response.headers.get("x-hodam-threads-degraded-reasons") || "",
+    ).toContain("rpc_error");
     expect(rpcMock).toHaveBeenCalledWith("get_thread_detail", {
       p_thread_id: 1,
     });
@@ -225,6 +232,56 @@ describe("GET /api/v1/threads/[threadId]", () => {
     expect(body.messages).toHaveLength(1);
     expect(body.thread.raw_text).toBeUndefined();
     expect(body.thread.openai_thread_id).toBe("thread_1");
+  });
+
+  it("marks response as fallback when rpc detail is empty", async () => {
+    const GET = await loadGetHandler();
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user1@example.com",
+    });
+
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [],
+      error: null,
+    });
+    const userClient = { rpc: rpcMock, from: vi.fn() };
+    requireUserClientMock.mockReturnValue(userClient);
+
+    getThreadForUserMock.mockResolvedValue({
+      id: 1,
+      openai_thread_id: "thread_1",
+      created_at: "2026-04-05T00:00:00.000Z",
+      user_id: "user-1",
+      able_english: true,
+      has_image: true,
+      raw_text: "story",
+    });
+    getMessagesForThreadMock.mockResolvedValue([
+      {
+        id: 11,
+        turn: 0,
+        message: "첫 문장",
+        message_en: null,
+        created_at: "2026-04-05T00:00:00.000Z",
+      },
+    ]);
+    getLatestThreadImageSignedUrlMock.mockResolvedValue(
+      "https://img.example.com/thread-1.png",
+    );
+
+    const response = await GET(
+      { headers: new Headers() } as never,
+      contextWithThreadId("1"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-hodam-threads-source")).toBe("fallback");
+    expect(response.headers.get("x-hodam-threads-degraded")).toBe("1");
+    expect(
+      response.headers.get("x-hodam-threads-degraded-reasons") || "",
+    ).toContain("rpc_empty");
   });
 
   it("returns 404 when thread is not found", async () => {

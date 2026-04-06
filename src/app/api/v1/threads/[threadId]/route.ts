@@ -67,6 +67,27 @@ interface ThreadDetailRpcRow {
   messages: ThreadMessageRow[] | null;
 }
 
+type ThreadDetailSource = "rpc" | "fallback" | "none";
+
+function buildThreadDetailResponseHeaders(
+  source: ThreadDetailSource,
+  degradationReasons: string[],
+) {
+  const headers = new Headers({
+    "x-hodam-threads-source": source,
+  });
+
+  if (degradationReasons.length > 0) {
+    headers.set("x-hodam-threads-degraded", "1");
+    headers.set(
+      "x-hodam-threads-degraded-reasons",
+      Array.from(new Set(degradationReasons)).join(","),
+    );
+  }
+
+  return headers;
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ threadId: string }> },
@@ -94,36 +115,73 @@ export async function GET(
 
   try {
     const userClient = requireUserClient(auth.accessToken);
-    const { data: threadDetailData, error: threadDetailError } =
-      await userClient.rpc("get_thread_detail", {
+    const degradationReasons: string[] = [];
+    let source: ThreadDetailSource = "none";
+    let usedFallback = false;
+
+    let rpcData: unknown = null;
+    let rpcError: unknown = null;
+
+    try {
+      const rpcResult = await userClient.rpc("get_thread_detail", {
         p_thread_id: threadId,
       });
+      rpcData = rpcResult.data;
+      rpcError = rpcResult.error;
+    } catch (rpcThrownError) {
+      degradationReasons.push("rpc_exception");
+      logError("/api/v1/threads/[threadId] rpc get_thread_detail threw", {
+        threadId,
+        error: rpcThrownError,
+        requestId,
+      });
+    }
+
+    if (rpcError) {
+      degradationReasons.push("rpc_error");
+      logError("/api/v1/threads/[threadId] rpc get_thread_detail failed", {
+        threadId,
+        error: rpcError,
+        requestId,
+      });
+    }
 
     let thread: ThreadResponseRow | null = null;
     let messages: ThreadMessageRow[] | null = null;
 
-    if (threadDetailError) {
-      logError("/api/v1/threads/[threadId] rpc get_thread_detail failed", {
-        threadId,
-        error: threadDetailError,
-        requestId,
-      });
-    } else {
-      const rpcRows = Array.isArray(threadDetailData)
-        ? (threadDetailData as ThreadDetailRpcRow[])
+    if (!rpcError && !degradationReasons.includes("rpc_exception")) {
+      const rpcRows = Array.isArray(rpcData)
+        ? (rpcData as ThreadDetailRpcRow[])
         : [];
       const rpcRow = rpcRows[0];
       if (rpcRow) {
+        source = "rpc";
         thread = rpcRow.thread_row;
-        messages = Array.isArray(rpcRow.messages) ? rpcRow.messages : [];
+        if (Array.isArray(rpcRow.messages)) {
+          messages = rpcRow.messages;
+        } else {
+          degradationReasons.push("rpc_missing_messages");
+        }
+
+        if (!thread) {
+          degradationReasons.push("rpc_missing_thread");
+        }
+      } else {
+        degradationReasons.push("rpc_empty");
       }
     }
 
     if (!thread) {
+      usedFallback = true;
       thread = await getThreadForUser(userClient, threadId, auth.userId);
     }
     if (!messages) {
+      usedFallback = true;
       messages = await getMessagesForThread(userClient, threadId);
+    }
+
+    if (usedFallback) {
+      source = "fallback";
     }
 
     const threadSummary = toThreadSummary(thread);
@@ -137,17 +195,22 @@ export async function GET(
       threadId,
     );
 
-    return okWithRequestId({
-      thread: threadSummary,
-      imageUrl,
-      messages: messages.map(item => ({
-        id: item.id,
-        turn: item.turn,
-        text: item.message,
-        text_en: item.message_en || "",
-        created_at: item.created_at,
-      })),
-    });
+    return okWithRequestId(
+      {
+        thread: threadSummary,
+        imageUrl,
+        messages: messages.map(item => ({
+          id: item.id,
+          turn: item.turn,
+          text: item.message,
+          text_en: item.message_en || "",
+          created_at: item.created_at,
+        })),
+      },
+      {
+        headers: buildThreadDetailResponseHeaders(source, degradationReasons),
+      },
+    );
   } catch (error) {
     if (error instanceof Error && error.message === "THREAD_NOT_FOUND") {
       return failWithRequestId(404, "Thread not found");
