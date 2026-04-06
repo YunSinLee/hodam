@@ -328,6 +328,19 @@ async function main() {
     throw new Error("sign-in page missing 'Google로 시작하기' CTA");
   }
   console.log("✓ social login CTAs rendered");
+  await expectStatus(
+    `${appBaseUrl}/sign-in?auth_error=timeout`,
+    200,
+    {},
+    { maxAttempts: 4, retryDelayMs: 500 },
+  );
+  await expectStatus(
+    `${appBaseUrl}/sign-in?auth_error=invalid_grant`,
+    200,
+    {},
+    { maxAttempts: 4, retryDelayMs: 500 },
+  );
+  console.log("✓ sign-in recovery routes reachable");
 
   await assertAppChunksReachable("home", `${appBaseUrl}/`);
   await assertAppChunksReachable("sign-in", `${appBaseUrl}/sign-in`);
@@ -337,6 +350,16 @@ async function main() {
     throw new Error("/api/v1/threads 401 response missing Unauthorized message");
   }
   console.log("✓ /api/v1/threads returns 401 without token");
+  const noAuthDetailResponse = await expectStatus(
+    `${appBaseUrl}/api/v1/threads/1`,
+    401,
+  );
+  if (!noAuthDetailResponse.includes("Unauthorized")) {
+    throw new Error(
+      "/api/v1/threads/:id 401 response missing Unauthorized message",
+    );
+  }
+  console.log("✓ /api/v1/threads/:id returns 401 without token");
 
   const invalidTokenResponse = await expectStatus(
     `${appBaseUrl}/api/v1/threads`,
@@ -354,6 +377,22 @@ async function main() {
     );
   }
   console.log("✓ /api/v1/threads returns 401 for invalid token");
+  const invalidTokenDetailResponse = await expectStatus(
+    `${appBaseUrl}/api/v1/threads/1`,
+    401,
+    {
+      method: "GET",
+      headers: {
+        Authorization: "Bearer invalid-token",
+      },
+    },
+  );
+  if (!invalidTokenDetailResponse.includes("Unauthorized")) {
+    throw new Error(
+      "/api/v1/threads/:id with invalid token should return Unauthorized message",
+    );
+  }
+  console.log("✓ /api/v1/threads/:id returns 401 for invalid token");
 
   if (accessTokenResolution.token) {
     const authedResponse = await fetch(`${appBaseUrl}/api/v1/threads`, {

@@ -119,6 +119,8 @@ npm run check:release:gate
 npm run check:post-upgrade
 # runtime origin 지정 예시
 npm run check:post-upgrade -- --runtime-origin=https://your-domain.com
+# 성능 advisor 단계 생략(긴급 점검/권한 제한 환경)
+npm run check:post-upgrade -- --runtime-origin=https://your-domain.com --skip-supabase-performance
 # Postgres patch upgrade 완료 후 strict 검증 모드
 npm run check:post-upgrade -- --runtime-origin=https://your-domain.com --post-db-upgrade
 # 의존성 취약점 점검
@@ -132,7 +134,7 @@ npm run check:oauth
 npm run check:oauth -- --runtime-origin=http://localhost:3000
 # check-oauth는 provider 활성화 여부(google/kakao)도 함께 검사
 
-# 로컬 인증 E2E (sign-in CTA + threads 401 경계 + OAuth provider authorize)
+# 로컬 인증 E2E (sign-in CTA + recovery route + threads/list/detail 401 경계 + OAuth provider authorize)
 npm run test:e2e:auth:local
 # 서비스 role + 테스트 계정이 있으면 e2e 시작 전에 테스트 사용자 자동 보정
 HODAM_E2E_ENSURE_TEST_USER=1 HODAM_TEST_USER_EMAIL=... HODAM_TEST_USER_PASSWORD=... SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:auth:local
@@ -141,6 +143,10 @@ HODAM_E2E_APP_PORT=3004 HODAM_E2E_OAUTH_PROVIDERS=google,kakao npm run test:e2e:
 
 # Supabase 보안 점검 (DB RPC + Auth provider + Management advisor)
 npm run check:supabase:security
+# Supabase 성능 advisor 점검 (unused_index 리포트)
+npm run check:supabase:performance
+# strict 모드: unresolved unused index가 있으면 실패
+npm run check:supabase:performance:strict
 # service role key가 없어도 anon 민감 RPC 차단 여부(권한 경계)는 검사됨
 # 엄격 모드: WARN(예: OTP 만료, leaked password protection 비활성화)도 실패 처리
 npm run check:supabase:security:strict
@@ -158,6 +164,9 @@ npm run check:supabase:security:strict:free
 # - missing_service_role_key
 # CLI 옵션으로도 무시 목록 전달 가능
 npm run check:supabase:security:strict -- --ignore-lints=auth_leaked_password_protection
+# 성능 advisor 무시 목록 전달 예시(인덱스명 또는 cache key)
+npm run check:supabase:performance -- --ignore-indexes=idx_messages_created_at
+npm run check:supabase:performance -- --ignore-cache-keys=unused_index_public_messages_idx_messages_created_at
 # Management advisor까지 보려면 SUPABASE_ACCESS_TOKEN 필요
 # SUPABASE_PROJECT_REF는 없으면 NEXT_PUBLIC_SUPABASE_URL에서 자동 추론
 
@@ -244,6 +253,10 @@ HODAM_TEST_ACCESS_TOKEN=... HODAM_E2E_APP_PORT=3002 HODAM_E2E_TOSS_PORT=4010 npm
   - `source=rpc`: 정상 RPC 경로
   - `source=fallback`: RPC 실패 후 테이블 직접 조회로 복구
   - `source=none`: RPC/복구 경로 모두 실패하여 빈 목록 응답
+- 상세 조회(`GET /api/v1/threads/:id`)도 동일한 diagnostics 헤더를 사용:
+  - `x-hodam-threads-source`
+  - `x-hodam-threads-degraded`
+  - `x-hodam-threads-degraded-reasons`
 - 관련 로컬 점검:
   - `npm run check:threads:local` (서버가 떠있는 상태에서 401/invalid/authorized 경로를 순차 점검)
   - `npm run check:threads:local -- --require-authorized` (authorized 경로 토큰이 없으면 실패 처리)

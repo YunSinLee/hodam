@@ -23,6 +23,8 @@
     "check:post-upgrade": "node scripts/check-post-upgrade.mjs",
     "check:threads:local": "node scripts/check-threads-local.mjs",
     "check:supabase:security": "node scripts/check-supabase-security.mjs",
+    "check:supabase:performance": "node scripts/check-supabase-performance.mjs",
+    "check:supabase:performance:strict": "node scripts/check-supabase-performance.mjs --strict",
     "check:supabase:security:strict": "node scripts/check-supabase-security.mjs --strict",
     "check:supabase:security:strict:free": "HODAM_SUPABASE_SECURITY_IGNORE_LINTS=auth_leaked_password_protection,missing_service_role_key node scripts/check-supabase-security.mjs --strict",
     "check:supabase:security:strict:baseline": "HODAM_SUPABASE_SECURITY_IGNORE_LINTS=auth_leaked_password_protection,vulnerable_postgres_version,missing_service_role_key,missing_management_credentials npm run check:supabase:security:strict",

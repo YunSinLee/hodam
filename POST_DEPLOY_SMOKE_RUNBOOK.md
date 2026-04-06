@@ -16,6 +16,8 @@
 npm run check:post-upgrade -- --runtime-origin=https://<production-domain>
 # Postgres patch upgrade 이후에는 아래 플래그 포함 권장
 npm run check:post-upgrade -- --runtime-origin=https://<production-domain> --post-db-upgrade
+# 성능 advisor 단계 생략이 필요하면 아래 플래그 사용
+npm run check:post-upgrade -- --runtime-origin=https://<production-domain> --skip-supabase-performance
 ```
 
 ## 2) API/보안 게이트
@@ -25,6 +27,8 @@ npm run check:post-upgrade -- --runtime-origin=https://<production-domain> --pos
 ```bash
 OPENAI_API_KEY=dummy npm run check:all
 npm run check:supabase:security:strict:baseline
+# 성능 advisor 리포트
+npm run check:supabase:performance
 # Postgres 패치 이후에는 아래 strict gate 사용 (vulnerable_postgres_version 무시 제거)
 npm run check:supabase:security:strict:post-upgrade
 ```
@@ -48,7 +52,8 @@ npm run test:e2e:auth:local
 성공 기준:
 - `/sign-in` 접근 가능
 - CTA 렌더링
-- `/api/v1/threads` 401/200 경계 정상
+- `/sign-in?auth_error=...` 복구 경로 접근 가능
+- `/api/v1/threads` 및 `/api/v1/threads/:id` 401/200 경계 정상
 - `/auth/callback` 경로 정상
 
 ## 4) 결제 스모크
