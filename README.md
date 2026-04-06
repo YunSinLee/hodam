@@ -146,6 +146,8 @@ npm run check:supabase:security:strict
 HODAM_SUPABASE_SECURITY_IGNORE_LINTS=auth_leaked_password_protection,missing_service_role_key npm run check:supabase:security:strict
 # 엄격 모드 + 운영 baseline(플랜/DB 패치 수동 이슈 임시 무시)
 npm run check:supabase:security:strict:baseline
+# 엄격 모드 + Postgres 패치 완료 후 게이트(취약 DB 버전은 더 이상 무시하지 않음)
+npm run check:supabase:security:strict:post-upgrade
 # Free 플랜 편의 스크립트
 npm run check:supabase:security:strict:free
 # 참고: 대표 issue name

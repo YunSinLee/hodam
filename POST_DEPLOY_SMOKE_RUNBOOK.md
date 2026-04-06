@@ -23,6 +23,8 @@ npm run check:post-upgrade -- --runtime-origin=https://<production-domain>
 ```bash
 OPENAI_API_KEY=dummy npm run check:all
 npm run check:supabase:security:strict:baseline
+# Postgres 패치 이후에는 아래 strict gate 사용 (vulnerable_postgres_version 무시 제거)
+npm run check:supabase:security:strict:post-upgrade
 ```
 
 2. OAuth 진단
