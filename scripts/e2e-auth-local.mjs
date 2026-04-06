@@ -389,6 +389,55 @@ async function main() {
     console.log(
       `✓ /api/v1/threads with test token returned 200 (tokenSource=${accessTokenResolution.source}, source=${source}, degraded=${degraded}, reasons=${reasons})`,
     );
+
+    if (authedBody.threads.length === 0) {
+      console.log("• Skipping /api/v1/threads/:id check (no threads available)");
+    } else {
+      const firstThreadId = Number(authedBody.threads[0]?.id);
+      if (!Number.isFinite(firstThreadId) || firstThreadId <= 0) {
+        throw new Error("/api/v1/threads returned invalid thread id");
+      }
+
+      const detailResponse = await fetch(
+        `${appBaseUrl}/api/v1/threads/${firstThreadId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessTokenResolution.token}`,
+          },
+        },
+      );
+      const detailBodyText = await detailResponse.text();
+
+      if (detailResponse.status !== 200) {
+        throw new Error(
+          `/api/v1/threads/${firstThreadId} expected 200 with test token but got ${detailResponse.status}: ${detailBodyText}`,
+        );
+      }
+
+      let detailBody;
+      try {
+        detailBody = JSON.parse(detailBodyText);
+      } catch {
+        throw new Error(`/api/v1/threads/${firstThreadId} returned non-JSON response`);
+      }
+
+      if (!detailBody || !detailBody.thread || !Array.isArray(detailBody.messages)) {
+        throw new Error(
+          `/api/v1/threads/${firstThreadId} response missing expected thread/messages shape`,
+        );
+      }
+
+      const detailSource =
+        detailResponse.headers.get("x-hodam-threads-source") || "none";
+      const detailDegraded =
+        detailResponse.headers.get("x-hodam-threads-degraded") || "0";
+      const detailReasons =
+        detailResponse.headers.get("x-hodam-threads-degraded-reasons") || "-";
+      console.log(
+        `✓ /api/v1/threads/${firstThreadId} returned 200 (source=${detailSource}, degraded=${detailDegraded}, reasons=${detailReasons}, messages=${detailBody.messages.length})`,
+      );
+    }
   } else {
     if (accessTokenResolution.hasCredentialHints) {
       throw new Error(
