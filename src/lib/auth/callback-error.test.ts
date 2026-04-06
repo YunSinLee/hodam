@@ -37,6 +37,14 @@ describe("formatSessionErrorMessage", () => {
     );
   });
 
+  it("returns expired-code guidance for reused authorization code", () => {
+    expect(
+      formatSessionErrorMessage("authorization code has already been used"),
+    ).toBe(
+      "로그인 인증 코드가 만료되었거나 이미 사용되었습니다. 로그인 페이지에서 다시 시도해주세요.",
+    );
+  });
+
   it("returns invalid request guidance", () => {
     expect(
       formatSessionErrorMessage("invalid request: redirect uri mismatch"),
@@ -63,6 +71,17 @@ describe("isTerminalSessionExchangeError", () => {
     ).toBe(true);
   });
 
+  it("returns true for already-used code and invalid-request errors", () => {
+    expect(
+      isTerminalSessionExchangeError(
+        "authorization code has already been used",
+      ),
+    ).toBe(true);
+    expect(
+      isTerminalSessionExchangeError("invalid request: missing code verifier"),
+    ).toBe(true);
+  });
+
   it("returns false for empty/unknown messages", () => {
     expect(isTerminalSessionExchangeError("")).toBe(false);
     expect(isTerminalSessionExchangeError(null)).toBe(false);
@@ -79,6 +98,10 @@ describe("toSignInRecoveryCode", () => {
     expect(toSignInRecoveryCode("invalid_grant: code expired")).toBe(
       "expired_code",
     );
+    expect(
+      toSignInRecoveryCode("authorization code has already been used"),
+    ).toBe("expired_code");
+    expect(toSignInRecoveryCode("refresh token expired")).toBe("expired_code");
     expect(
       toSignInRecoveryCode(
         "Both auth code and code verifier should be non-empty",

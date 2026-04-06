@@ -505,6 +505,18 @@ async function main() {
     {},
     { maxAttempts: 3, retryDelayMs: 500 },
   );
+  await expectStatus(
+    `${appBaseUrl}/auth/callback?error=invalid_grant&error_description=authorization%20code%20expired`,
+    200,
+    {},
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
+  await expectStatus(
+    `${appBaseUrl}/auth/callback?error=invalid_request&error_description=missing%20code%20verifier`,
+    200,
+    {},
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
   console.log("✓ auth callback handles code/error query payload routes");
 
   console.log("Running OAuth provider diagnostics...");

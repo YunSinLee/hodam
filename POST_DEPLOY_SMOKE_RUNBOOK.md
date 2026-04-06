@@ -29,6 +29,8 @@ OPENAI_API_KEY=dummy npm run check:all
 npm run check:supabase:security:strict:baseline
 # 성능 advisor 리포트
 npm run check:supabase:performance
+# unused index 자동 분류 보고서 생성
+npm run check:supabase:performance:report
 # Postgres 패치 이후에는 아래 strict gate 사용 (vulnerable_postgres_version 무시 제거)
 npm run check:supabase:security:strict:post-upgrade
 ```

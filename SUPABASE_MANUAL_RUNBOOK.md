@@ -11,6 +11,7 @@
 1. 현재 advisor 상태 확인
 - `npm run check:supabase:security`
 - `npm run check:supabase:performance`
+- `npm run check:supabase:performance:report` (unused index 분류 리포트)
 - 남은 경고:
 - `auth_leaked_password_protection`
 - `vulnerable_postgres_version`

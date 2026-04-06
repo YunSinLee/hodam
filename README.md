@@ -136,6 +136,7 @@ npm run check:oauth -- --runtime-origin=http://localhost:3000
 
 # 로컬 인증 E2E (sign-in CTA + recovery route + threads/list/detail 401 경계 + OAuth provider authorize)
 npm run test:e2e:auth:local
+# callback 오류 경로(예: invalid_grant, invalid_request) 렌더링 점검 포함
 # 서비스 role + 테스트 계정이 있으면 e2e 시작 전에 테스트 사용자 자동 보정
 HODAM_E2E_ENSURE_TEST_USER=1 HODAM_TEST_USER_EMAIL=... HODAM_TEST_USER_PASSWORD=... SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:auth:local
 # 포트/프로바이더 커스터마이즈
@@ -147,6 +148,8 @@ npm run check:supabase:security
 npm run check:supabase:performance
 # strict 모드: unresolved unused index가 있으면 실패
 npm run check:supabase:performance:strict
+# unused index 자동 분류 리포트 생성 (reports/supabase-unused-indexes-report.md)
+npm run check:supabase:performance:report
 # service role key가 없어도 anon 민감 RPC 차단 여부(권한 경계)는 검사됨
 # 엄격 모드: WARN(예: OTP 만료, leaked password protection 비활성화)도 실패 처리
 npm run check:supabase:security:strict
