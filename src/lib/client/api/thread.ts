@@ -7,20 +7,22 @@ import type {
   ThreadListResponse,
 } from "@/app/api/v1/types";
 import type { ThreadWithUser } from "@/app/types/openai";
-import {
-  authorizedFetch,
-  authorizedFetchWithMeta,
-} from "@/lib/client/api/http";
+import { authorizedFetchWithMeta } from "@/lib/client/api/http";
 
-export interface ThreadListDiagnostics {
+export interface ThreadDiagnostics {
   source: string;
   degraded: boolean;
   reasons: string[];
 }
 
+export interface ThreadDetailWithDiagnostics {
+  detail: ThreadDetailResponse;
+  diagnostics: ThreadDiagnostics;
+}
+
 export interface ThreadListWithDiagnostics {
   threads: ThreadWithUser[];
-  diagnostics: ThreadListDiagnostics;
+  diagnostics: ThreadDiagnostics;
 }
 
 const THREAD_LIST_UNAVAILABLE_REASONS = new Set([
@@ -42,15 +44,43 @@ export function isThreadListUnavailable(
   );
 }
 
+function parseThreadDiagnostics(headers: Headers): ThreadDiagnostics {
+  const source = headers.get("x-hodam-threads-source") || "unknown";
+  const degraded = headers.get("x-hodam-threads-degraded") === "1";
+  const reasons = (headers.get("x-hodam-threads-degraded-reasons") || "")
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  return {
+    source,
+    degraded,
+    reasons,
+  };
+}
+
 const threadApi = {
   async getThreadDetail(thread_id: number): Promise<ThreadDetailResponse> {
-    return authorizedFetch<ThreadDetailResponse>(
-      `/api/v1/threads/${thread_id}`,
-      {
-        method: "GET",
-      },
-      ThreadDetailResponseSchema,
-    );
+    const result = await this.getThreadDetailWithDiagnostics(thread_id);
+    return result.detail;
+  },
+
+  async getThreadDetailWithDiagnostics(
+    thread_id: number,
+  ): Promise<ThreadDetailWithDiagnostics> {
+    const { data, headers } =
+      await authorizedFetchWithMeta<ThreadDetailResponse>(
+        `/api/v1/threads/${thread_id}`,
+        {
+          method: "GET",
+        },
+        ThreadDetailResponseSchema,
+      );
+
+    return {
+      detail: data,
+      diagnostics: parseThreadDiagnostics(headers),
+    };
   },
 
   async fetchThreadsByUserId(): Promise<ThreadWithUser[]> {
@@ -67,20 +97,9 @@ const threadApi = {
       ThreadListResponseSchema,
     );
 
-    const source = headers.get("x-hodam-threads-source") || "unknown";
-    const degraded = headers.get("x-hodam-threads-degraded") === "1";
-    const reasons = (headers.get("x-hodam-threads-degraded-reasons") || "")
-      .split(",")
-      .map(item => item.trim())
-      .filter(Boolean);
-
     return {
       threads: data.threads || [],
-      diagnostics: {
-        source,
-        degraded,
-        reasons,
-      },
+      diagnostics: parseThreadDiagnostics(headers),
     };
   },
 };

@@ -9,7 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import MessageDisplay from "@/app/components/MessageDisplay";
 import type { Thread } from "@/app/types/openai";
 import { buildSignInRedirectPath } from "@/lib/auth/sign-in-redirect";
-import threadApi from "@/lib/client/api/thread";
+import threadApi, { type ThreadDiagnostics } from "@/lib/client/api/thread";
 import { resolveThreadDetailErrorState } from "@/lib/ui/thread-detail-error";
 
 export default function MyStoryDetail() {
@@ -21,6 +21,8 @@ export default function MyStoryDetail() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isShowEnglish, setIsShowEnglish] = useState<boolean>(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [detailDiagnostics, setDetailDiagnostics] =
+    useState<ThreadDiagnostics | null>(null);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const params = useParams();
   const router = useRouter();
@@ -39,6 +41,7 @@ export default function MyStoryDetail() {
       setThread({} as Thread);
       setMessages([]);
       setImageUrl(null);
+      setDetailDiagnostics(null);
       setErrorMessage("잘못된 동화 ID입니다.");
       return;
     }
@@ -47,10 +50,12 @@ export default function MyStoryDetail() {
     setErrorMessage(null);
 
     try {
-      const detail = await threadApi.getThreadDetail(threadId);
+      const { detail, diagnostics } =
+        await threadApi.getThreadDetailWithDiagnostics(threadId);
 
       setThread(detail.thread);
       setImageUrl(detail.imageUrl);
+      setDetailDiagnostics(diagnostics);
       setMessages(
         detail.messages.map(item => ({
           text: item.text,
@@ -62,6 +67,7 @@ export default function MyStoryDetail() {
       setThread({} as Thread);
       setMessages([]);
       setImageUrl(null);
+      setDetailDiagnostics(null);
       setErrorMessage(errorState.message);
 
       if (errorState.shouldRedirectToSignIn) {
@@ -364,6 +370,17 @@ export default function MyStoryDetail() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {detailDiagnostics?.degraded && (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            동화 상세를 예비 경로로 불러왔어요
+            {` (source=${detailDiagnostics.source}, reasons=${
+              detailDiagnostics.reasons.length > 0
+                ? detailDiagnostics.reasons.join(",")
+                : "unknown"
+            }).`}
+            {" 일부 정보 반영이 지연될 수 있습니다."}
+          </div>
+        )}
         {errorMessage && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {errorMessage}
