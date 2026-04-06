@@ -89,6 +89,7 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 ## 7) 배포 직후 스모크
 
 - [ ] `POST_DEPLOY_SMOKE_RUNBOOK.md` 체크리스트 완료
+- [ ] (Postgres 패치 완료 시) `npm run check:supabase:security:strict:post-upgrade` 통과
 - [ ] 로그인, 동화 생성, 결제, 번역, TTS 핵심 플로우 검증
 - [ ] `x-request-id` 확인 가능한 샘플 장애 로그 확보
 
