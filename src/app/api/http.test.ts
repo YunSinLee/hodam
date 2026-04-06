@@ -268,11 +268,12 @@ describe("authorizedFetch", () => {
     const { authorizedFetch } = await loadHttpModule();
     setSession("token-1");
 
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Failed to fetch threads" }), {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ error: "Failed to fetch threads" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -282,6 +283,60 @@ describe("authorizedFetch", () => {
       status: 500,
       message: "Failed to fetch threads",
     });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries once for transient GET server errors", async () => {
+    const { authorizedFetch } = await loadHttpModule();
+    setSession("token-1");
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Temporary failure" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await authorizedFetch<{ ok: boolean }>("/api/v1/threads", {
+      method: "GET",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry transient errors for non-idempotent methods", async () => {
+    const { authorizedFetch } = await loadHttpModule();
+    setSession("token-1");
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Temporary failure" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      authorizedFetch("/api/v1/story/start", {
+        method: "POST",
+        body: JSON.stringify({ prompt: "start" }),
+      }),
+    ).rejects.toMatchObject({
+      status: 500,
+      message: "Temporary failure",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws 502 when 2xx response body is malformed JSON", async () => {
@@ -308,11 +363,12 @@ describe("authorizedFetch", () => {
     const { authorizedFetch } = await loadHttpModule();
     setSession("token-1");
 
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response("{ malformed", {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response("{ malformed", {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -323,6 +379,7 @@ describe("authorizedFetch", () => {
       message: "Request failed (500)",
       details: "{ malformed",
     });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("refreshes session and retries once after 401", async () => {
