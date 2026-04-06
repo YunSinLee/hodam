@@ -35,7 +35,7 @@
     "test:e2e:auth:local": "node scripts/e2e-auth-local.mjs",
     "mock:toss": "node scripts/mock-toss-server.mjs",
     "test:e2e:payments:local": "node scripts/e2e-payments-local.mjs",
-    "postbuild": "next-sitemap"
+    "postbuild": "next-sitemap && node scripts/normalize-sitemap.mjs"
   },
   "dependencies": {
     "@next/third-parties": "^15.5.14",
