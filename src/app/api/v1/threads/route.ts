@@ -284,6 +284,13 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     logError("/api/v1/threads", error, { requestId });
-    return failWithRequestId(500, "Failed to fetch threads");
+    return okWithRequestId(
+      {
+        threads: [],
+      },
+      {
+        headers: buildThreadResponseHeaders("none", ["unexpected_exception"]),
+      },
+    );
   }
 }
