@@ -42,6 +42,30 @@ describe("parseOAuthCallbackPayload", () => {
     expect(payload.oauthError).toBe("provider_failed");
     expect(payload.hasCallbackPayload).toBe(true);
   });
+
+  it("parses invalid_grant expiry callback payload", () => {
+    const payload = parseOAuthCallbackPayload(
+      new URL(
+        "http://localhost:3000/auth/callback?error=invalid_grant&error_description=authorization%20code%20expired",
+      ),
+    );
+
+    expect(payload.oauthError).toBe("authorization code expired");
+    expect(payload.hasCallbackPayload).toBe(true);
+    expect(payload.hasCode).toBe(false);
+    expect(payload.hasTokenPair).toBe(false);
+  });
+
+  it("uses hash error_description when query error fields are absent", () => {
+    const payload = parseOAuthCallbackPayload(
+      new URL(
+        "http://localhost:3000/auth/callback#error_description=authorization%20code%20already%20been%20used",
+      ),
+    );
+
+    expect(payload.oauthError).toBe("authorization code already been used");
+    expect(payload.hasCallbackPayload).toBe(true);
+  });
 });
 
 describe("resolveOAuthCodeExchangeAction", () => {
