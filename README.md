@@ -70,6 +70,13 @@ AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
 - `grep -r "sk_\|secret\|key\|token" .` 명령어로 정기 검사
 - 문서 파일(.md)에서도 실제 키 노출 주의
 
+## 📘 운영 런북
+
+- [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
+- [SUPABASE_MANUAL_RUNBOOK.md](./SUPABASE_MANUAL_RUNBOOK.md)
+- [POST_DEPLOY_SMOKE_RUNBOOK.md](./POST_DEPLOY_SMOKE_RUNBOOK.md)
+- [SECURITY_HARDENING_NEXT_STEPS.md](./SECURITY_HARDENING_NEXT_STEPS.md)
+
 ## 📦 설치
 
 ```bash
@@ -106,6 +113,8 @@ npm run check:env
 npm run check:env:strict
 # 로컬 배포 전 통합 점검(환경+보안 audit+lint+test+build)
 npm run check:all
+# 릴리즈 게이트(로컬)
+npm run check:release:gate
 # 의존성 취약점 점검
 npm run check:audit:prod
 npm run check:audit:all

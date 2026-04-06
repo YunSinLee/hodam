@@ -1,103 +1,100 @@
-# 🚀 프로덕션 배포 체크리스트
+# HODAM 프로덕션 배포 체크리스트
 
-## OAuth 설정
+이 문서는 실제 배포 직전/직후에 바로 사용할 수 있는 체크리스트입니다.
+현재 기준일: 2026-04-06
 
-### Supabase 설정
+관련 런북:
+- `SUPABASE_MANUAL_RUNBOOK.md`
+- `POST_DEPLOY_SMOKE_RUNBOOK.md`
+- `SECURITY_HARDENING_NEXT_STEPS.md`
 
-- [ ] 프로덕션 도메인으로 Site URL 업데이트
-- [ ] Redirect URLs에 프로덕션 도메인 추가
-  - `https://yourdomain.com/auth/callback`
-- [ ] 개발 환경 URL 제거 (보안)
+## 1) 배포 전 필수 게이트
+
+- [ ] `OPENAI_API_KEY=dummy npm run check:all` 통과
+- [ ] `npm run check:supabase:security:strict:baseline` 통과
+- [ ] `npm run check:oauth -- --runtime-origin=https://<production-domain>` 통과
+- [ ] `npm run test:e2e:auth:local` 통과
+- [ ] `npm run test:e2e:payments:local` 통과
+
+## 2) 프로덕션 환경변수
+
+### Required
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+OPENAI_API_KEY=<openai-key>
+NEXT_PUBLIC_SITE_URL=https://<production-domain>
+NEXT_PUBLIC_AUTH_REDIRECT_URL=https://<production-domain>/auth/callback
+```
+
+### Strongly Recommended
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_ACCESS_TOKEN=<supabase-personal-access-token>
+SUPABASE_PROJECT_REF=<project-ref>
+TOSS_PAYMENTS_SECRET_KEY=<toss-secret-key>
+TOSS_PAYMENTS_WEBHOOK_SECRET=<webhook-secret-header-value>
+TOSS_PAYMENTS_WEBHOOK_HMAC_SECRET=<webhook-hmac-secret>
+NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY=<toss-client-key>
+HODAM_DAILY_AI_COST_LIMIT=120
+HODAM_DAILY_TTS_CHAR_LIMIT=30000
+SENTRY_DSN=<sentry-dsn>
+SENTRY_ENVIRONMENT=production
+SENTRY_TRACES_SAMPLE_RATE=0.1
+```
+
+## 3) OAuth 설정
+
+### Supabase Auth
+
+- [ ] Site URL = `https://<production-domain>`
+- [ ] Redirect URL allow-list에 아래 포함
+- [ ] `https://<production-domain>/auth/callback`
+- [ ] 불필요한 개발 URL 정리
 
 ### Google OAuth
 
-- [ ] Google Cloud Console에서 프로덕션 도메인 추가
-- [ ] Authorized redirect URIs 업데이트
-- [ ] OAuth consent screen 검토
+- [ ] Authorized redirect URI 일치 확인
+- [ ] `https://<project-ref>.supabase.co/auth/v1/callback`
+- [ ] OAuth consent screen 배포 상태 확인
 
 ### Kakao OAuth
 
-- [ ] Kakao Developers에서 프로덕션 도메인 추가
-- [ ] Redirect URI 업데이트
-- [ ] 앱 심사 신청 (필요시)
+- [ ] 플랫폼에 프로덕션 도메인 등록
+- [ ] Redirect URI 등록
+- [ ] `https://<project-ref>.supabase.co/auth/v1/callback`
 
-## 환경변수 설정
+## 4) 결제 설정 (Toss)
 
-### 필수 환경변수
+- [ ] 클라이언트/시크릿 키가 프로덕션 키로 설정됨
+- [ ] 웹훅 URL 설정
+- [ ] `https://<production-domain>/api/v1/payments/webhook`
+- [ ] 웹훅 헤더/시크릿 정책 문서화
+- [ ] 재시도/중복 이벤트 처리 확인 (`duplicate_event` 케이스)
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your_production_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_production_anon_key
-NEXT_PUBLIC_SITE_URL=https://yourdomain.com
-OPENAI_API_KEY=your_openai_api_key
-```
+## 5) Supabase 수동 운영 항목
 
-### 보안 체크
+- [ ] Postgres 패치 업그레이드 (`vulnerable_postgres_version`)
+- [ ] leaked password protection(HIBP) 플랜 지원 여부 확인 후 활성화
+- [ ] 적용 절차는 `SUPABASE_MANUAL_RUNBOOK.md` 기준으로 수행
 
-- [ ] 개발 환경 키 제거
-- [ ] API 키 권한 최소화
-- [ ] CORS 설정 확인
+## 6) 모니터링/알림
 
-## 테스트
+- [ ] Sentry 프로젝트 연결 및 알림 채널 구성
+- [ ] request-id 기반 이슈 역추적 가능 여부 확인
+- [ ] 결제 실패율/웹훅 오류율 대시보드 점검
 
-### 기능 테스트
+## 7) 배포 직후 스모크
 
-- [ ] 구글 로그인/로그아웃
-- [ ] 카카오 로그인/로그아웃
-- [ ] 동화 생성 기능
-- [ ] 곶감 시스템
-- [ ] 이미지 생성
+- [ ] `POST_DEPLOY_SMOKE_RUNBOOK.md` 체크리스트 완료
+- [ ] 로그인, 동화 생성, 결제, 번역, TTS 핵심 플로우 검증
+- [ ] `x-request-id` 확인 가능한 샘플 장애 로그 확보
 
-### 성능 테스트
+## 8) 롤백 기준
 
-- [ ] 페이지 로딩 속도
-- [ ] 이미지 최적화
-- [ ] API 응답 시간
-
-### 브라우저 호환성
-
-- [ ] Chrome, Safari, Firefox
-- [ ] 모바일 브라우저
-- [ ] 다양한 화면 크기
-
-## 모니터링 설정
-
-### 에러 추적
-
-- [ ] Sentry 또는 유사 서비스 설정
-- [ ] 로그 수집 시스템
-- [ ] 알림 설정
-
-### 분석
-
-- [ ] Google Analytics 설정
-- [ ] 사용자 행동 분석
-- [ ] 성능 모니터링
-
-## 법적 준수
-
-### 개인정보보호
-
-- [ ] 개인정보처리방침 최신화
-- [ ] 쿠키 정책 확인
-- [ ] GDPR 준수 (해외 서비스 시)
-
-### 서비스 약관
-
-- [ ] 이용약관 검토
-- [ ] 사업자 정보 확인
-- [ ] 고객센터 연락처
-
-## 백업 및 복구
-
-### 데이터베이스
-
-- [ ] 자동 백업 설정
-- [ ] 복구 절차 테스트
-- [ ] 데이터 마이그레이션 계획
-
-### 코드
-
-- [ ] Git 태그 생성
-- [ ] 릴리즈 노트 작성
-- [ ] 롤백 계획
+- [ ] 결제 승인/지급 불일치 발생
+- [ ] `/api/v1/threads` 또는 `/api/v1/story/*` 연속 5xx
+- [ ] 로그인 콜백 정체/무한 로딩 재현
+- [ ] 위 항목 발생 시 직전 안정 배포로 즉시 롤백
