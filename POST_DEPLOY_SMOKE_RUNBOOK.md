@@ -14,6 +14,8 @@
 
 ```bash
 npm run check:post-upgrade -- --runtime-origin=https://<production-domain>
+# Postgres patch upgrade 이후에는 아래 플래그 포함 권장
+npm run check:post-upgrade -- --runtime-origin=https://<production-domain> --post-db-upgrade
 ```
 
 ## 2) API/보안 게이트
