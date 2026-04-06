@@ -7,7 +7,6 @@ on:
 
 jobs:
   supabase-security:
-    if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -21,22 +20,38 @@ jobs:
       HODAM_SUPABASE_SECURITY_ENFORCE_STRICT: ${{ vars.HODAM_SUPABASE_SECURITY_ENFORCE_STRICT }}
 
     steps:
+      - name: Resolve security-check availability
+        id: guard
+        run: |
+          if [ -n "${NEXT_PUBLIC_SUPABASE_URL}" ] && [ -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
+            echo "enabled=1" >> "$GITHUB_OUTPUT"
+            echo "Security checks are enabled."
+          else
+            echo "enabled=0" >> "$GITHUB_OUTPUT"
+            echo "Security checks are skipped because required secrets are missing."
+          fi
+
       - name: Checkout
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         uses: actions/checkout@v4
 
       - name: Setup Node
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         run: npm ci
 
       - name: Run Supabase security check
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         run: npm run check:supabase:security
 
       - name: Run strict Supabase security check
+        if: ${{ steps.guard.outputs.enabled == '1' }}
         env:
           # Temporary baseline ignores: remove each entry once the underlying platform constraint is resolved.
           HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version' }}
