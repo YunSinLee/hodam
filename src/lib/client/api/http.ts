@@ -4,6 +4,9 @@ import type { ZodType, ZodTypeDef } from "zod";
 
 const SESSION_RETRY_ATTEMPTS = 20;
 const SESSION_RETRY_DELAY_MS = process.env.NODE_ENV === "test" ? 1 : 250;
+const TRANSIENT_RETRY_DELAY_MS = process.env.NODE_ENV === "test" ? 1 : 250;
+const TRANSIENT_RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
+const TRANSIENT_RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
 
 export class ApiError extends Error {
   status: number;
@@ -258,14 +261,25 @@ export async function authorizedFetchWithMeta<T>(
     return { response, ...parsed };
   };
 
-  const accessToken = await getAccessTokenOrThrow();
-  let result = await requestWithToken(accessToken);
+  const requestMethod = String(init.method || "GET").toUpperCase();
+  const canRetryTransient = TRANSIENT_RETRYABLE_METHODS.has(requestMethod);
+  let activeAccessToken = await getAccessTokenOrThrow();
+  let result = await requestWithToken(activeAccessToken);
 
   if (result.response.status === 401) {
     const refreshedToken = await refreshAccessToken();
-    if (refreshedToken && refreshedToken !== accessToken) {
-      result = await requestWithToken(refreshedToken);
+    if (refreshedToken && refreshedToken !== activeAccessToken) {
+      activeAccessToken = refreshedToken;
+      result = await requestWithToken(activeAccessToken);
     }
+  }
+
+  if (
+    canRetryTransient &&
+    TRANSIENT_RETRYABLE_STATUSES.has(result.response.status)
+  ) {
+    await sleep(TRANSIENT_RETRY_DELAY_MS);
+    result = await requestWithToken(activeAccessToken);
   }
 
   if (!result.response.ok) {

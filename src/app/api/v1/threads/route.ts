@@ -17,6 +17,42 @@ type ThreadSource = "rpc" | "fallback" | "none";
 
 const KEYWORD_BATCH_SIZE = 100;
 
+function toThreadId(value: unknown): number | null {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  return numeric;
+}
+
+function normalizeThreadRows(rows: unknown[]): {
+  normalized: ThreadRowLike[];
+  droppedMalformedRow: boolean;
+} {
+  let droppedMalformedRow = false;
+  const normalized: ThreadRowLike[] = [];
+
+  rows.forEach(row => {
+    if (!row || typeof row !== "object") {
+      droppedMalformedRow = true;
+      return;
+    }
+
+    const threadId = toThreadId((row as { id?: unknown }).id);
+    if (!threadId) {
+      droppedMalformedRow = true;
+      return;
+    }
+
+    normalized.push({
+      ...(row as Record<string, unknown>),
+      id: threadId,
+    });
+  });
+
+  return { normalized, droppedMalformedRow };
+}
+
 function buildThreadResponseHeaders(
   source: ThreadSource,
   degradationReasons: string[],
@@ -141,9 +177,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const threadIds = threadRows
-      .map(thread => Number(thread.id))
-      .filter(threadId => Number.isFinite(threadId) && threadId > 0);
+    const { normalized: normalizedThreadRows, droppedMalformedRow } =
+      normalizeThreadRows(threadRows as unknown[]);
+    if (droppedMalformedRow) {
+      degradationReasons.push("invalid_thread_rows");
+    }
+
+    const threadIds = normalizedThreadRows.map(thread => thread.id);
     const keywordsByThreadId = new Map<number, { keyword: string }[]>();
 
     if (threadIds.length > 0) {
@@ -179,9 +219,23 @@ export async function GET(request: NextRequest) {
             }
 
             (keywordRows || []).forEach(row => {
-              const existing = keywordsByThreadId.get(row.thread_id) || [];
-              existing.push({ keyword: row.keyword });
-              keywordsByThreadId.set(row.thread_id, existing);
+              if (!row || typeof row !== "object") {
+                degradationReasons.push("keywords_invalid_row");
+                return;
+              }
+              const keywordRow = row as {
+                thread_id?: unknown;
+                keyword?: unknown;
+              };
+              const threadId = toThreadId(keywordRow.thread_id);
+              const { keyword } = keywordRow;
+              if (!threadId || typeof keyword !== "string") {
+                degradationReasons.push("keywords_invalid_row");
+                return;
+              }
+              const existing = keywordsByThreadId.get(threadId) || [];
+              existing.push({ keyword });
+              keywordsByThreadId.set(threadId, existing);
             });
           },
         );
@@ -199,7 +253,7 @@ export async function GET(request: NextRequest) {
 
     return okWithRequestId(
       {
-        threads: threadRows.map(thread => ({
+        threads: normalizedThreadRows.map(thread => ({
           ...thread,
           keywords: keywordsByThreadId.get(thread.id) || [],
           user: {

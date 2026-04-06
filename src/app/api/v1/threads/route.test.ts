@@ -436,4 +436,115 @@ describe("GET /api/v1/threads", () => {
     expect(keywordsInMock).toHaveBeenCalledTimes(3);
     expect(body.threads).toHaveLength(205);
   });
+
+  it("drops malformed thread rows instead of failing the request", async () => {
+    const GET = await loadGetHandler();
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user1@example.com",
+    });
+
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [
+        null,
+        {
+          id: "not-a-number",
+          openai_thread_id: "thread_bad",
+        },
+        {
+          id: 101,
+          openai_thread_id: "thread_101",
+          created_at: "2026-04-05T00:00:00.000Z",
+          user_id: "user-1",
+          able_english: true,
+          has_image: false,
+        },
+      ],
+      error: null,
+    });
+    const keywordsInMock = vi.fn().mockResolvedValue({
+      data: [{ thread_id: 101, keyword: "정상" }],
+      error: null,
+    });
+    const keywordsSelectMock = vi.fn().mockReturnValue({
+      in: keywordsInMock,
+    });
+    const fromMock = vi.fn(table => {
+      if (table === "keywords") return { select: keywordsSelectMock };
+      return { select: vi.fn() };
+    });
+
+    requireUserClientMock.mockReturnValue({
+      rpc: rpcMock,
+      from: fromMock,
+    });
+
+    const response = await GET({ headers: new Headers() } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-hodam-threads-degraded")).toBe("1");
+    expect(response.headers.get("x-hodam-threads-degraded-reasons")).toContain(
+      "invalid_thread_rows",
+    );
+    expect(body.threads).toHaveLength(1);
+    expect(body.threads[0].id).toBe(101);
+    expect(body.threads[0].keywords).toEqual([{ keyword: "정상" }]);
+  });
+
+  it("drops malformed keyword rows and continues with valid rows", async () => {
+    const GET = await loadGetHandler();
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user1@example.com",
+    });
+
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          openai_thread_id: "thread_1",
+          created_at: "2026-04-05T00:00:00.000Z",
+          user_id: "user-1",
+          able_english: true,
+          has_image: false,
+        },
+      ],
+      error: null,
+    });
+    const keywordsInMock = vi.fn().mockResolvedValue({
+      data: [
+        null,
+        { thread_id: "x", keyword: "잘못됨" },
+        { thread_id: 1, keyword: 1 },
+        { thread_id: 1, keyword: "정상키워드" },
+      ],
+      error: null,
+    });
+    const keywordsSelectMock = vi.fn().mockReturnValue({
+      in: keywordsInMock,
+    });
+    const fromMock = vi.fn(table => {
+      if (table === "keywords") return { select: keywordsSelectMock };
+      return { select: vi.fn() };
+    });
+
+    requireUserClientMock.mockReturnValue({
+      rpc: rpcMock,
+      from: fromMock,
+    });
+
+    const response = await GET({ headers: new Headers() } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-hodam-threads-degraded")).toBe("1");
+    expect(response.headers.get("x-hodam-threads-degraded-reasons")).toContain(
+      "keywords_invalid_row",
+    );
+    expect(body.threads).toHaveLength(1);
+    expect(body.threads[0].keywords).toEqual([{ keyword: "정상키워드" }]);
+  });
 });
