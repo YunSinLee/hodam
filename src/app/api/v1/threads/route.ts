@@ -10,6 +10,11 @@ import { createApiRequestContext } from "@/lib/server/request-context";
 
 interface ThreadRowLike {
   id: number;
+  openai_thread_id: string;
+  created_at: string;
+  user_id: string;
+  able_english: boolean;
+  has_image: boolean;
   [key: string]: unknown;
 }
 
@@ -44,9 +49,19 @@ function normalizeThreadRows(rows: unknown[]): {
       return;
     }
 
+    const record = row as Record<string, unknown>;
+
     normalized.push({
-      ...(row as Record<string, unknown>),
       id: threadId,
+      openai_thread_id:
+        typeof record.openai_thread_id === "string"
+          ? record.openai_thread_id
+          : "",
+      created_at:
+        typeof record.created_at === "string" ? record.created_at : "",
+      user_id: typeof record.user_id === "string" ? record.user_id : "",
+      able_english: Boolean(record.able_english),
+      has_image: Boolean(record.has_image),
     });
   });
 
@@ -119,7 +134,9 @@ export async function GET(request: NextRequest) {
       try {
         const { data: fallbackData, error: fallbackError } = await userClient
           .from("thread")
-          .select("*")
+          .select(
+            "id, openai_thread_id, created_at, user_id, able_english, has_image",
+          )
           .eq("user_id", auth.userId)
           .order("created_at", { ascending: false });
 

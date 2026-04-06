@@ -58,6 +58,7 @@ describe("GET /api/v1/threads", () => {
           user_id: "user-1",
           able_english: true,
           has_image: false,
+          raw_text: "internal story context",
         },
       ],
       error: null,
@@ -95,6 +96,7 @@ describe("GET /api/v1/threads", () => {
     expect(keywordsInMock).toHaveBeenCalledWith("thread_id", [1]);
     expect(body.threads).toHaveLength(1);
     expect(body.threads[0].keywords).toEqual([{ keyword: "용기" }]);
+    expect(body.threads[0].raw_text).toBeUndefined();
     expect(body.threads[0].user).toEqual({
       id: "user-1",
       email: "user1@example.com",
@@ -178,7 +180,9 @@ describe("GET /api/v1/threads", () => {
       "rpc_error",
     );
     expect(fromMock).toHaveBeenCalledWith("thread");
-    expect(threadSelectMock).toHaveBeenCalledWith("*");
+    expect(threadSelectMock).toHaveBeenCalledWith(
+      "id, openai_thread_id, created_at, user_id, able_english, has_image",
+    );
     expect(threadEqMock).toHaveBeenCalledWith("user_id", "user-1");
     expect(threadOrderMock).toHaveBeenCalledWith("created_at", {
       ascending: false,
