@@ -384,10 +384,10 @@ export default function ProfilePage() {
 
   if (isLoading || !isAuthReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4" />
-          <p className="text-gray-600">프로필을 불러오는 중...</p>
+      <div className="hodam-page-shell min-h-screen px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-[#ef8d3d]/20 bg-white/90 px-6 py-12 text-center shadow-[0_16px_38px_rgba(181,94,23,0.12)]">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[#ef8d3d]" />
+          <p className="text-[#5f6670]">프로필을 불러오는 중...</p>
         </div>
       </div>
     );
@@ -395,13 +395,13 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">프로필을 불러올 수 없습니다.</p>
+      <div className="hodam-page-shell min-h-screen px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-[#ef8d3d]/20 bg-white/90 px-6 py-12 text-center shadow-[0_16px_38px_rgba(181,94,23,0.12)]">
+          <p className="mb-4 text-[#5f6670]">프로필을 불러올 수 없습니다.</p>
           <button
             type="button"
             onClick={() => router.push("/")}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="hodam-primary-button text-sm"
           >
             홈으로 돌아가기
           </button>
@@ -411,16 +411,22 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">내 프로필</h1>
-          <p className="text-gray-600">계정 정보와 활동 내역을 확인하세요</p>
-        </div>
+    <div className="hodam-page-shell min-h-screen px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        <header className="hodam-glass-card mb-6 p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#ad6220]">
+            Profile
+          </p>
+          <h1 className="hodam-heading mt-2 text-3xl text-[#2e3134] sm:text-4xl">
+            내 프로필
+          </h1>
+          <p className="mt-2 text-sm text-[#5f6670] sm:text-base">
+            계정 정보와 활동 내역을 한 화면에서 확인하세요.
+          </p>
+        </header>
         {pageFeedback && (
           <div
-            className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
               pageFeedback.type === "error"
                 ? "border-red-200 bg-red-50 text-red-700"
                 : "border-green-200 bg-green-50 text-green-700"
@@ -434,12 +440,12 @@ export default function ProfilePage() {
           {/* 왼쪽: 프로필 정보 */}
           <div className="lg:col-span-1">
             {/* 기본 정보 카드 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <div className="hodam-soft-card p-6 mb-6">
               <div className="text-center">
                 {/* 프로필 이미지 */}
                 <div className="relative w-24 h-24 mx-auto mb-4">
                   <div
-                    className="w-24 h-24 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                    className="w-24 h-24 rounded-full bg-gradient-to-r from-[#ef8d3d] to-[#f2ab4e] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={() => setShowImageOptions(true)}
                   >
                     {profile.profileUrl ? (
@@ -462,7 +468,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => setShowImageOptions(true)}
-                    className="absolute bottom-0 right-0 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white hover:bg-purple-700 transition-colors shadow-lg"
+                    className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[#ef8d3d] text-white shadow-lg transition-colors hover:bg-[#d97c30]"
                     title="프로필 이미지 변경"
                   >
                     <svg
@@ -495,7 +501,7 @@ export default function ProfilePage() {
                         type="text"
                         value={newNickname}
                         onChange={e => setNewNickname(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-[#ef8d3d]"
                         placeholder="닉네임을 입력하세요"
                         maxLength={20}
                       />
@@ -504,7 +510,7 @@ export default function ProfilePage() {
                           type="button"
                           onClick={handleNicknameUpdate}
                           disabled={isUpdatingNickname || !newNickname.trim()}
-                          className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          className="rounded-lg bg-[#ef8d3d] px-3 py-1 text-sm text-white transition-colors hover:bg-[#d97c30] disabled:cursor-not-allowed disabled:bg-gray-400"
                         >
                           {isUpdatingNickname ? "저장 중..." : "저장"}
                         </button>
@@ -526,7 +532,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={handleNicknameEdit}
-                        className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                        className="p-1 text-gray-400 hover:text-[#bf6c28] transition-colors"
                         title="닉네임 편집"
                       >
                         <svg
@@ -555,7 +561,7 @@ export default function ProfilePage() {
             </div>
 
             {/* 곶감 정보 카드 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <div className="hodam-soft-card p-6 mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                 <span className="text-2xl mr-2">🍯</span>
                 곶감 현황
@@ -563,7 +569,7 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">보유 곶감</span>
-                  <span className="text-xl font-bold text-purple-600">
+                  <span className="text-xl font-bold text-[#bf6c28]">
                     {bead.count || 0}개
                   </span>
                 </div>
@@ -583,7 +589,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => router.push("/bead")}
-                className="w-full mt-4 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+                className="w-full mt-4 px-4 py-2 bg-gradient-to-r from-[#ef8d3d] to-[#f2ab4e] text-white rounded-lg hover:from-[#d97c30] hover:to-[#e4973f] transition-all"
               >
                 곶감 충전하기
               </button>
@@ -593,7 +599,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full rounded-xl border border-[#e9dac4] bg-[#fff5e7] px-4 py-3 text-[#8a531d] transition-colors hover:bg-[#ffedd2]"
             >
               로그아웃
             </button>
@@ -603,21 +609,21 @@ export default function ProfilePage() {
           <div className="lg:col-span-2">
             {/* 통계 카드들 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white rounded-xl shadow-lg p-6 text-center">
+              <div className="hodam-soft-card p-6 text-center">
                 <div className="text-3xl mb-2">📚</div>
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-2xl font-bold text-[#bf6c28]">
                   {stats?.totalStories || 0}
                 </div>
                 <div className="text-gray-600 text-sm">생성한 동화</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg p-6 text-center">
+              <div className="hodam-soft-card p-6 text-center">
                 <div className="text-3xl mb-2">💰</div>
                 <div className="text-2xl font-bold text-green-600">
                   {formatCurrency(stats?.totalPaymentAmount || 0)}원
                 </div>
                 <div className="text-gray-600 text-sm">총 결제 금액</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg p-6 text-center">
+              <div className="hodam-soft-card p-6 text-center">
                 <div className="text-3xl mb-2">🍯</div>
                 <div className="text-2xl font-bold text-orange-600">
                   {stats?.totalBeadsPurchased || 0}
@@ -627,7 +633,7 @@ export default function ProfilePage() {
             </div>
 
             {/* KPI 요약 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div className="hodam-soft-card p-6 mb-8">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">
                   운영 KPI (최근 14일)
@@ -644,14 +650,14 @@ export default function ProfilePage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-xl border border-purple-100 bg-purple-50 p-4">
-                  <div className="text-xs text-purple-700 mb-1">
+                <div className="rounded-xl border border-[#f0d7b6] bg-[#fff4e4] p-4">
+                  <div className="mb-1 text-xs text-[#b56522]">
                     동화당 평균 AI 비용
                   </div>
-                  <div className="text-xl font-bold text-purple-800">
+                  <div className="text-xl font-bold text-[#9e581c]">
                     {latestCostPerStory.toFixed(2)}
                   </div>
-                  <div className="text-[11px] text-purple-600 mt-1">
+                  <div className="text-[11px] text-[#bf6c28] mt-1">
                     cost_per_story
                   </div>
                 </div>
@@ -695,7 +701,7 @@ export default function ProfilePage() {
             </div>
 
             {/* 최근 동화 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div className="hodam-soft-card p-6 mb-8">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">
                   최근 생성한 동화
@@ -703,7 +709,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => router.push("/my-story")}
-                  className="text-purple-600 hover:text-purple-700 text-sm"
+                  className="text-[#bf6c28] hover:text-[#a95c20] text-sm"
                 >
                   전체보기 →
                 </button>
@@ -739,7 +745,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => router.push("/service")}
-                    className="mt-2 text-purple-600 hover:text-purple-700"
+                    className="mt-2 text-[#bf6c28] hover:text-[#a95c20]"
                   >
                     첫 동화 만들기 →
                   </button>
@@ -748,7 +754,7 @@ export default function ProfilePage() {
             </div>
 
             {/* 결제 내역 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="hodam-soft-card p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">
                   최근 결제 내역
@@ -756,7 +762,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => router.push("/payment-history")}
-                  className="text-purple-600 hover:text-purple-700 text-sm"
+                  className="text-[#bf6c28] hover:text-[#a95c20] text-sm"
                 >
                   전체보기 →
                 </button>
@@ -800,7 +806,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => router.push("/bead")}
-                    className="mt-2 text-purple-600 hover:text-purple-700"
+                    className="mt-2 text-[#bf6c28] hover:text-[#a95c20]"
                   >
                     곶감 충전하기 →
                   </button>
@@ -813,8 +819,8 @@ export default function ProfilePage() {
 
       {/* 프로필 이미지 옵션 모달 */}
       {showImageOptions && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white/95 rounded-2xl border border-[#ef8d3d]/20 p-6 max-w-sm w-full">
             <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">
               프로필 이미지 설정
             </h3>
@@ -829,7 +835,7 @@ export default function ProfilePage() {
                   className="hidden"
                   disabled={isUploadingImage}
                 />
-                <div className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors cursor-pointer text-center disabled:bg-gray-400">
+                <div className="w-full px-4 py-3 bg-[#ef8d3d] text-white rounded-lg hover:bg-[#d97c30] transition-colors cursor-pointer text-center disabled:bg-gray-400">
                   {isUploadingImage ? "업로드 중..." : "새 이미지 업로드"}
                 </div>
               </label>
@@ -866,8 +872,8 @@ export default function ProfilePage() {
       )}
 
       {confirmAction && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white/95 rounded-2xl border border-[#ef8d3d]/20 p-6 max-w-sm w-full shadow-xl">
             <h3 className="text-lg font-bold text-gray-800 mb-3">
               {confirmAction === "logout"
                 ? "로그아웃 확인"
@@ -893,7 +899,7 @@ export default function ProfilePage() {
                     ? confirmLogout
                     : confirmImageRemove
                 }
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                className="px-4 py-2 bg-[#ef8d3d] text-white rounded-lg hover:bg-[#d97c30]"
               >
                 확인
               </button>

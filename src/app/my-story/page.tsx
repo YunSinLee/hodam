@@ -21,9 +21,9 @@ export default function MyStory() {
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const { userInfo, setUserInfo } = useUserInfo();
   const router = useRouter();
-  const [isPageLoaded, setIsPageLoaded] = useState(false);
   const [shouldRedirectToSignIn, setShouldRedirectToSignIn] =
     useState<boolean>(false);
+
   const loadingSkeletonKeys = [
     "skeleton-1",
     "skeleton-2",
@@ -100,18 +100,12 @@ export default function MyStory() {
   }, [setUserInfo, userInfo.id]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsPageLoaded(true);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
     fetchThreadsByUserId();
   }, [fetchThreadsByUserId]);
 
   useEffect(() => {
     if (!shouldRedirectToSignIn) return undefined;
+
     const timer = setTimeout(() => {
       router.replace(buildSignInRedirectPath("/my-story"));
     }, 800);
@@ -121,22 +115,15 @@ export default function MyStory() {
   const renderContent = () => {
     if (isLoading || !isAuthReady) {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loadingSkeletonKeys.map((key, index) => (
-            <div
-              key={key}
-              className="bg-white rounded-lg shadow-md p-5 border border-gray-100 animate-pulse"
-              style={{
-                animation: `pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite`,
-                animationDelay: `${index * 0.1}s`,
-              }}
-            >
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
-              <div className="h-3 bg-gray-200 rounded w-1/2 mb-3" />
-              <div className="h-3 bg-gray-200 rounded w-full mb-3" />
-              <div className="flex justify-between mt-5">
-                <div className="h-8 bg-gray-200 rounded w-1/4" />
-                <div className="h-8 bg-gray-200 rounded w-1/4" />
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {loadingSkeletonKeys.map(key => (
+            <div key={key} className="hodam-soft-card animate-pulse p-5">
+              <div className="mb-4 h-4 w-3/4 rounded bg-[#f2dfc8]" />
+              <div className="mb-3 h-3 w-1/2 rounded bg-[#f7ebdb]" />
+              <div className="mb-2 h-3 w-full rounded bg-[#f8efdf]" />
+              <div className="mt-6 flex justify-between">
+                <div className="h-7 w-20 rounded-full bg-[#f7e6cf]" />
+                <div className="h-7 w-24 rounded-full bg-[#f3dfc2]" />
               </div>
             </div>
           ))}
@@ -146,206 +133,168 @@ export default function MyStory() {
 
     if (threads.length === 0) {
       return (
-        <div className="text-center py-16 bg-gradient-to-b from-orange-50 to-white rounded-lg border border-orange-100 shadow-sm transform transition-all duration-300 hover:scale-[1.01] hover:shadow-md">
-          <div className="flex justify-center mb-6">
-            <div className="relative w-32 h-32">
-              <div
-                className="absolute inset-0 bg-orange-100 rounded-full opacity-50 animate-ping"
-                style={{ animationDuration: "3s" }}
-              />
-              <div className="relative flex items-center justify-center w-full h-full bg-orange-50 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-16 w-16 text-orange-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-          <h2 className="text-2xl font-semibold text-gray-700 mb-3">
-            아직 만든 동화가 없어요
-          </h2>
-          <p className="text-gray-600 mb-8 max-w-md mx-auto">
-            새로운 동화를 만들어 호담과 함께 창의적인 이야기를 만들어보세요!
-          </p>
-          <Link
-            href="/service"
-            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-full hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-1"
-          >
-            <span className="font-medium">새 동화 만들기</span>
+        <section className="hodam-glass-card px-6 py-12 text-center sm:px-10">
+          <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-[#fff3e4]">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 ml-2"
-              viewBox="0 0 20 20"
-              fill="currentColor"
+              className="h-12 w-12 text-[#d88838]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path
-                fillRule="evenodd"
-                d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-                clipRule="evenodd"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.7}
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
               />
             </svg>
-          </Link>
-        </div>
+          </div>
+          <h2 className="hodam-heading text-3xl text-[#2e3134]">
+            아직 만든 동화가 없어요
+          </h2>
+          <p className="mx-auto mt-3 max-w-lg text-sm text-[#5f6670] sm:text-base">
+            첫 키워드만 입력하면 1분 안에 동화를 시작할 수 있습니다. 지금 바로
+            새로운 이야기의 첫 장을 열어보세요.
+          </p>
+          <div className="mt-7">
+            <Link href="/service" className="hodam-primary-button text-sm">
+              새 동화 만들기
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
+        </section>
       );
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {threads.map((thread: ThreadWithUser, index) => (
-          <Link
-            key={thread.id}
-            href={{
-              pathname: `/my-story/${thread.id}`,
-              query: {
-                ableEnglish: thread.able_english,
-              },
-            }}
-          >
-            <div
-              className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-5 border border-gray-100 h-full flex flex-col cursor-pointer transform hover:-translate-y-1 hover:border-orange-200"
-              style={{
-                animation: `fadeInUp 0.5s ease-out forwards`,
-                animationDelay: `${index * 0.1}s`,
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {threads.map(thread => {
+          const title =
+            thread.keywords?.map(keyword => keyword.keyword).join(", ") ||
+            "제목 없음";
+
+          return (
+            <Link
+              key={thread.id}
+              href={{
+                pathname: `/my-story/${thread.id}`,
+                query: {
+                  ableEnglish: thread.able_english,
+                },
               }}
+              className="group"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 overflow-hidden">
-                <div
-                  className={`w-40 transform rotate-45 translate-x-6 -translate-y-10 ${thread.has_image ? "bg-green-100" : "bg-gray-50"} h-6 opacity-50`}
-                />
-              </div>
+              <article className="hodam-soft-card relative h-full overflow-hidden p-5 transition duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(181,94,23,0.16)]">
+                <div className="absolute right-0 top-0 h-28 w-28 rounded-bl-[30px] bg-gradient-to-br from-[#ffe8c8]/80 to-transparent" />
 
-              <div className="flex items-center mb-3 relative z-10">
-                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-500 mr-3 shadow-sm">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">
-                    {formatTime(thread.created_at, "YYYY년 MM월 DD일")}
-                  </p>
-                  <p className="font-medium">
-                    {thread.user?.display_name || "사용자"}
-                  </p>
-                </div>
-              </div>
-
-              <h3 className="text-lg font-semibold mb-2 text-gray-800 line-clamp-2 relative z-10">
-                {thread.keywords?.map(keyword => keyword.keyword).join(", ") ||
-                  "제목 없음"}
-              </h3>
-
-              <div className="mt-auto pt-4 border-t border-gray-100">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center flex-wrap gap-2">
-                    <div
-                      className={`px-2 py-1 rounded-full text-xs ${thread.able_english ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}
-                    >
-                      {thread.able_english ? "영어 가능" : "한국어만"}
-                    </div>
-
-                    <div
-                      className={`px-2 py-1 rounded-full text-xs ${thread.has_image ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
-                    >
-                      {thread.has_image ? "이미지 있음" : "이미지 없음"}
-                    </div>
-                  </div>
-
-                  <div className="bg-orange-50 rounded-full p-1 group">
+                <header className="relative z-10 mb-3 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fff0dc] text-[#cf7b30]">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
+                      className="h-6 w-6"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
                       <path
-                        fillRule="evenodd"
-                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                        clipRule="evenodd"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.9}
+                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
                       />
                     </svg>
                   </div>
-                </div>
-              </div>
-            </div>
-          </Link>
-        ))}
+                  <div>
+                    <p className="text-xs text-[#8b93a0]">
+                      {formatTime(thread.created_at, "YYYY년 MM월 DD일")}
+                    </p>
+                    <p className="text-sm font-semibold text-[#364152]">
+                      {thread.user?.display_name || "사용자"}
+                    </p>
+                  </div>
+                </header>
+
+                <h3 className="relative z-10 line-clamp-2 text-lg font-bold text-[#2d3138]">
+                  {title}
+                </h3>
+
+                <footer className="relative z-10 mt-4 border-t border-[#f3e2cc] pt-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          thread.able_english
+                            ? "bg-sky-100 text-sky-700"
+                            : "bg-zinc-100 text-zinc-600"
+                        }`}
+                      >
+                        {thread.able_english ? "영어 포함" : "한국어"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          thread.has_image
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-zinc-100 text-zinc-600"
+                        }`}
+                      >
+                        {thread.has_image ? "이미지 포함" : "텍스트 중심"}
+                      </span>
+                    </div>
+                    <span className="rounded-full bg-[#fff2e1] px-2 py-1 text-xs font-bold text-[#b86b26] transition group-hover:bg-[#ffe5c1]">
+                      열기
+                    </span>
+                  </div>
+                </footer>
+              </article>
+            </Link>
+          );
+        })}
       </div>
     );
   };
 
   return (
-    <div
-      className={`max-w-screen-lg mx-auto px-4 py-8 min-h-screen transition-opacity duration-500 ${isPageLoaded ? "opacity-100" : "opacity-0"}`}
-    >
-      <div className="mb-8 border-b pb-4">
-        <h1 className="text-3xl font-bold text-orange-600 mb-2 relative">
-          내 동화
-          <span className="absolute bottom-0 left-0 w-1/3 h-1 bg-orange-400 rounded-full transform translate-y-2" />
-        </h1>
-        <p className="text-gray-600">내가 만든 동화 목록을 확인해보세요</p>
-      </div>
+    <div className="hodam-page-shell px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <header className="hodam-glass-card p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#ad6220]">
+            My Library
+          </p>
+          <h1 className="hodam-heading mt-2 text-3xl text-[#2e3134] sm:text-4xl">
+            내 동화
+          </h1>
+          <p className="mt-2 text-sm text-[#5f6670] sm:text-base">
+            내가 만든 동화를 다시 읽고, 이어서 선택지를 고르며 이야기를 확장할
+            수 있어요.
+          </p>
+        </header>
 
-      {errorMessage && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorMessage}
-          {shouldRedirectToSignIn && (
-            <div className="mt-2">
+        {errorMessage && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p>{errorMessage}</p>
+            {shouldRedirectToSignIn && (
               <button
                 type="button"
                 onClick={() =>
                   router.replace(buildSignInRedirectPath("/my-story"))
                 }
-                className="rounded border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+                className="mt-2 rounded-full border border-red-300 bg-white px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-50"
               >
                 다시 로그인
               </button>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {warningMessage && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          {warningMessage}
-        </div>
-      )}
+        {warningMessage && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            {warningMessage}
+          </div>
+        )}
 
-      {renderContent()}
-
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+        {renderContent()}
+      </div>
     </div>
   );
 }
