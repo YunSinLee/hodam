@@ -7,9 +7,9 @@ interface AuthAlertProps {
 }
 
 const TONE_CLASSES: Record<NonNullable<AuthAlertProps["tone"]>, string> = {
-  error: "border-red-200 bg-red-50 text-red-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
-  neutral: "border-gray-200 bg-gray-50 text-gray-600",
+  error: "border-red-200 bg-red-50/95 text-red-700",
+  warning: "border-[#efc99f] bg-[#fff6ea] text-[#a25a1d]",
+  neutral: "border-[#ef8d3d]/20 bg-[#fffaf3] text-[#6b7280]",
 };
 
 export default function AuthAlert({
@@ -18,7 +18,7 @@ export default function AuthAlert({
   className,
 }: AuthAlertProps) {
   const classes = [
-    "rounded-2xl border p-3 text-left text-sm leading-relaxed sm:p-4",
+    "rounded-2xl border p-3 text-left text-sm leading-relaxed shadow-[0_8px_18px_rgba(146,73,16,0.08)] sm:p-4",
     TONE_CLASSES[tone],
     className,
   ]
