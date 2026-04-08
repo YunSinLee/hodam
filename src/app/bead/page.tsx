@@ -12,7 +12,6 @@ import { resolveTossClientKey } from "@/lib/payments/toss-client";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 
-// 토스페이먼츠 SDK 타입 정의
 interface TossPaymentsInstance {
   requestPayment: (
     method: string,
@@ -59,7 +58,6 @@ function BeadPageContent() {
   const tossClientKey = useMemo(() => resolveTossClientKey(), []);
 
   useEffect(() => {
-    // 토스페이먼츠 SDK 로드
     const script = document.createElement("script");
     script.src = "https://js.tosspayments.com/v1/payment";
     script.async = true;
@@ -130,7 +128,6 @@ function BeadPageContent() {
           message: "곶감 충전이 완료되었습니다.",
         });
 
-        // URL 파라미터 제거
         router.replace("/bead");
       } catch (error) {
         const alreadyProcessed =
@@ -140,7 +137,6 @@ function BeadPageContent() {
             "code" in error &&
             (error as { code?: string }).code === "ALREADY_PROCESSED_PAYMENT");
 
-        // 이미 처리된 결제인 경우 조용히 처리
         if (alreadyProcessed) {
           setPageFeedback({
             type: "success",
@@ -170,7 +166,6 @@ function BeadPageContent() {
   );
 
   useEffect(() => {
-    // 결제 성공/실패 처리
     const paymentKey = searchParams.get("paymentKey");
     const orderId = searchParams.get("orderId");
     const amountRaw = searchParams.get("amount");
@@ -205,7 +200,6 @@ function BeadPageContent() {
       setSelectedPackage(packageInfo);
 
       try {
-        // 결제 요청 생성
         const { orderId, amount } = await beadApi.purchaseBeads(
           packageInfo.quantity,
           packageInfo.price,
@@ -215,13 +209,11 @@ function BeadPageContent() {
           throw new Error("MISSING_TOSS_CLIENT_KEY");
         }
 
-        // 토스페이먼츠 결제 위젯 초기화
         if (!window.TossPayments) {
           throw new Error("결제 모듈이 아직 로드되지 않았습니다.");
         }
         const tossPayments = window.TossPayments(tossClientKey);
 
-        // 결제 요청
         await tossPayments.requestPayment("카드", {
           amount,
           orderId,
@@ -259,10 +251,10 @@ function BeadPageContent() {
 
   if (!hasHydrated) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-orange-200 border-t-orange-500" />
-          <p className="text-gray-600">로그인 상태를 확인하는 중...</p>
+      <div className="hodam-page-shell px-4 py-14 sm:px-6">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-[#ef8d3d]/20 bg-white/90 px-6 py-12 text-center shadow-[0_16px_38px_rgba(181,94,23,0.12)]">
+          <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#f0cfad] border-t-[#ef8d3d]" />
+          <p className="text-sm text-[#5f6670]">로그인 상태를 확인하는 중...</p>
         </div>
       </div>
     );
@@ -270,12 +262,21 @@ function BeadPageContent() {
 
   if (!userInfo.id) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
+      <div className="hodam-page-shell px-4 py-14 sm:px-6">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-[#ef8d3d]/20 bg-white/90 px-6 py-12 text-center shadow-[0_16px_38px_rgba(181,94,23,0.12)]">
+          <h2 className="hodam-heading text-3xl text-[#2f3033]">
             로그인이 필요합니다
           </h2>
-          <p className="text-gray-600">곶감 충전을 위해 먼저 로그인해주세요.</p>
+          <p className="mt-2 text-sm text-[#5f6670]">
+            곶감 충전과 결제 내역 확인은 로그인 후 이용할 수 있습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/sign-in")}
+            className="hodam-primary-button mt-6 text-sm"
+          >
+            로그인하러 가기
+          </button>
         </div>
       </div>
     );
@@ -283,158 +284,171 @@ function BeadPageContent() {
 
   const getPurchaseButtonClass = (pkg: BeadPackage) => {
     if (isLoading && selectedPackage?.id === pkg.id) {
-      return "bg-gray-300 text-gray-500 cursor-not-allowed";
+      return "cursor-not-allowed bg-[#eadfce] text-[#9a8f81]";
     }
+
     if (pkg.popular) {
-      return "bg-orange-500 hover:bg-orange-600 text-white shadow-lg hover:shadow-xl";
+      return "bg-gradient-to-r from-[#ef8d3d] to-[#f3ad52] text-white shadow-[0_12px_24px_rgba(215,120,37,0.35)] hover:-translate-y-0.5 hover:shadow-[0_15px_30px_rgba(215,120,37,0.42)]";
     }
-    return "bg-gray-100 hover:bg-orange-100 text-gray-800 hover:text-orange-700";
+
+    return "bg-[#fff3e2] text-[#8d5319] hover:bg-[#ffe7c5]";
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* 헤더 */}
-      <div className="text-center mb-8">
-        <div className="flex justify-center mb-4">
-          <Image
-            src="/persimmon_240424.png"
-            alt="곶감"
-            className="w-20 h-20"
-            width={80}
-            height={80}
-          />
-        </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">곶감 충전</h1>
-        <p className="text-gray-600">AI 동화 생성에 필요한 곶감을 충전하세요</p>
-      </div>
+    <div className="hodam-page-shell px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <section className="hodam-glass-card p-7 sm:p-8">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Image
+              src="/persimmon_240424.png"
+              alt="곶감"
+              className="h-16 w-16"
+              width={64}
+              height={64}
+            />
+            <p className="text-xs font-bold uppercase tracking-[0.13em] text-[#ac6020]">
+              Bead Center
+            </p>
+            <h1 className="hodam-heading text-3xl text-[#2e3134] sm:text-4xl">
+              곶감 충전
+            </h1>
+            <p className="max-w-2xl text-sm text-[#5f6670] sm:text-base">
+              동화 생성, 번역, 이미지 옵션에 사용하는 곶감을 충전하고 지금 바로
+              이어서 만들 수 있습니다.
+            </p>
+          </div>
 
-      {pageFeedback && (
-        <div
-          className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
-            pageFeedback.type === "error"
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-green-200 bg-green-50 text-green-700"
-          }`}
-        >
-          {pageFeedback.message}
-        </div>
-      )}
-
-      {!tossClientKey && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          결제 클라이언트 키가 설정되지 않아 결제를 진행할 수 없습니다.
-          <br />
-          `NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY` 환경변수를 확인해주세요.
-        </div>
-      )}
-
-      {/* 현재 곶감 수량 */}
-      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 mb-8 text-center">
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <Image
-            src="/persimmon_240424.png"
-            alt="곶감"
-            className="w-8 h-8"
-            width={32}
-            height={32}
-          />
-          <span className="text-2xl font-bold text-orange-700">
-            {bead?.count || 0}개
-          </span>
-        </div>
-        <p className="text-orange-600">보유 중인 곶감</p>
-      </div>
-
-      {/* 곶감 패키지 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {packages.map(pkg => (
-          <div
-            key={pkg.id}
-            className={`relative bg-white rounded-2xl border-2 p-6 text-center transition-all duration-300 hover:shadow-lg ${
-              pkg.popular
-                ? "border-orange-400 shadow-lg transform scale-105"
-                : "border-gray-200 hover:border-orange-300"
-            }`}
-          >
-            {pkg.popular && (
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                  인기
+          <div className="mt-6 grid gap-4 sm:grid-cols-[1.4fr_1fr]">
+            <div className="rounded-2xl border border-[#ef8d3d]/20 bg-white/85 p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a86022]">
+                현재 잔액
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <Image
+                  src="/persimmon_240424.png"
+                  alt="곶감"
+                  className="h-7 w-7"
+                  width={28}
+                  height={28}
+                />
+                <span className="text-2xl font-bold text-[#bb671f]">
+                  {bead?.count || 0}개
                 </span>
               </div>
-            )}
-
-            <div className="flex items-center justify-center mb-4">
-              <Image
-                src="/persimmon_240424.png"
-                alt="곶감"
-                className="w-12 h-12 mr-2"
-                width={48}
-                height={48}
-              />
-              <span className="text-2xl font-bold text-gray-800">
-                ×{pkg.quantity}
-              </span>
             </div>
-
-            <div className="mb-4">
-              <div className="text-sm text-gray-500 line-through mb-1">
-                {pkg.originalPrice.toLocaleString()}원
-              </div>
-              <div className="text-2xl font-bold text-orange-600 mb-1">
-                {pkg.price.toLocaleString()}원
-              </div>
-              <div className="text-sm text-green-600 font-medium">
-                {pkg.discount}% 할인
-              </div>
-            </div>
-
-            <p className="text-sm text-gray-500 mb-4">{pkg.description}</p>
 
             <button
               type="button"
-              onClick={() => handlePurchase(pkg)}
-              disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-xl font-medium transition-all duration-300 ${getPurchaseButtonClass(
-                pkg,
-              )}`}
+              onClick={() => router.push("/payment-history")}
+              className="rounded-2xl border border-[#ef8d3d]/20 bg-white/85 p-5 text-left transition hover:border-[#ef8d3d]/35 hover:shadow-[0_10px_26px_rgba(181,94,23,0.14)]"
             >
-              {isLoading && selectedPackage?.id === pkg.id ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2" />
-                  결제 중...
-                </div>
-              ) : (
-                "구매하기"
-              )}
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a86022]">
+                결제 내역
+              </p>
+              <p className="mt-2 text-sm font-semibold text-[#344153]">
+                최근 결제 상태 확인하기
+              </p>
+              <p className="mt-1 text-xs text-[#6b7280]">
+                상세 내역 페이지로 이동
+              </p>
             </button>
           </div>
-        ))}
-      </div>
+        </section>
 
-      {/* 결제 내역 링크 */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">결제 내역</h2>
-        <p className="text-gray-600 mb-4">곶감 구매 내역을 확인하세요</p>
-        <button
-          type="button"
-          onClick={() => router.push("/payment-history")}
-          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
-        >
-          결제 내역 보기
-        </button>
-      </div>
+        {pageFeedback && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              pageFeedback.type === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
+            {pageFeedback.message}
+          </div>
+        )}
 
-      {/* 안내사항 */}
-      <div className="mt-8 p-6 bg-blue-50 rounded-2xl">
-        <h3 className="font-bold text-blue-800 mb-3">💡 곶감 사용 안내</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• 동화 생성: 1개</li>
-          <li>• 영어 번역 추가: +1개</li>
-          <li>• 이미지 생성 추가: +1개</li>
-          <li>• 곶감은 환불되지 않으니 신중하게 구매해주세요</li>
-          <li>• 결제 관련 문의: dldbstls7777@naver.com</li>
-        </ul>
+        {!tossClientKey && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            결제 클라이언트 키가 설정되지 않아 결제를 진행할 수 없습니다.
+            <br />
+            `NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY` 환경변수를 확인해주세요.
+          </div>
+        )}
+
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {packages.map(pkg => (
+            <article
+              key={pkg.id}
+              className={`relative overflow-hidden rounded-3xl border bg-white/90 p-5 shadow-[0_14px_32px_rgba(181,94,23,0.1)] transition ${
+                pkg.popular
+                  ? "border-[#ef8d3d]/45"
+                  : "border-[#ef8d3d]/20 hover:border-[#ef8d3d]/36"
+              }`}
+            >
+              {pkg.popular && (
+                <span className="absolute right-3 top-3 rounded-full bg-[#ef8d3d] px-2.5 py-1 text-[11px] font-semibold text-white">
+                  인기
+                </span>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Image
+                  src="/persimmon_240424.png"
+                  alt="곶감"
+                  className="h-10 w-10"
+                  width={40}
+                  height={40}
+                />
+                <p className="text-xl font-bold text-[#2f3338]">
+                  x{pkg.quantity}
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs text-[#9ca3af] line-through">
+                  {pkg.originalPrice.toLocaleString()}원
+                </p>
+                <p className="mt-1 text-2xl font-bold text-[#cd7129]">
+                  {pkg.price.toLocaleString()}원
+                </p>
+                <p className="mt-1 text-xs font-semibold text-emerald-700">
+                  {pkg.discount}% 할인
+                </p>
+              </div>
+
+              <p className="mt-3 text-sm text-[#68707c]">{pkg.description}</p>
+
+              <button
+                type="button"
+                onClick={() => handlePurchase(pkg)}
+                disabled={isLoading}
+                className={`mt-5 flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition ${getPurchaseButtonClass(
+                  pkg,
+                )}`}
+              >
+                {isLoading && selectedPackage?.id === pkg.id ? (
+                  <>
+                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#8f857a] border-t-transparent" />
+                    결제 중...
+                  </>
+                ) : (
+                  "구매하기"
+                )}
+              </button>
+            </article>
+          ))}
+        </section>
+
+        <section className="rounded-3xl border border-[#ef8d3d]/20 bg-[#fff9ef] p-6">
+          <h3 className="text-lg font-bold text-[#2f3238]">곶감 사용 안내</h3>
+          <ul className="mt-3 space-y-1.5 text-sm text-[#5f6670]">
+            <li>• 동화 생성: 1개</li>
+            <li>• 영어 번역 추가: +1개</li>
+            <li>• 이미지 생성 추가: +1개</li>
+            <li>• 곶감은 환불되지 않으니 신중하게 구매해주세요.</li>
+            <li>• 결제 관련 문의: dldbstls7777@naver.com</li>
+          </ul>
+        </section>
       </div>
     </div>
   );
@@ -444,10 +458,10 @@ export default function BeadPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />
-            <p className="text-gray-600">결제 정보를 불러오는 중...</p>
+        <div className="hodam-page-shell px-4 py-14 sm:px-6">
+          <div className="mx-auto max-w-3xl rounded-3xl border border-[#ef8d3d]/20 bg-white/90 px-6 py-12 text-center shadow-[0_16px_38px_rgba(181,94,23,0.12)]">
+            <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#f0cfad] border-t-[#ef8d3d]" />
+            <p className="text-sm text-[#5f6670]">결제 정보를 불러오는 중...</p>
           </div>
         </div>
       }
