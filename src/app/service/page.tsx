@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import Image from "next/image";
 
@@ -79,11 +85,60 @@ export default function Hodam() {
 
   const keywordPresets = useMemo(
     () => [
-      "용감한 토끼, 달빛 숲, 보물지도",
-      "민지, 바다마을, 인어 친구",
-      "우주비행사 고양이, 화성, 별사탕",
+      {
+        label: "달빛 숲 모험",
+        value: "용감한 토끼, 달빛 숲, 보물지도",
+      },
+      {
+        label: "바다마을 인어",
+        value: "민지, 바다마을, 인어 친구",
+      },
+      {
+        label: "우주 고양이",
+        value: "우주비행사 고양이, 화성, 별사탕",
+      },
     ],
     [],
+  );
+
+  const stageContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const currentStage = useMemo(() => {
+    if (!isStarted) return 0;
+    if (isSelectionLoading && isStoryLoading) return 3;
+    if (isStoryLoading || isImageLoading) return 2;
+    if (translationInProgress) return 3;
+    if (selections.length > 0) return 3;
+    if (messages.length > 0) return 4;
+    return 1;
+  }, [
+    isImageLoading,
+    isSelectionLoading,
+    isStarted,
+    isStoryLoading,
+    messages.length,
+    selections.length,
+    translationInProgress,
+  ]);
+
+  const stageItems = useMemo(
+    () => ["키워드 입력", "옵션 선택", "스토리 생성", "분기 진행", "완료"],
+    [],
+  );
+
+  const getStageClassName = useCallback(
+    (index: number) => {
+      if (index < currentStage) {
+        return "border-[#ef8d3d]/30 bg-[#fff0de] text-[#9f5b20]";
+      }
+
+      if (index === currentStage) {
+        return "border-[#ef8d3d]/45 bg-[#ef8d3d] text-white shadow-[0_8px_20px_rgba(215,120,37,0.3)]";
+      }
+
+      return "border-[#ef8d3d]/15 bg-white/75 text-[#7a828e]";
+    },
+    [currentStage],
   );
 
   const applyBeadCount = useCallback(
@@ -125,6 +180,21 @@ export default function Hodam() {
   useEffect(() => {
     getSession();
   }, [getSession]);
+
+  useEffect(() => {
+    if (!isStarted || !stageContainerRef.current) {
+      return () => undefined;
+    }
+
+    const timer = setTimeout(() => {
+      stageContainerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [isStarted, isStoryLoading, isSelectionLoading, messages.length]);
 
   const inputKeywords = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,11 +366,31 @@ export default function Hodam() {
   return (
     <div className="hodam-page-shell px-4 pb-12 pt-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-4 rounded-2xl border border-[#ef8d3d]/20 bg-white/85 px-4 py-3 text-sm text-[#5f6670] shadow-[0_10px_24px_rgba(181,94,23,0.09)]">
-          <p className="font-semibold text-[#9b5518]">서비스 이용 흐름</p>
+        <div
+          ref={stageContainerRef}
+          className="mb-4 rounded-2xl border border-[#ef8d3d]/20 bg-white/85 px-4 py-3 text-sm text-[#5f6670] shadow-[0_10px_24px_rgba(181,94,23,0.09)]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-semibold text-[#9b5518]">서비스 이용 흐름</p>
+            <span className="rounded-full border border-[#ef8d3d]/20 bg-[#fff8ef] px-2.5 py-1 text-xs font-semibold text-[#a25a1d]">
+              현재 단계: {stageItems[currentStage]}
+            </span>
+          </div>
           <p className="mt-1">
-            키워드 입력 → 옵션 선택 → 스토리 생성 → 분기 선택
+            키워드 입력 → 옵션 선택 → 스토리 생성 → 분기 진행 → 완료
           </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {stageItems.map((item, index) => (
+              <div
+                key={item}
+                className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold transition ${getStageClassName(
+                  index,
+                )}`}
+              >
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
 
         {pageFeedback && (
@@ -334,12 +424,12 @@ export default function Hodam() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {keywordPresets.map(preset => (
                     <button
-                      key={preset}
+                      key={preset.label}
                       type="button"
-                      onClick={() => setKeywords(preset)}
+                      onClick={() => setKeywords(preset.value)}
                       className="rounded-full border border-[#ef8d3d]/25 bg-[#fff8ef] px-3 py-1 text-xs font-semibold text-[#9b5518] transition hover:border-[#ef8d3d]/45"
                     >
-                      {preset}
+                      {preset.label}
                     </button>
                   ))}
                 </div>
@@ -376,7 +466,7 @@ export default function Hodam() {
             {isStarted && (
               <div className="space-y-4">
                 {isImageIncluded && (
-                  <section className="rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
+                  <section className="animate-[fadeInUp_0.35s_ease-out] rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
                     <h2 className="hodam-heading mb-3 text-2xl text-[#2f3033]">
                       동화 이미지
                     </h2>
@@ -416,7 +506,7 @@ export default function Hodam() {
                 )}
 
                 {messages.length > 0 && (
-                  <section className="rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
+                  <section className="animate-[fadeInUp_0.35s_ease-out] rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h2 className="hodam-heading text-2xl text-[#2f3033]">
                         동화 내용
@@ -482,7 +572,7 @@ export default function Hodam() {
                 )}
 
                 {selections.length > 0 && (
-                  <section className="rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
+                  <section className="animate-[fadeInUp_0.35s_ease-out] rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
                     <h2 className="hodam-heading mb-2 text-2xl text-[#2f3033]">
                       다음 전개를 선택하세요
                     </h2>
