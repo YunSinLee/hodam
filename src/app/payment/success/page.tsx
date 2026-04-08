@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, type ReactNode, useEffect, useState } from "react";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -15,13 +15,51 @@ interface PaymentInfo {
   paymentKey: string;
 }
 
+interface PaymentStateCardProps {
+  title: string;
+  description: string;
+  tone?: "brand" | "error" | "success";
+  children?: ReactNode;
+}
+
+function PaymentStateCard({
+  title,
+  description,
+  tone = "brand",
+  children,
+}: PaymentStateCardProps) {
+  const toneClassName = (() => {
+    if (tone === "error") return "border-red-200 bg-red-50 text-red-700";
+    if (tone === "success")
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-[#ef8d3d]/20 bg-[#fff8ef] text-[#9f5b20]";
+  })();
+
+  return (
+    <div className="hodam-page-shell flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <article className="w-full max-w-lg rounded-3xl border border-[#ef8d3d]/20 bg-white/92 p-6 text-center shadow-[0_22px_46px_rgba(181,94,23,0.14)] sm:p-8">
+        <div
+          className={`mx-auto mb-5 inline-flex min-h-14 min-w-14 items-center justify-center rounded-full border px-3 py-2 text-sm font-bold ${toneClassName}`}
+        >
+          {title}
+        </div>
+        <h1 className="hodam-heading text-3xl text-[#2f3338]">{title}</h1>
+        <p className="mx-auto mt-2 max-w-md text-sm text-[#5f6670] sm:text-base">
+          {description}
+        </p>
+        <div className="mt-7 space-y-3">{children}</div>
+      </article>
+    </div>
+  );
+}
+
 function PaymentSuccessPageContent() {
   const searchParams = useSearchParams();
   const { setBead } = useBead();
 
   const [isProcessing, setIsProcessing] = useState(true);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const processPayment = async () => {
@@ -36,16 +74,17 @@ function PaymentSuccessPageContent() {
       }
 
       try {
+        const parsedAmount = parseInt(amount, 10);
         const updatedBead = await beadApi.completeBeadPurchase(
           paymentKey,
           orderId,
-          parseInt(amount, 10),
+          parsedAmount,
         );
 
         setBead(updatedBead);
         setPaymentInfo({
           orderId,
-          amount: parseInt(amount, 10),
+          amount: parsedAmount,
           paymentKey,
         });
       } catch (caughtError) {
@@ -68,148 +107,90 @@ function PaymentSuccessPageContent() {
 
   if (isProcessing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
-        <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 mx-auto mb-6 border-4 border-green-200 border-t-green-500 rounded-full animate-spin" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            결제 처리 중
-          </h2>
-          <p className="text-gray-600">잠시만 기다려주세요...</p>
-        </div>
-      </div>
+      <PaymentStateCard
+        title="결제 처리 중"
+        description="결제 승인 정보를 확인하고 곶감을 충전하고 있습니다. 잠시만 기다려주세요."
+      >
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-[#f1c79f] border-t-[#ef8d3d]" />
+      </PaymentStateCard>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center">
-        <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">결제 실패</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <div className="space-y-3">
-            <Link href="/bead">
-              <button
-                type="button"
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
-              >
-                다시 시도하기
-              </button>
-            </Link>
-            <Link href="/">
-              <button
-                type="button"
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-colors"
-              >
-                홈으로 돌아가기
-              </button>
-            </Link>
-          </div>
+      <PaymentStateCard title="결제 실패" description={error} tone="error">
+        <div className="space-y-2">
+          <Link
+            href="/bead"
+            className="hodam-primary-button w-full justify-center text-sm"
+          >
+            다시 시도하기
+          </Link>
+          <Link
+            href="/"
+            className="hodam-outline-button w-full justify-center text-sm"
+          >
+            홈으로 돌아가기
+          </Link>
         </div>
-      </div>
+      </PaymentStateCard>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
-      <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
-        {/* 성공 아이콘 */}
-        <div className="w-16 h-16 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center">
-          <svg
-            className="w-8 h-8 text-green-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </div>
-
-        {/* 제목 */}
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">결제 완료!</h2>
-        <p className="text-gray-600 mb-6">
-          곶감 충전이 성공적으로 완료되었습니다.
-        </p>
-
-        {/* 결제 정보 */}
-        {paymentInfo && (
-          <div className="bg-gray-50 rounded-2xl p-6 mb-6">
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">주문번호</span>
-                <span className="font-medium text-gray-800 text-sm">
-                  {paymentInfo.orderId}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">결제금액</span>
-                <span className="font-bold text-orange-600 text-lg">
-                  {paymentInfo.amount.toLocaleString()}원
-                </span>
-              </div>
-            </div>
+    <PaymentStateCard
+      title="결제 완료"
+      description="곶감 충전이 성공적으로 완료되었습니다. 바로 동화를 만들어볼 수 있어요."
+      tone="success"
+    >
+      {paymentInfo && (
+        <div className="rounded-2xl border border-[#ef8d3d]/20 bg-[#fff8ef] p-4 text-left text-sm text-[#4b5563]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-[#5f6670]">주문번호</span>
+            <span className="break-all text-right text-xs font-semibold text-[#2f3338] sm:text-sm">
+              {paymentInfo.orderId}
+            </span>
           </div>
-        )}
-
-        {/* 곶감 아이콘 */}
-        <div className="flex justify-center mb-6">
-          <Image
-            src="/persimmon_240424.png"
-            alt="곶감"
-            className="w-12 h-12"
-            width={48}
-            height={48}
-          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="font-semibold text-[#5f6670]">결제금액</span>
+            <span className="text-lg font-bold text-[#c56f29]">
+              {paymentInfo.amount.toLocaleString()}원
+            </span>
+          </div>
         </div>
+      )}
 
-        {/* 액션 버튼 */}
-        <div className="space-y-3">
-          <Link href="/service">
-            <button
-              type="button"
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
-            >
-              동화 만들러 가기
-            </button>
-          </Link>
-          <Link href="/bead">
-            <button
-              type="button"
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-colors"
-            >
-              곶감 충전 페이지
-            </button>
-          </Link>
-          <Link href="/">
-            <button
-              type="button"
-              className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 transition-colors"
-            >
-              홈으로 돌아가기
-            </button>
-          </Link>
-        </div>
+      <div className="flex justify-center">
+        <Image
+          src="/persimmon_240424.png"
+          alt="곶감"
+          className="h-12 w-12"
+          width={48}
+          height={48}
+        />
       </div>
-    </div>
+
+      <div className="space-y-2">
+        <Link
+          href="/service"
+          className="hodam-primary-button w-full justify-center text-sm"
+        >
+          동화 만들러 가기
+        </Link>
+        <Link
+          href="/bead"
+          className="hodam-outline-button w-full justify-center text-sm"
+        >
+          곶감 충전 페이지
+        </Link>
+        <Link
+          href="/"
+          className="inline-flex w-full items-center justify-center py-2 text-sm font-semibold text-[#7a828e] transition hover:text-[#5f6670]"
+        >
+          홈으로 돌아가기
+        </Link>
+      </div>
+    </PaymentStateCard>
   );
 }
 
@@ -217,15 +198,12 @@ export default function PaymentSuccessPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
-          <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
-            <div className="w-16 h-16 mx-auto mb-6 border-4 border-green-200 border-t-green-500 rounded-full animate-spin" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              결제 처리 준비 중
-            </h2>
-            <p className="text-gray-600">잠시만 기다려주세요...</p>
-          </div>
-        </div>
+        <PaymentStateCard
+          title="결제 처리 준비 중"
+          description="안전한 결제 확인 절차를 준비하고 있습니다."
+        >
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-[#f1c79f] border-t-[#ef8d3d]" />
+        </PaymentStateCard>
       }
     >
       <PaymentSuccessPageContent />
