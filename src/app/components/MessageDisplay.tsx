@@ -298,9 +298,9 @@ export default function MessageDisplay({
   };
 
   return (
-    <div className="p-4 bg-white rounded-md shadow-sm transition-all">
+    <div className="rounded-2xl border border-[#ef8d3d]/18 bg-white/80 p-4 shadow-[0_10px_24px_rgba(181,94,23,0.08)] transition-all">
       {ttsErrorMessage && (
-        <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {ttsErrorMessage}
         </div>
       )}
@@ -309,11 +309,11 @@ export default function MessageDisplay({
         <button
           type="button"
           onClick={() => setShowControls(current => !current)}
-          className="text-sm text-orange-500 flex items-center mb-2"
+          className="mb-2 flex items-center rounded-full border border-[#ef8d3d]/25 bg-[#fff8ef] px-3 py-1 text-xs font-semibold text-[#a25a1d] transition hover:border-[#ef8d3d]/45"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 mr-1"
+            className="mr-1 h-4 w-4"
             viewBox="0 0 20 20"
             fill="currentColor"
           >
@@ -327,7 +327,7 @@ export default function MessageDisplay({
         </button>
 
         {showControls && (
-          <div className="bg-gray-50 p-3 rounded-md text-sm">
+          <div className="rounded-xl border border-[#ef8d3d]/18 bg-[#fffaf4] p-3 text-sm">
             <div className="mb-2">
               <label className="flex items-center justify-between">
                 <span>음성 속도: {speed.toFixed(1)}x</span>
@@ -338,7 +338,7 @@ export default function MessageDisplay({
                   step="0.1"
                   value={speed}
                   onChange={event => setSpeed(Number(event.target.value))}
-                  className="w-32 h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer ml-2"
+                  className="ml-2 h-2 w-32 cursor-pointer appearance-none rounded-lg bg-orange-200"
                 />
               </label>
             </div>
@@ -352,7 +352,7 @@ export default function MessageDisplay({
                   step="0.1"
                   value={pitch}
                   onChange={event => setPitch(Number(event.target.value))}
-                  className="w-32 h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer ml-2"
+                  className="ml-2 h-2 w-32 cursor-pointer appearance-none rounded-lg bg-orange-200"
                 />
               </label>
             </div>
@@ -363,31 +363,86 @@ export default function MessageDisplay({
       <audio ref={audioRef} style={{ display: "none" }} />
 
       {keyedMessages.map(({ key, message }, index) => (
-        <div key={key} className="mb-4 last:mb-0">
-          <div
-            className="relative group"
+        <div key={key} className="mb-3 last:mb-0">
+          <button
+            type="button"
+            className={`group relative flex w-full items-start gap-2 rounded-r-xl border-l-4 px-3 py-2 text-left transition-all ${
+              playingIndex === index
+                ? "border-[#ef8d3d] bg-[#fff3e5]"
+                : "border-[#ef8d3d] bg-[#fffdf9] hover:bg-[#fff7ee]"
+            }`}
             onClick={() =>
               playingIndex === index
                 ? stopSpeaking()
                 : speakText(message.text, index, "ko-KR")
             }
+            aria-label={
+              playingIndex === index
+                ? "한국어 음성 재생 중지"
+                : "한국어 음성 재생"
+            }
           >
-            <p
-              className={`py-2 px-3 border-l-4 border-orange-500 text-gray-800 transition-all ${
-                playingIndex === index
-                  ? "bg-orange-50"
-                  : "hover:bg-orange-50/50"
-              } cursor-pointer rounded-r flex items-center`}
+            <span className="relative mt-0.5 inline-block h-5 w-5 flex-shrink-0">
+              {playingIndex === index ? (
+                <span className="absolute inset-0 h-3 w-3">
+                  <span className="absolute h-3 w-1 animate-sound-wave1 rounded-sm bg-orange-500" />
+                  <span className="absolute left-1 h-3 w-1 animate-sound-wave2 rounded-sm bg-orange-500" />
+                  <span className="absolute left-2 h-3 w-1 animate-sound-wave3 rounded-sm bg-orange-500" />
+                </span>
+              ) : (
+                <span className="absolute inset-0 text-orange-500 opacity-70 transition-opacity group-hover:opacity-100">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </span>
+              )}
+            </span>
+            <span className="inline-block text-sm text-gray-800 sm:text-base">
+              {message.text}
+            </span>
+          </button>
+
+          {isShowEnglish && message.text_en && (
+            <button
+              type="button"
+              className={`group relative mt-1 flex w-full items-start gap-2 rounded-r-xl border-l-4 px-3 py-2 text-left transition-all ${
+                playingIndex === index + ENGLISH_INDEX_OFFSET
+                  ? "border-blue-400 bg-blue-50/80"
+                  : "border-blue-300 bg-blue-50/40 hover:bg-blue-50/70"
+              }`}
+              onClick={() =>
+                playingIndex === index + ENGLISH_INDEX_OFFSET
+                  ? stopSpeaking()
+                  : speakText(
+                      message.text_en,
+                      index + ENGLISH_INDEX_OFFSET,
+                      "en-US",
+                    )
+              }
+              aria-label={
+                playingIndex === index + ENGLISH_INDEX_OFFSET
+                  ? "영어 음성 재생 중지"
+                  : "영어 음성 재생"
+              }
             >
-              <span className="inline-block w-5 h-5 mr-2 flex-shrink-0 relative">
-                {playingIndex === index ? (
-                  <span className="absolute inset-0 w-3 h-3">
-                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm animate-sound-wave1" />
-                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm left-1 animate-sound-wave2" />
-                    <span className="absolute w-1 h-3 bg-orange-500 rounded-sm left-2 animate-sound-wave3" />
+              <span className="relative mt-0.5 inline-block h-5 w-5 flex-shrink-0">
+                {playingIndex === index + ENGLISH_INDEX_OFFSET ? (
+                  <span className="absolute inset-0 h-3 w-3">
+                    <span className="absolute h-3 w-1 animate-sound-wave1 rounded-sm bg-blue-500" />
+                    <span className="absolute left-1 h-3 w-1 animate-sound-wave2 rounded-sm bg-blue-500" />
+                    <span className="absolute left-2 h-3 w-1 animate-sound-wave3 rounded-sm bg-blue-500" />
                   </span>
                 ) : (
-                  <span className="absolute inset-0 text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="absolute inset-0 text-blue-500 opacity-70 transition-opacity group-hover:opacity-100">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="h-5 w-5"
@@ -403,57 +458,10 @@ export default function MessageDisplay({
                   </span>
                 )}
               </span>
-              <span className="inline-block">{message.text}</span>
-            </p>
-          </div>
-
-          {isShowEnglish && message.text_en && (
-            <div
-              className="relative group mt-1"
-              onClick={() =>
-                playingIndex === index + ENGLISH_INDEX_OFFSET
-                  ? stopSpeaking()
-                  : speakText(
-                      message.text_en,
-                      index + ENGLISH_INDEX_OFFSET,
-                      "en-US",
-                    )
-              }
-            >
-              <p
-                className={`py-2 px-3 border-l-4 border-blue-400 text-gray-600 italic transition-all ${
-                  playingIndex === index + ENGLISH_INDEX_OFFSET
-                    ? "bg-blue-50"
-                    : "hover:bg-blue-50/50"
-                } cursor-pointer rounded-r flex items-center`}
-              >
-                <span className="inline-block w-5 h-5 mr-2 flex-shrink-0 relative">
-                  {playingIndex === index + ENGLISH_INDEX_OFFSET ? (
-                    <span className="absolute inset-0 w-3 h-3">
-                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm animate-sound-wave1" />
-                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm left-1 animate-sound-wave2" />
-                      <span className="absolute w-1 h-3 bg-blue-400 rounded-sm left-2 animate-sound-wave3" />
-                    </span>
-                  ) : (
-                    <span className="absolute inset-0 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  )}
-                </span>
-                <span className="inline-block">{message.text_en}</span>
-              </p>
-            </div>
+              <span className="inline-block text-sm italic text-gray-700 sm:text-base">
+                {message.text_en}
+              </span>
+            </button>
           )}
         </div>
       ))}

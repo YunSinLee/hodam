@@ -14,7 +14,7 @@ const PROVIDER_CONFIG = {
     idleLabel: "카카오로 시작하기",
     loadingLabel: "로그인 중...",
     buttonClass:
-      "bg-[#FEE500] text-[#3C1E1E] hover:bg-[#FFEB3B] disabled:bg-gray-300",
+      "border border-[#e2c700] bg-[#FEE500] text-[#3C1E1E] shadow-[0_10px_20px_rgba(181,148,0,0.2)] hover:bg-[#FFEB3B] disabled:bg-gray-300",
     spinnerClass: "border-[#3C1E1E] border-t-transparent",
     shimmerClass:
       "bg-gradient-to-r from-yellow-300/0 via-yellow-300/20 to-yellow-300/0",
@@ -25,7 +25,7 @@ const PROVIDER_CONFIG = {
     idleLabel: "Google로 시작하기",
     loadingLabel: "로그인 중...",
     buttonClass:
-      "border-2 border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-100",
+      "border border-[#d9dde3] bg-white text-gray-700 shadow-[0_10px_20px_rgba(69,84,110,0.09)] hover:border-[#c4cbd4] hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-100",
     spinnerClass: "border-gray-600 border-t-transparent",
     shimmerClass:
       "bg-gradient-to-r from-gray-100/0 via-gray-100/50 to-gray-100/0",
@@ -46,9 +46,9 @@ export default function SocialLoginButton({
       onClick={onClick}
       disabled={disabled}
       className={[
-        "group relative w-full overflow-hidden rounded-2xl px-4 py-3 transition-all duration-300",
+        "group relative w-full overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300",
         "disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none",
-        "hover:scale-[1.01] hover:shadow-lg",
+        "hover:scale-[1.01] hover:shadow-[0_14px_30px_rgba(69,84,110,0.16)]",
         config.buttonClass,
       ].join(" ")}
     >

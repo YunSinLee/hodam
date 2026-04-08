@@ -77,6 +77,15 @@ export default function Hodam() {
     return count;
   }, [isEnglishIncluded, isImageIncluded]);
 
+  const keywordPresets = useMemo(
+    () => [
+      "용감한 토끼, 달빛 숲, 보물지도",
+      "민지, 바다마을, 인어 친구",
+      "우주비행사 고양이, 화성, 별사탕",
+    ],
+    [],
+  );
+
   const applyBeadCount = useCallback(
     (nextCount: number) => {
       setBead({
@@ -285,188 +294,215 @@ export default function Hodam() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4">
-      <div className="w-full max-w-2xl">
-        <div className="flex flex-col gap-4">
-          {pageFeedback && (
-            <div
-              className={`rounded-lg border px-4 py-3 text-sm ${
-                pageFeedback.type === "error"
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-green-200 bg-green-50 text-green-700"
-              }`}
-            >
-              {pageFeedback.message}
-            </div>
-          )}
-          {!hasHydrated && (
-            <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-6 text-center">
-              <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-orange-200 border-t-orange-500" />
-              <p className="text-sm text-orange-700">
-                로그인 상태를 확인하는 중입니다...
-              </p>
-            </div>
-          )}
-          {hasHydrated && userInfo.id && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div
-                    className={`w-5 h-5 rounded-full ${
-                      isEnglishIncluded ? "bg-orange-500" : "bg-gray-300"
-                    }`}
-                    onClick={() => setIsEnglishIncluded(!isEnglishIncluded)}
-                  />
-                  <span>영어 번역 포함</span>
-                  <div
-                    className={`w-5 h-5 rounded-full ${
-                      isImageIncluded ? "bg-orange-500" : "bg-gray-300"
-                    }`}
-                    onClick={() => setIsImageIncluded(!isImageIncluded)}
-                  />
-                  <span>그림 생성 포함</span>
-                </div>
-                <KeywordInput
-                  neededBeadCount={neededBeadCount}
-                  keywords={keywords}
-                  isEnglishIncluded={isEnglishIncluded}
-                  isImageIncluded={isImageIncluded}
-                  onKeywordsChange={inputKeywords}
-                  onButtonClicked={searchKeywords}
-                  onEnglishIncludedChange={handleEnglishIncludedChange}
-                  onImageIncludedChange={handleImageIncludedChange}
-                />
-              </div>
-              {isImageIncluded && isStoryLoading && !isStarted && (
-                <div className="flex justify-center mb-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" />
-                    <p className="mt-2 text-blue-500">이미지 생성 중...</p>
-                  </div>
-                </div>
-              )}
-              {isStarted && (
-                <div>
-                  {isImageIncluded && (
-                    <div className="mb-4">
-                      <h2 className="mb-2 text-xl">동화 이미지</h2>
-                      <div className="grid grid-cols-1 gap-2">
-                        {images.map((src, index) => (
-                          <Image
-                            key={src}
-                            src={src}
-                            className="w-full rounded-md"
-                            alt={`동화 이미지 ${index + 1}`}
-                            width={1024}
-                            height={1024}
-                            unoptimized
-                          />
-                        ))}
-                        {isImageLoading && !isSelectionLoading && (
-                          <div className="relative w-full pb-[100%] bg-gray-100 rounded-md">
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" />
-                              <p className="mt-2 text-blue-500">
-                                이미지 생성 중...
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+    <div className="hodam-page-shell px-4 pb-12 pt-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-4 rounded-2xl border border-[#ef8d3d]/20 bg-white/85 px-4 py-3 text-sm text-[#5f6670] shadow-[0_10px_24px_rgba(181,94,23,0.09)]">
+          <p className="font-semibold text-[#9b5518]">서비스 이용 흐름</p>
+          <p className="mt-1">
+            키워드 입력 → 옵션 선택 → 스토리 생성 → 분기 선택
+          </p>
+        </div>
 
-                  {isStoryLoading && !isSelectionLoading && (
-                    <div className="flex justify-center mb-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-10 h-10 border-4 border-orange-500 rounded-full border-t-transparent animate-spin" />
-                        <p className="mt-2 text-orange-500">
-                          첫 번째 동화를 생성하고 있습니다...
+        {pageFeedback && (
+          <div
+            className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+              pageFeedback.type === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
+            {pageFeedback.message}
+          </div>
+        )}
+
+        {!hasHydrated && (
+          <div className="rounded-2xl border border-[#ef8d3d]/20 bg-white/90 px-4 py-8 text-center shadow-[0_14px_30px_rgba(181,94,23,0.08)]">
+            <div className="mx-auto mb-3 h-9 w-9 animate-spin rounded-full border-2 border-[#f1c79f] border-t-[#ef8d3d]" />
+            <p className="text-sm font-semibold text-[#9b5518]">
+              로그인 상태를 확인하는 중입니다...
+            </p>
+          </div>
+        )}
+
+        {hasHydrated && userInfo.id && (
+          <div className="space-y-5">
+            <div className="grid gap-4 rounded-2xl border border-[#ef8d3d]/20 bg-white/85 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.08)] sm:grid-cols-[1.2fr_0.8fr]">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#a05a1a]">
+                  빠른 시작 키워드
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {keywordPresets.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setKeywords(preset)}
+                      className="rounded-full border border-[#ef8d3d]/25 bg-[#fff8ef] px-3 py-1 text-xs font-semibold text-[#9b5518] transition hover:border-[#ef8d3d]/45"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#ef8d3d]/18 bg-[#fff9f1] px-4 py-3 text-xs text-[#6b7280]">
+                <p className="font-semibold text-[#9b5518]">Tip</p>
+                <p className="mt-1">
+                  키워드는 3~4개가 가장 자연스럽습니다. 인물, 장소, 사건 요소를
+                  함께 넣어주세요.
+                </p>
+              </div>
+            </div>
+
+            <KeywordInput
+              neededBeadCount={neededBeadCount}
+              keywords={keywords}
+              isEnglishIncluded={isEnglishIncluded}
+              isImageIncluded={isImageIncluded}
+              onKeywordsChange={inputKeywords}
+              onButtonClicked={searchKeywords}
+              onEnglishIncludedChange={handleEnglishIncludedChange}
+              onImageIncludedChange={handleImageIncludedChange}
+            />
+
+            {isImageIncluded && isStoryLoading && !isStarted && (
+              <div className="rounded-2xl border border-[#6ba7ed]/25 bg-[#eef6ff] p-4 text-center">
+                <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-2 border-[#93c3f6] border-t-[#3c8be6]" />
+                <p className="text-sm font-semibold text-[#2f6fc0]">
+                  이미지 생성 중...
+                </p>
+              </div>
+            )}
+
+            {isStarted && (
+              <div className="space-y-4">
+                {isImageIncluded && (
+                  <section className="rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
+                    <h2 className="hodam-heading mb-3 text-2xl text-[#2f3033]">
+                      동화 이미지
+                    </h2>
+                    <div className="grid grid-cols-1 gap-3">
+                      {images.map((src, index) => (
+                        <Image
+                          key={src}
+                          src={src}
+                          className="w-full rounded-xl border border-[#ef8d3d]/20"
+                          alt={`동화 이미지 ${index + 1}`}
+                          width={1024}
+                          height={1024}
+                          unoptimized
+                        />
+                      ))}
+                      {isImageLoading && !isSelectionLoading && (
+                        <div className="relative w-full rounded-xl border border-[#d7e8fb] bg-[#eff6ff] pb-[100%]">
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#8db8f2] border-t-[#3a83dc]" />
+                            <p className="mt-2 text-sm font-semibold text-[#2e67a9]">
+                              이미지 생성 중...
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {isStoryLoading && !isSelectionLoading && (
+                  <div className="rounded-2xl border border-[#ef8d3d]/20 bg-[#fff7ee] p-4 text-center">
+                    <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-2 border-[#f2be8f] border-t-[#ef8d3d]" />
+                    <p className="text-sm font-semibold text-[#a25a1d]">
+                      첫 번째 동화를 생성하고 있습니다...
+                    </p>
+                  </div>
+                )}
+
+                {messages.length > 0 && (
+                  <section className="rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="hodam-heading text-2xl text-[#2f3033]">
+                        동화 내용
+                      </h2>
+                      {isEnglishIncluded && (
+                        <button
+                          type="button"
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            isShowEnglish
+                              ? "bg-[#ef8d3d] text-white"
+                              : "bg-[#f3f4f6] text-[#4b5563]"
+                          }`}
+                          onClick={() => setIsShowEnglish(!isShowEnglish)}
+                        >
+                          {isShowEnglish ? "한국어만 보기" : "영어 함께 보기"}
+                        </button>
+                      )}
+                      {!isEnglishIncluded && messages.length > 0 && (
+                        <button
+                          type="button"
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            translationInProgress
+                              ? "cursor-not-allowed bg-gray-400 text-white"
+                              : "bg-[#ef8d3d] text-white"
+                          }`}
+                          onClick={translateStory}
+                          disabled={translationInProgress}
+                        >
+                          {translationInProgress
+                            ? "번역 중..."
+                            : "영어로 번역하기"}
+                        </button>
+                      )}
+                    </div>
+                    <MessageDisplay
+                      messages={messages}
+                      isShowEnglish={isShowEnglish}
+                      useGoogleTTS
+                    />
+                  </section>
+                )}
+
+                {isSelectionLoading && isStoryLoading && (
+                  <div className="rounded-2xl border border-[#ef8d3d]/20 bg-[#fff7ee] p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#ef8d3d] border-t-transparent" />
+                      <div>
+                        <p className="text-sm font-semibold text-[#a25a1d]">
+                          새로운 이야기를 생성하고 있습니다...
+                        </p>
+                        <p className="mt-1 text-xs text-[#bc7331]">
+                          선택하신 내용을 바탕으로 동화를 이어가고 있어요.
                         </p>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {messages.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-xl">동화 내용</h2>
-                        {isEnglishIncluded && (
-                          <button
-                            type="button"
-                            className={`px-3 py-1 text-sm rounded-md ${
-                              isShowEnglish
-                                ? "bg-orange-500 text-white"
-                                : "bg-gray-200"
-                            }`}
-                            onClick={() => setIsShowEnglish(!isShowEnglish)}
-                          >
-                            {isShowEnglish ? "한국어만 보기" : "영어 함께 보기"}
-                          </button>
-                        )}
-                        {!isEnglishIncluded && messages.length > 0 && (
-                          <button
-                            type="button"
-                            className={`px-3 py-1 text-sm rounded-md ${
-                              translationInProgress
-                                ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-orange-500 text-white"
-                            }`}
-                            onClick={translateStory}
-                            disabled={translationInProgress}
-                          >
-                            {translationInProgress
-                              ? "번역 중..."
-                              : "영어로 번역하기"}
-                          </button>
-                        )}
-                      </div>
-                      <MessageDisplay
-                        messages={messages}
-                        isShowEnglish={isShowEnglish}
-                        useGoogleTTS
-                      />
-                    </div>
-                  )}
+                {notice && (
+                  <p className="rounded-xl border border-[#ef8d3d]/18 bg-[#fff8ef] px-3 py-2 text-sm text-[#a05a1a]">
+                    {notice}
+                  </p>
+                )}
 
-                  {isSelectionLoading && isStoryLoading && (
-                    <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 border-2 border-orange-500 rounded-full border-t-transparent animate-spin" />
-                        <div>
-                          <p className="text-orange-700 font-medium">
-                            새로운 이야기를 생성하고 있습니다...
-                          </p>
-                          <p className="text-orange-600 text-sm mt-1">
-                            선택하신 내용을 바탕으로 동화를 이어가고 있어요.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                {selections.length > 0 && (
+                  <section className="rounded-2xl border border-[#ef8d3d]/18 bg-white/88 p-4 shadow-[0_14px_30px_rgba(181,94,23,0.07)]">
+                    <h2 className="hodam-heading mb-2 text-2xl text-[#2f3033]">
+                      다음 전개를 선택하세요
+                    </h2>
+                    <SelectionDisplay
+                      selections={selections}
+                      isShowEnglish={isShowEnglish}
+                      onSelectionClick={clickSelection}
+                      notice={notice}
+                      onClear={handleSelectionClear}
+                      selectedChoice={selectedChoice}
+                      isSelectionLoading={isSelectionLoading}
+                    />
+                  </section>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-                  {notice && <p className="mb-4 text-orange-500">{notice}</p>}
-
-                  {selections.length > 0 && (
-                    <div className="mb-4">
-                      <h2 className="mb-2 text-xl">다음 전개를 선택하세요</h2>
-                      <SelectionDisplay
-                        selections={selections}
-                        isShowEnglish={isShowEnglish}
-                        onSelectionClick={clickSelection}
-                        notice={notice}
-                        onClear={handleSelectionClear}
-                        selectedChoice={selectedChoice}
-                        isSelectionLoading={isSelectionLoading}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {hasHydrated && !userInfo.id && <GuideForSign />}
-        </div>
+        {hasHydrated && !userInfo.id && <GuideForSign />}
       </div>
     </div>
   );

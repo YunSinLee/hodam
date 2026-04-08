@@ -19,8 +19,9 @@ export default function AuthBrandMark({
   return (
     <div className={rootClasses}>
       <div
-        className={`${wrapperSizeClass} flex items-center justify-center rounded-full bg-gradient-to-r from-orange-400 to-amber-400 shadow-lg`}
+        className={`${wrapperSizeClass} relative flex items-center justify-center rounded-full bg-gradient-to-r from-[#ef8d3d] to-[#f2b250] shadow-[0_12px_26px_rgba(215,120,37,0.34)]`}
       >
+        <div className="absolute -inset-1 rounded-full border border-white/50" />
         <Image
           src="/hodam.png"
           alt="호담 로고"

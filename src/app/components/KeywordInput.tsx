@@ -27,65 +27,101 @@ export default function KeywordInput({
     }
   };
 
+  const hasKeywords = keywords.trim().length > 0;
+
   return (
-    <div className="p-4 bg-white rounded-md shadow-md border border-orange-300">
-      <div className="mb-4">
-        <h2 className="text-lg font-bold text-orange-700 mb-2">
+    <section className="hodam-glass-card p-5 sm:p-6">
+      <header className="mb-4">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#ef8d3d]/20 bg-white/70 px-3 py-1 text-xs font-semibold text-[#b7641f]">
+          Story Builder
+        </div>
+        <h2 className="hodam-heading text-2xl text-[#2f3033]">
           키워드로 동화 만들기
         </h2>
-        <p className="text-sm text-gray-600 mb-1">
-          콤마(,)로 구분된 키워드를 입력하세요. 필요한 곶감: {neededBeadCount}개
+        <p className="mt-2 text-sm text-[#6b7280]">
+          콤마(,)로 구분해서 입력하세요. 예: 숲속, 토끼, 마법, 모험
         </p>
-        <input
-          type="text"
-          className="w-full px-4 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-          placeholder="예: 숲속, 토끼, 마법, 모험"
-          value={keywords}
-          onChange={onKeywordsChange}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
+      </header>
 
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-2">
+      <div className="space-y-4">
+        <div>
+          <label
+            htmlFor="story-keywords"
+            className="mb-2 block text-sm font-semibold text-[#4b5563]"
+          >
+            키워드 입력
+          </label>
           <input
-            type="checkbox"
-            id="english-checkbox"
-            checked={isEnglishIncluded}
-            onChange={onEnglishIncludedChange}
-            className="w-4 h-4 text-orange-600"
+            id="story-keywords"
+            type="text"
+            className="w-full rounded-2xl border border-[#ef8d3d]/25 bg-white/90 px-4 py-3 text-sm text-[#374151] shadow-[0_8px_20px_rgba(181,94,23,0.06)] outline-none transition focus:border-[#ef8d3d]/45 focus:ring-2 focus:ring-[#ef8d3d]/15"
+            placeholder="예: 공룡, 바다, 별빛, 모험"
+            value={keywords}
+            onChange={onKeywordsChange}
+            onKeyDown={handleKeyDown}
           />
-          <label htmlFor="english-checkbox" className="text-sm">
-            영어 번역 (+1 곶감)
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label
+            htmlFor="english-checkbox"
+            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#ef8d3d]/20 bg-white/75 px-4 py-3"
+          >
+            <input
+              type="checkbox"
+              id="english-checkbox"
+              checked={isEnglishIncluded}
+              onChange={onEnglishIncludedChange}
+              className="h-4 w-4 rounded border-[#dca16a] text-[#ef8d3d]"
+            />
+            <div>
+              <p className="text-sm font-semibold text-[#374151]">
+                영어 번역 포함
+              </p>
+              <p className="text-xs text-[#6b7280]">+1 곶감</p>
+            </div>
+          </label>
+
+          <label
+            htmlFor="image-checkbox"
+            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#ef8d3d]/20 bg-white/75 px-4 py-3"
+          >
+            <input
+              type="checkbox"
+              id="image-checkbox"
+              checked={isImageIncluded}
+              onChange={onImageIncludedChange}
+              className="h-4 w-4 rounded border-[#dca16a] text-[#ef8d3d]"
+            />
+            <div>
+              <p className="text-sm font-semibold text-[#374151]">
+                그림 생성 포함
+              </p>
+              <p className="text-xs text-[#6b7280]">+1 곶감</p>
+            </div>
           </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="image-checkbox"
-            checked={isImageIncluded}
-            onChange={onImageIncludedChange}
-            className="w-4 h-4 text-orange-600"
-          />
-          <label htmlFor="image-checkbox" className="text-sm">
-            그림 생성 (+1 곶감)
-          </label>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#ef8d3d]/20 bg-[#fff8ef] px-4 py-3">
+          <p className="text-sm font-semibold text-[#9f5a1c]">
+            필요한 곶감: {neededBeadCount}개
+          </p>
+          <p className="text-xs text-[#b2773f]">로그인 후 즉시 생성 가능</p>
         </div>
-      </div>
 
-      <button
-        type="button"
-        className={`w-full py-2 px-4 rounded-md transition-colors ${
-          keywords.length > 0
-            ? "bg-orange-500 text-white hover:bg-orange-600"
-            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-        }`}
-        onClick={onButtonClicked}
-        disabled={keywords.length === 0}
-      >
-        동화 만들기 시작
-      </button>
-    </div>
+        <button
+          type="button"
+          className={`w-full rounded-full px-4 py-3 text-sm font-bold transition-all ${
+            hasKeywords
+              ? "bg-gradient-to-r from-[#ef8d3d] to-[#f2b250] text-white shadow-[0_12px_24px_rgba(225,129,40,0.3)] hover:brightness-105"
+              : "cursor-not-allowed bg-gray-200 text-gray-500"
+          }`}
+          onClick={onButtonClicked}
+          disabled={!hasKeywords}
+        >
+          동화 만들기 시작
+        </button>
+      </div>
+    </section>
   );
 }

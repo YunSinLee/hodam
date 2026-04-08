@@ -122,7 +122,17 @@ body {
 
 body {
   margin: 0;
-  font-family: -apple-system, "Noto Sans KR", sans-serif;
+  color: #1f2937;
+  background:
+    radial-gradient(circle at 15% 20%, #fff4e6 0, rgba(255, 244, 230, 0) 30%),
+    radial-gradient(
+      circle at 85% 15%,
+      #ffe7cf 0,
+      rgba(255, 231, 207, 0) 30%
+    ),
+    linear-gradient(160deg, #fffef9 0%, #fff8ee 42%, #fffdf8 100%);
+  font-family: "LaundryGodic", "Noto Sans KR", -apple-system, sans-serif;
+  line-height: 1.5;
 }
 
 a {
@@ -258,5 +268,142 @@ a {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slowFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+:root {
+  --hodam-brand-50: #fff5e8;
+  --hodam-brand-100: #ffeace;
+  --hodam-brand-300: #f8b978;
+  --hodam-brand-500: #ef8d3d;
+  --hodam-brand-700: #b55e17;
+  --hodam-ink-900: #1f2937;
+  --hodam-ink-700: #374151;
+  --hodam-ink-500: #6b7280;
+  --hodam-border-soft: rgba(239, 141, 61, 0.2);
+  --hodam-shadow-soft: 0 16px 44px rgba(179, 93, 22, 0.1);
+}
+
+.hodam-page-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.hodam-page-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 216, 173, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 216, 173, 0.14) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  opacity: 0.42;
+  mask-image: radial-gradient(circle at 50% 10%, black 35%, transparent 90%);
+}
+
+.hodam-soft-card {
+  border: 1px solid var(--hodam-border-soft);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--hodam-shadow-soft);
+  backdrop-filter: blur(10px);
+}
+
+.hodam-glass-card {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 28px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 246, 233, 0.85) 100%
+    );
+  box-shadow:
+    0 24px 50px rgba(146, 73, 16, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+}
+
+.hodam-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 24px;
+  color: #fff;
+  font-weight: 700;
+  background: linear-gradient(110deg, #ef8d3d 0%, #f2b250 100%);
+  box-shadow: 0 10px 24px rgba(215, 120, 37, 0.34);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+.hodam-primary-button:hover {
+  transform: translateY(-1px);
+  filter: saturate(1.1);
+  box-shadow: 0 14px 30px rgba(215, 120, 37, 0.42);
+}
+
+.hodam-outline-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 11px 20px;
+  font-weight: 700;
+  color: var(--hodam-brand-700);
+  border: 1px solid var(--hodam-border-soft);
+  background: rgba(255, 255, 255, 0.78);
+  transition: all 0.2s ease;
+}
+
+.hodam-outline-button:hover {
+  border-color: rgba(239, 141, 61, 0.4);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.hodam-chip {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #945214;
+  background: rgba(252, 222, 183, 0.72);
+  border: 1px solid rgba(233, 159, 83, 0.26);
+}
+
+.hodam-heading {
+  font-family: "HakgyoansimDoldam", "Noto Sans KR", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.hodam-subtle {
+  color: var(--hodam-ink-500);
+}
+
+.hodam-orb {
+  animation: slowFloat 8s ease-in-out infinite;
+}
+
+@media (max-width: 768px) {
+  .hodam-page-shell::before {
+    background-size: 24px 24px;
+    opacity: 0.3;
   }
 }

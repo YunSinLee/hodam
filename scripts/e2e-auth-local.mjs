@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from "fs";
 import { spawn, spawnSync } from "child_process";
 import path from "path";
 
@@ -13,6 +14,7 @@ const providers = (process.env.HODAM_E2E_OAUTH_PROVIDERS || "google,kakao")
 const appBaseUrl = `http://localhost:${appPort}`;
 const authCallbackUrl = `${appBaseUrl}/auth/callback`;
 const running = [];
+const nodeEnv = process.env.NODE_ENV || "development";
 
 if (!Number.isFinite(appPort) || appPort <= 0) {
   console.error(`Invalid HODAM_E2E_APP_PORT: ${process.env.HODAM_E2E_APP_PORT}`);
@@ -55,6 +57,67 @@ function spawnProcess({
   prefixStream(child.stdout, name);
   prefixStream(child.stderr, `${name}:err`);
   return child;
+}
+
+function parseEnvFile(content) {
+  const result = {};
+  const lines = content.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const eqIdx = line.indexOf("=");
+    if (eqIdx <= 0) continue;
+
+    const key = line.slice(0, eqIdx).trim();
+    const value = line.slice(eqIdx + 1).trim();
+    const normalized =
+      value.startsWith('"') && value.endsWith('"')
+        ? value.slice(1, -1)
+        : value.startsWith("'") && value.endsWith("'")
+          ? value.slice(1, -1)
+          : value;
+
+    result[key] = normalized;
+  }
+
+  return result;
+}
+
+function loadLocalEnvMap() {
+  const files = [
+    ".env",
+    `.env.${nodeEnv}`,
+    ".env.local",
+    `.env.${nodeEnv}.local`,
+  ];
+  const merged = {};
+
+  files.forEach(fileName => {
+    const fullPath = path.join(cwd, fileName);
+    if (!fs.existsSync(fullPath)) return;
+    const content = fs.readFileSync(fullPath, "utf8");
+    Object.assign(merged, parseEnvFile(content));
+  });
+
+  return merged;
+}
+
+const localEnvMap = loadLocalEnvMap();
+
+function readEnvValue(name) {
+  const fromProcess = process.env[name];
+  if (typeof fromProcess === "string" && fromProcess.trim()) {
+    return fromProcess.trim();
+  }
+
+  const fromFile = localEnvMap[name];
+  if (typeof fromFile === "string" && fromFile.trim()) {
+    return fromFile.trim();
+  }
+
+  return "";
 }
 
 async function waitForUrl(url, { timeoutMs = 60_000, intervalMs = 500 } = {}) {
@@ -519,8 +582,17 @@ async function main() {
   );
   console.log("✓ auth callback handles code/error query payload routes");
 
-  console.log("Running OAuth provider diagnostics...");
-  await runOAuthCheck();
+  const oauthSupabaseUrl = readEnvValue("NEXT_PUBLIC_SUPABASE_URL");
+  const oauthAnonKey = readEnvValue("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!oauthSupabaseUrl || !oauthAnonKey) {
+    console.log(
+      "• Skipping OAuth provider diagnostics (missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY).",
+    );
+  } else {
+    console.log("Running OAuth provider diagnostics...");
+    await runOAuthCheck();
+  }
 
   console.log("Auth e2e local check passed.");
 }

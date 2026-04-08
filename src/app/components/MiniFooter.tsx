@@ -3,59 +3,40 @@ import Link from "next/link";
 
 export default function MiniFooter() {
   return (
-    <footer className="bg-gray-50 border-t border-gray-200 py-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-          {/* 로고 및 기본 정보 */}
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center">
+    <footer className="border-t border-[#ef8d3d]/15 bg-[#fffaf2] py-5">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-[#ef8d3d] to-[#f2b250]">
               <Image
                 src="/hodam.png"
-                className="w-5 h-5 filter brightness-0 invert"
+                className="h-5 w-5 brightness-0 invert"
                 alt="호담 로고"
                 width={20}
                 height={20}
               />
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
-              HODAM
-            </span>
+            <p className="hodam-heading text-lg text-[#a45b1c]">HODAM</p>
           </div>
 
-          {/* 법적 링크 */}
-          <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <Link
-              href="/terms"
-              className="text-gray-600 hover:text-orange-600 transition-colors"
-            >
+          <div className="flex flex-wrap gap-3 text-sm text-[#5f6670]">
+            <Link href="/terms" className="transition hover:text-[#b45f1c]">
               이용약관
             </Link>
-            <Link
-              href="/privacy"
-              className="text-gray-600 hover:text-orange-600 transition-colors"
-            >
+            <Link href="/privacy" className="transition hover:text-[#b45f1c]">
               개인정보처리방침
             </Link>
             <a
               href="mailto:dldbstls7777@naver.com"
-              className="text-gray-600 hover:text-orange-600 transition-colors"
+              className="transition hover:text-[#b45f1c]"
             >
               문의하기
             </a>
           </div>
 
-          {/* 사업자 정보 */}
-          <div className="text-xs text-gray-500 text-center md:text-right">
-            <div>사업자등록번호: 171-55-00898</div>
-            <div>대표자: 이윤신 | 이메일: dldbstls7777@naver.com</div>
+          <div className="text-xs text-[#7b7f86]">
+            © 2026 HODAM. Beta Service
           </div>
-        </div>
-
-        {/* 저작권 */}
-        <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-          <p className="text-xs text-gray-500">
-            © 2024 HODAM. All rights reserved. | 베타 서비스 운영 중
-          </p>
         </div>
       </div>
     </footer>
