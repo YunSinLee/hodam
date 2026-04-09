@@ -103,7 +103,31 @@ describe("POST /api/v1/payments/confirm", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -126,7 +150,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many payment confirmation requests" });
+    expect(body).toEqual({
+      error: "Too many payment confirmation requests",
+      code: "PAYMENTS_CONFIRM_RATE_LIMITED",
+    });
   });
 
   it("returns 400 when request body is invalid", async () => {
@@ -148,6 +175,7 @@ describe("POST /api/v1/payments/confirm", () => {
     expect(response.status).toBe(400);
     expect(body).toEqual({
       error: "paymentKey, orderId, amount are required",
+      code: "PAYMENTS_CONFIRM_INPUT_INVALID",
     });
   });
 
@@ -166,7 +194,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid JSON body" });
+    expect(body).toEqual({
+      error: "Invalid JSON body",
+      code: "REQUEST_JSON_INVALID",
+    });
   });
 
   it("returns 404 when payment record does not exist", async () => {
@@ -189,7 +220,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(404);
-    expect(body).toEqual({ error: "Payment record not found" });
+    expect(body).toEqual({
+      error: "Payment record not found",
+      code: "PAYMENT_NOT_FOUND",
+    });
   });
 
   it("returns 403 when payment belongs to another user", async () => {
@@ -217,7 +251,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(403);
-    expect(body).toEqual({ error: "Payment does not belong to current user" });
+    expect(body).toEqual({
+      error: "Payment does not belong to current user",
+      code: "PAYMENT_USER_MISMATCH",
+    });
   });
 
   it("returns 400 when amount is mismatched", async () => {
@@ -245,7 +282,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Amount mismatch" });
+    expect(body).toEqual({
+      error: "Amount mismatch",
+      code: "PAYMENT_AMOUNT_MISMATCH",
+    });
   });
 
   it("returns 409 when payment is cancelled", async () => {
@@ -274,7 +314,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(409);
-    expect(body).toEqual({ error: "Payment is cancelled" });
+    expect(body).toEqual({
+      error: "Payment is cancelled",
+      code: "PAYMENT_CANCELLED",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -517,9 +560,59 @@ describe("POST /api/v1/payments/confirm", () => {
         orderId: "order_1",
         beadCount: 10,
         alreadyProcessed: false,
+        paymentFlowId: "order:order_1",
         paymentStatus: "DONE",
       }),
     );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "order:order_1",
+    );
+  });
+
+  it("preserves caller payment flow id header", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        approvedAt: "2026-04-05T00:00:00.000Z",
+      }),
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers({
+        "x-hodam-payment-flow-id": "flow_test_1",
+      }),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(
+      expect.objectContaining({
+        paymentFlowId: "flow_test_1",
+      }),
+    );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe("flow_test_1");
   });
 
   it("returns alreadyProcessed=true for duplicate confirmation", async () => {
@@ -694,7 +787,10 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to confirm payment" });
+    expect(body).toEqual({
+      error: "Failed to confirm payment",
+      code: "PAYMENTS_CONFIRM_FAILED",
+    });
     expect(markPaymentFailedMock).not.toHaveBeenCalled();
   });
 
@@ -734,6 +830,9 @@ describe("POST /api/v1/payments/confirm", () => {
     const body = await response.json();
 
     expect(response.status).toBe(409);
-    expect(body).toEqual({ error: "Payment state conflict" });
+    expect(body).toEqual({
+      error: "Payment state conflict",
+      code: "PAYMENT_STATE_CONFLICT",
+    });
   });
 });

@@ -1,76 +1,23 @@
 #!/usr/bin/env node
 
-import fs from "fs";
 import path from "path";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
 
 const args = new Set(process.argv.slice(2));
 const strictMode = args.has("--strict");
 const nodeEnv = process.env.NODE_ENV || "development";
 const cwd = process.cwd();
-
-const envFilesInOrder = [
-  ".env",
-  `.env.${nodeEnv}`,
-  ".env.local",
-  `.env.${nodeEnv}.local`,
-];
-
-function parseEnvFile(content) {
-  const result = {};
-  const lines = content.split(/\r?\n/);
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-
-    const equalIndex = line.indexOf("=");
-    if (equalIndex <= 0) continue;
-
-    const key = line.slice(0, equalIndex).trim();
-    const rawValue = line.slice(equalIndex + 1).trim();
-    const unquotedValue =
-      rawValue.startsWith('"') && rawValue.endsWith('"')
-        ? rawValue.slice(1, -1)
-        : rawValue.startsWith("'") && rawValue.endsWith("'")
-          ? rawValue.slice(1, -1)
-          : rawValue;
-
-    result[key] = unquotedValue;
-  }
-
-  return result;
-}
-
-function loadFileEnv() {
-  const merged = {};
-  const loaded = [];
-
-  for (const fileName of envFilesInOrder) {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) continue;
-
-    const content = fs.readFileSync(fullPath, "utf8");
-    Object.assign(merged, parseEnvFile(content));
-    loaded.push(fileName);
-  }
-
-  return { merged, loaded };
-}
-
-const { merged: fileEnv, loaded: loadedFiles } = loadFileEnv();
+const { merged: fileEnv, loaded: loadedFilePaths } = loadLocalEnv({
+  cwd,
+  nodeEnv,
+});
+const loadedFiles = loadedFilePaths.map(fullPath => path.basename(fullPath));
 
 function getEnvValue(name) {
-  const processValue = process.env[name];
-  if (typeof processValue === "string" && processValue.trim()) {
-    return processValue.trim();
-  }
-
-  const fileValue = fileEnv[name];
-  if (typeof fileValue === "string" && fileValue.trim()) {
-    return fileValue.trim();
-  }
-
-  return "";
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv,
+  });
 }
 
 function maskValue(value) {
@@ -144,6 +91,11 @@ const RECOMMENDED_KEYS = [
   },
 ];
 
+const requireOpenAiKey =
+  strictMode ||
+  nodeEnv === "production" ||
+  getEnvValue("HODAM_REQUIRE_OPENAI_KEY") === "1";
+
 const missingRequired = [];
 const missingRecommended = [];
 const validationWarnings = [];
@@ -177,8 +129,13 @@ for (const item of REQUIRED_KEYS) {
 for (const item of REQUIRED_ONE_OF) {
   const foundKey = item.keys.find(key => getEnvValue(key));
   if (!foundKey) {
-    missingRequired.push(item.keys.join(" | "));
-    console.log(`✗ required  ${item.keys.join(" | ")} (${item.description})`);
+    if (requireOpenAiKey) {
+      missingRequired.push(item.keys.join(" | "));
+      console.log(`✗ required  ${item.keys.join(" | ")} (${item.description})`);
+    } else {
+      missingRecommended.push(item.keys.join(" | "));
+      console.log(`! optional  ${item.keys.join(" | ")} missing (${item.description})`);
+    }
   } else {
     console.log(
       `✓ required  ${foundKey} = ${maskValue(getEnvValue(foundKey))}`,

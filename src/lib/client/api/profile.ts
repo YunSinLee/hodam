@@ -79,8 +79,8 @@ const profileApi = {
 
       return response.imageUrl || null;
     } catch (error) {
-      if (error instanceof ApiError && error.status === 400) {
-        throw new Error(error.message);
+      if (error instanceof ApiError) {
+        throw error;
       }
       return null;
     }

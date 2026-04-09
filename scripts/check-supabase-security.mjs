@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import fs from "fs";
 import path from "path";
 
 import { createClient } from "@supabase/supabase-js";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
 
 const args = new Set(process.argv.slice(2));
 const strictMode = args.has("--strict");
@@ -12,12 +12,6 @@ const skipAuth = args.has("--skip-auth");
 const skipManagement = args.has("--skip-management");
 const cwd = process.cwd();
 const nodeEnv = process.env.NODE_ENV || "development";
-const envFilesInOrder = [
-  ".env",
-  `.env.${nodeEnv}`,
-  ".env.local",
-  `.env.${nodeEnv}.local`,
-];
 
 function readArgValue(prefix) {
   const raw = process.argv.find(item => item.startsWith(`${prefix}=`));
@@ -25,45 +19,17 @@ function readArgValue(prefix) {
   return raw.slice(prefix.length + 1).trim();
 }
 
-function parseEnv(content) {
-  const out = {};
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const index = line.indexOf("=");
-    if (index <= 0) continue;
-    const key = line.slice(0, index).trim();
-    const value = line
-      .slice(index + 1)
-      .trim()
-      .replace(/^['"]|['"]$/g, "");
-    out[key] = value;
-  }
-  return out;
-}
-
-function loadFileEnv() {
-  const merged = {};
-  const loaded = [];
-
-  for (const fileName of envFilesInOrder) {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) continue;
-    Object.assign(merged, parseEnv(fs.readFileSync(fullPath, "utf8")));
-    loaded.push(fileName);
-  }
-
-  return { merged, loaded };
-}
-
-const { merged: localEnv, loaded: loadedFiles } = loadFileEnv();
+const { merged: localEnv, loaded: loadedFilePaths } = loadLocalEnv({
+  cwd,
+  nodeEnv,
+});
+const loadedFiles = loadedFilePaths.map(fullPath => path.basename(fullPath));
 
 function readEnv(name) {
-  const fromProcess = process.env[name];
-  if (fromProcess && fromProcess.trim()) return fromProcess.trim();
-  const fromLocal = localEnv[name];
-  if (fromLocal && fromLocal.trim()) return fromLocal.trim();
-  return "";
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv: localEnv,
+  });
 }
 
 function parseCsvValues(raw) {
@@ -139,6 +105,12 @@ function normalizeText(value) {
   return String(value ?? "");
 }
 
+function normalizeRemediation(lint) {
+  const remediation = String(lint?.remediation || "").trim();
+  if (!remediation) return "";
+  return remediation;
+}
+
 function isExpectedDeniedResponse(status, body) {
   if (status === 401 || status === 403) return true;
   const text = normalizeText(body).toLowerCase();
@@ -156,6 +128,7 @@ async function main() {
   let warned = 0;
   let executedChecks = 0;
   const advisorLintNames = new Set();
+  const ignoredAdvisoriesRequiringManualAction = [];
 
   const markFail = message => {
     failed += 1;
@@ -250,6 +223,61 @@ async function main() {
 
           markFail(
             `db:anon_rpc_${rpcCheck.fn} unexpected rejection (${response.status}): ${normalizeText(body).slice(0, 220)}`,
+          );
+        } catch (error) {
+          markFail(
+            error instanceof Error
+              ? `db:anon_rpc_${rpcCheck.fn} check failed: ${error.message}`
+              : `db:anon_rpc_${rpcCheck.fn} check failed: ${String(error)}`,
+          );
+        }
+      }
+
+      const anonAllowedRpcChecks = [
+        {
+          fn: "get_auth_callback_metrics_by_attempt",
+          args: {
+            p_attempt_id: "security-smoke-attempt",
+            p_limit: 1,
+          },
+        },
+        {
+          fn: "record_auth_callback_metric",
+          args: {
+            p_stage: "flow_start",
+            p_callback_path: "/auth/callback",
+            p_timestamp_ms: Date.now(),
+            p_details: {
+              source: "security_smoke",
+              oauthAttemptId: "security-smoke-attempt",
+            },
+          },
+        },
+      ];
+
+      for (const rpcCheck of anonAllowedRpcChecks) {
+        const url = `${supabaseUrl}/rest/v1/rpc/${rpcCheck.fn}`;
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              apikey: supabaseAnonKey,
+              Authorization: `Bearer ${supabaseAnonKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(rpcCheck.args),
+          });
+          const rawText = await response.text();
+          const parsed = safeJsonParse(rawText);
+          const body = parsed ?? rawText;
+
+          if (response.ok) {
+            markOk(`db:anon_rpc_${rpcCheck.fn} allowed`);
+            continue;
+          }
+
+          markFail(
+            `db:anon_rpc_${rpcCheck.fn} unexpectedly blocked (${response.status}): ${normalizeText(body).slice(0, 220)}`,
           );
         } catch (error) {
           markFail(
@@ -418,9 +446,18 @@ async function main() {
               const level = String(lint?.level || "INFO").toUpperCase();
               const name = String(lint?.name || "unknown");
               const detail = String(lint?.detail || lint?.description || "");
+              const remediation = normalizeRemediation(lint);
               advisorLintNames.add(name);
               if (isIgnoredIssue(name)) {
                 markOk(`management:${name}[${level}] ignored by configuration`);
+                if (level === "WARN" || level === "ERROR") {
+                  ignoredAdvisoriesRequiringManualAction.push({
+                    name,
+                    level,
+                    detail,
+                    remediation,
+                  });
+                }
                 continue;
               }
               if (level === "WARN" || level === "ERROR") {
@@ -563,6 +600,21 @@ async function main() {
       `Supabase security check failed: ${failed} failures, ${warned} warnings.`,
     );
     process.exit(1);
+  }
+
+  if (ignoredAdvisoriesRequiringManualAction.length > 0) {
+    console.log("");
+    console.log("Ignored advisories that still need manual remediation:");
+    ignoredAdvisoriesRequiringManualAction.forEach(item => {
+      const summary = `${item.name}[${item.level}] ${
+        item.detail || "See advisor detail."
+      }`;
+      if (item.remediation) {
+        console.log(`- ${summary} | remediation: ${item.remediation}`);
+      } else {
+        console.log(`- ${summary}`);
+      }
+    });
   }
 
   if (warned > 0) {

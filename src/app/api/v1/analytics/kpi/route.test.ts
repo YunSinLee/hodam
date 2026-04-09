@@ -47,7 +47,26 @@ describe("GET /api/v1/analytics/kpi", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const GET = await loadGetHandler();
+
+    const response = await GET(
+      buildRequest("http://localhost:3000/api/v1/analytics/kpi"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -65,7 +84,10 @@ describe("GET /api/v1/analytics/kpi", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many KPI requests" });
+    expect(body).toEqual({
+      error: "Too many KPI requests",
+      code: "KPI_RATE_LIMITED",
+    });
   });
 
   it("returns KPI payload for authenticated user", async () => {
@@ -76,7 +98,14 @@ describe("GET /api/v1/analytics/kpi", () => {
     });
 
     const dailyLimitMock = vi.fn().mockResolvedValue({
-      data: [{ metric_date: "2026-04-06", create_success: 3 }],
+      data: [
+        {
+          metric_date: "2026-04-06",
+          create_success: 3,
+          auth_callback_success: 5,
+          auth_callback_error: 1,
+        },
+      ],
       error: null,
     });
     const dailyOrderMock = vi.fn().mockReturnValue({
@@ -141,7 +170,14 @@ describe("GET /api/v1/analytics/kpi", () => {
     expect(userRetentionLimitMock).toHaveBeenCalledWith(1);
     expect(body).toEqual({
       days: 7,
-      daily: [{ metric_date: "2026-04-06", create_success: 3 }],
+      daily: [
+        {
+          metric_date: "2026-04-06",
+          create_success: 3,
+          auth_callback_success: 5,
+          auth_callback_error: 1,
+        },
+      ],
       retentionDaily: [{ cohort_date: "2026-04-05", d1_retention_rate: 0.4 }],
       userRetention: {
         user_id: "user-1",
@@ -261,6 +297,9 @@ describe("GET /api/v1/analytics/kpi", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to fetch KPI metrics" });
+    expect(body).toEqual({
+      error: "Failed to fetch KPI metrics",
+      code: "KPI_FETCH_FAILED",
+    });
   });
 });

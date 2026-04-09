@@ -107,6 +107,30 @@ describe("beadApi", () => {
     ).rejects.toThrow("confirm failed");
   });
 
+  it("propagates payment error code and status on confirm failure", async () => {
+    paymentApiMock.confirmPayment.mockResolvedValue({
+      success: false,
+      error: "payment cancelled",
+      errorCode: "PAYMENT_CANCELLED",
+      errorStatus: 409,
+    });
+    paymentApiMock.getPaymentStatus.mockResolvedValue({
+      orderId: "order-1",
+      status: "failed",
+      amount: 5000,
+      beadQuantity: 10,
+      reconciliationState: "failed",
+    });
+
+    await expect(
+      beadApi.completeBeadPurchase("pay-1", "order-1", 5000),
+    ).rejects.toMatchObject({
+      message: "payment cancelled",
+      code: "PAYMENT_CANCELLED",
+      status: 409,
+    });
+  });
+
   it("recovers completed payment through status API when confirm fails", async () => {
     paymentApiMock.confirmPayment.mockResolvedValue({
       success: false,

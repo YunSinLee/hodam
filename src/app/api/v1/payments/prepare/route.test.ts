@@ -75,7 +75,27 @@ describe("POST /api/v1/payments/prepare", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ packageId: "bead_10" }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -94,7 +114,10 @@ describe("POST /api/v1/payments/prepare", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many payment preparation requests" });
+    expect(body).toEqual({
+      error: "Too many payment preparation requests",
+      code: "PAYMENTS_PREPARE_RATE_LIMITED",
+    });
   });
 
   it("returns 400 when body is invalid json", async () => {
@@ -112,7 +135,10 @@ describe("POST /api/v1/payments/prepare", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid JSON body" });
+    expect(body).toEqual({
+      error: "Invalid JSON body",
+      code: "REQUEST_JSON_INVALID",
+    });
   });
 
   it("returns 400 when packageId is invalid", async () => {
@@ -131,7 +157,10 @@ describe("POST /api/v1/payments/prepare", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid packageId" });
+    expect(body).toEqual({
+      error: "Invalid packageId",
+      code: "PAYMENTS_PACKAGE_ID_INVALID",
+    });
   });
 
   it("returns 400 when packageId type is invalid", async () => {
@@ -149,7 +178,10 @@ describe("POST /api/v1/payments/prepare", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "packageId must be a string" });
+    expect(body).toEqual({
+      error: "packageId must be a string",
+      code: "PAYMENTS_PACKAGE_ID_TYPE_INVALID",
+    });
   });
 
   it("prepares payment and tracks analytics", async () => {
@@ -179,6 +211,7 @@ describe("POST /api/v1/payments/prepare", () => {
     expect(createPendingPaymentMock).toHaveBeenCalledWith(expect.any(Object), {
       userId: "user-1",
       orderId: "HODAM_test_order_1",
+      paymentFlowId: "order:HODAM_test_order_1",
       amount: 5000,
       beadQuantity: 10,
     });
@@ -197,7 +230,11 @@ describe("POST /api/v1/payments/prepare", () => {
         orderId: "HODAM_test_order_1",
         amount: 5000,
         orderName: "곶감 10개",
+        paymentFlowId: "order:HODAM_test_order_1",
       }),
+    );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "order:HODAM_test_order_1",
     );
   });
 
@@ -226,7 +263,10 @@ describe("POST /api/v1/payments/prepare", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to prepare payment" });
+    expect(body).toEqual({
+      error: "Failed to prepare payment",
+      code: "PAYMENTS_PREPARE_FAILED",
+    });
   });
 
   it("reuses a recent pending payment instead of creating a new one", async () => {

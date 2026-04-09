@@ -3,10 +3,15 @@ import { NextRequest } from "next/server";
 import { authenticateRequest } from "@/lib/auth/request-auth";
 import { getOptionalEnv, getRequiredEnv } from "@/lib/env";
 import {
+  buildPaymentFlowHeaders,
+  readPaymentFlowIdFromHeaders,
+  resolvePaymentFlowId,
+} from "@/lib/payments/flow-diagnostics";
+import {
   buildTossApiUrl,
   createTossBasicAuthorization,
 } from "@/lib/payments/toss-api";
-import { logError } from "@/lib/server/logger";
+import { logError, logInfo } from "@/lib/server/logger";
 import {
   getPaymentByOrderId,
   PaymentDomainError,
@@ -98,14 +103,41 @@ function parseSearchParams(request: NextRequest): URLSearchParams {
 }
 
 export async function GET(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  const incomingPaymentFlowId = readPaymentFlowIdFromHeaders(request.headers);
+  const requestPaymentFlowId = resolvePaymentFlowId({
+    candidate: incomingPaymentFlowId,
+    fallbackSeed: requestId,
+  });
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/payments/status authenticateRequest", error, {
+      requestId,
+      paymentFlowId: requestPaymentFlowId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED", undefined, {
+      headers: buildPaymentFlowHeaders("status", requestPaymentFlowId),
+    });
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED", undefined, {
+      headers: buildPaymentFlowHeaders("status", requestPaymentFlowId),
+    });
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`payments:status:${auth.userId}`, 120, 60_000)) {
-    return fail(429, "Too many payment status requests");
+  if (!checkRateLimit(`payments:status:${authContext.userId}`, 120, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many payment status requests",
+      "PAYMENTS_STATUS_RATE_LIMITED",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("status", requestPaymentFlowId),
+      },
+    );
   }
 
   const searchParams = parseSearchParams(request);
@@ -113,34 +145,79 @@ export async function GET(request: NextRequest) {
   const paymentKeyParam = (searchParams.get("paymentKey") || "").trim();
   const amountRaw = (searchParams.get("amount") || "").trim();
   const amountParam = amountRaw ? Number(amountRaw) : null;
+  const paymentFlowId = resolvePaymentFlowId({
+    orderId,
+    candidate: incomingPaymentFlowId,
+    fallbackSeed: requestId,
+  });
 
   if (!orderId) {
-    return fail(400, "orderId is required");
+    return failWithCode(
+      400,
+      "orderId is required",
+      "ORDER_ID_REQUIRED",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("status", paymentFlowId),
+      },
+    );
   }
 
   if (
     amountParam !== null &&
     (!Number.isFinite(amountParam) || Number(amountParam) <= 0)
   ) {
-    return fail(400, "amount must be a positive number");
+    return failWithCode(
+      400,
+      "amount must be a positive number",
+      "PAYMENTS_STATUS_AMOUNT_INVALID",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("status", paymentFlowId),
+      },
+    );
   }
 
   try {
     const admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
     let payment = await getPaymentByOrderId(admin, orderId);
 
     if (!payment) {
-      return fail(404, "Payment record not found");
+      return failWithCode(
+        404,
+        "Payment record not found",
+        "PAYMENT_NOT_FOUND",
+        undefined,
+        {
+          headers: buildPaymentFlowHeaders("status", paymentFlowId),
+        },
+      );
     }
 
-    if (payment.user_id !== auth.userId) {
-      return fail(403, "Payment does not belong to current user");
+    if (payment.user_id !== authContext.userId) {
+      return failWithCode(
+        403,
+        "Payment does not belong to current user",
+        "PAYMENT_USER_MISMATCH",
+        undefined,
+        {
+          headers: buildPaymentFlowHeaders("status", paymentFlowId),
+        },
+      );
     }
 
     if (amountParam !== null && Number(payment.amount) !== amountParam) {
-      return fail(400, "Amount mismatch");
+      return failWithCode(
+        400,
+        "Amount mismatch",
+        "PAYMENT_AMOUNT_MISMATCH",
+        undefined,
+        {
+          headers: buildPaymentFlowHeaders("status", paymentFlowId),
+        },
+      );
     }
 
     let providerStatus: string | undefined;
@@ -185,48 +262,112 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return ok({
-      orderId: payment.order_id,
+    logInfo("/api/v1/payments/status", {
+      requestId,
+      userId: authContext.userId,
+      orderId,
+      paymentFlowId,
       status: payment.status,
-      amount: Number(payment.amount),
-      beadQuantity: Number(payment.bead_quantity),
-      paymentKey: payment.payment_key || paymentKeyParam || null,
-      beadCount,
-      alreadyProcessed,
-      completedAt: payment.completed_at || null,
-      providerStatus,
       reconciliationState,
     });
+
+    return ok(
+      {
+        orderId: payment.order_id,
+        status: payment.status,
+        amount: Number(payment.amount),
+        beadQuantity: Number(payment.bead_quantity),
+        paymentKey: payment.payment_key || paymentKeyParam || null,
+        beadCount,
+        alreadyProcessed,
+        paymentFlowId,
+        completedAt: payment.completed_at || null,
+        providerStatus,
+        reconciliationState,
+      },
+      {
+        headers: buildPaymentFlowHeaders("status", paymentFlowId),
+      },
+    );
   } catch (error) {
     if (error instanceof PaymentDomainError) {
       if (error.code === "PAYMENT_NOT_FOUND") {
-        return fail(404, "Payment record not found");
+        return failWithCode(
+          404,
+          "Payment record not found",
+          "PAYMENT_NOT_FOUND",
+          undefined,
+          {
+            headers: buildPaymentFlowHeaders("status", paymentFlowId),
+          },
+        );
       }
 
       if (error.code === "PAYMENT_USER_MISMATCH") {
-        return fail(403, "Payment does not belong to current user");
+        return failWithCode(
+          403,
+          "Payment does not belong to current user",
+          "PAYMENT_USER_MISMATCH",
+          undefined,
+          {
+            headers: buildPaymentFlowHeaders("status", paymentFlowId),
+          },
+        );
       }
 
       if (error.code === "PAYMENT_CANCELLED") {
-        return fail(409, "Payment is cancelled");
+        return failWithCode(
+          409,
+          "Payment is cancelled",
+          "PAYMENT_CANCELLED",
+          undefined,
+          {
+            headers: buildPaymentFlowHeaders("status", paymentFlowId),
+          },
+        );
       }
 
       if (
         error.code === "PAYMENT_KEY_MISMATCH" ||
         error.code === "PAYMENT_INVALID_STATUS_TRANSITION"
       ) {
-        return fail(409, "Payment state conflict");
+        return failWithCode(
+          409,
+          "Payment state conflict",
+          "PAYMENT_STATE_CONFLICT",
+          undefined,
+          {
+            headers: buildPaymentFlowHeaders("status", paymentFlowId),
+          },
+        );
       }
 
       if (error.code === "PAYMENT_KEY_REQUIRED") {
-        return fail(400, "paymentKey is required");
+        return failWithCode(
+          400,
+          "paymentKey is required",
+          "PAYMENT_KEY_REQUIRED",
+          undefined,
+          {
+            headers: buildPaymentFlowHeaders("status", paymentFlowId),
+          },
+        );
       }
     }
 
     logError("/api/v1/payments/status", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
+      paymentFlowId,
     });
-    return fail(500, "Failed to fetch payment status");
+    return failWithCode(
+      500,
+      "Failed to fetch payment status",
+      "PAYMENTS_STATUS_FETCH_FAILED",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("status", paymentFlowId),
+      },
+    );
   }
 }

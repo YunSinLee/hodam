@@ -53,3 +53,16 @@ export function logError(
 
   console.error(`[${scope}]`, toErrorMessage(error));
 }
+
+export function logInfo(scope: string, context?: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "test") {
+    return;
+  }
+
+  if (context && Object.keys(context).length > 0) {
+    console.info(`[${scope}]`, context);
+    return;
+  }
+
+  console.info(`[${scope}]`);
+}

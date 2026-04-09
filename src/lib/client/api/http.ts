@@ -11,14 +11,40 @@ const TRANSIENT_RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
 export class ApiError extends Error {
   status: number;
 
+  code?: string;
+
   details?: unknown;
 
   constructor(status: number, message: string, details?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code =
+      details &&
+      typeof details === "object" &&
+      "code" in details &&
+      typeof (details as { code?: unknown }).code === "string"
+        ? ((details as { code: string }).code as string)
+        : undefined;
     this.details = details;
   }
+}
+
+export function getApiErrorCode(error: unknown): string | null {
+  if (error instanceof ApiError) {
+    return error.code || null;
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as { code: string }).code;
+  }
+
+  return null;
 }
 
 export interface AuthorizedFetchResult<T> {
@@ -270,6 +296,15 @@ export async function authorizedFetchWithMeta<T>(
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken && refreshedToken !== activeAccessToken) {
       activeAccessToken = refreshedToken;
+      result = await requestWithToken(activeAccessToken);
+    }
+  }
+
+  if (canRetryTransient && result.response.status === 401) {
+    const latestAccessToken = await readAccessTokenWithRetry();
+    if (latestAccessToken) {
+      activeAccessToken = latestAccessToken;
+      await sleep(SESSION_RETRY_DELAY_MS);
       result = await requestWithToken(activeAccessToken);
     }
   }

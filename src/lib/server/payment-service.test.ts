@@ -4,11 +4,13 @@ import {
   createOrderId,
   createPendingPayment,
   findRecentPendingPayment,
+  getLatestPaymentByFlowId,
   getPaymentByOrderId,
   listPaymentsByUser,
   PaymentDomainError,
   markPaymentFailed,
   registerWebhookTransmission,
+  listWebhookTransmissionsByOrder,
   settlePaymentAndCredit,
 } from "@/lib/server/payment-service";
 
@@ -54,6 +56,7 @@ describe("payment-service", () => {
     const result = await createPendingPayment(client, {
       userId: "user-1",
       orderId: "order-1",
+      paymentFlowId: "order:order-1",
       amount: 5000,
       beadQuantity: 10,
     });
@@ -62,6 +65,7 @@ describe("payment-service", () => {
       expect.objectContaining({
         user_id: "user-1",
         order_id: "order-1",
+        payment_flow_id: "order:order-1",
         amount: 5000,
       }),
     );
@@ -130,6 +134,37 @@ describe("payment-service", () => {
     await expect(getPaymentByOrderId(client, "order-1")).rejects.toEqual(
       expect.objectContaining({ message: "boom" }),
     );
+  });
+
+  it("loads latest payment by payment_flow_id", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "payment-latest-1",
+        user_id: "user-1",
+        order_id: "order-2",
+        payment_flow_id: "flow:1",
+        amount: 5000,
+        bead_quantity: 10,
+        status: "completed",
+        created_at: "2026-04-05T00:00:00.000Z",
+      },
+      error: null,
+    });
+    const limit = vi.fn().mockReturnValue({ maybeSingle });
+    const order = vi.fn().mockReturnValue({ limit });
+    const eqFlow = vi.fn().mockReturnValue({ order });
+    const eqUser = vi.fn().mockReturnValue({ eq: eqFlow });
+    const select = vi.fn().mockReturnValue({ eq: eqUser });
+    const from = vi.fn().mockReturnValue({ select });
+    const client = { from } as never;
+
+    const result = await getLatestPaymentByFlowId(client, "user-1", "flow:1");
+
+    expect(eqUser).toHaveBeenCalledWith("user_id", "user-1");
+    expect(eqFlow).toHaveBeenCalledWith("payment_flow_id", "flow:1");
+    expect(order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(limit).toHaveBeenCalledWith(1);
+    expect(result?.order_id).toBe("order-2");
   });
 
   it("lists payments by user ordered by created_at desc", async () => {
@@ -204,6 +239,35 @@ describe("payment-service", () => {
       p_transmission_time: "2026-04-06T00:00:00.000Z",
       p_retried_count: 1,
     });
+  });
+
+  it("lists webhook transmissions by order id via rpc", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [
+        {
+          transmission_id: "tx-1",
+          order_id: "order-1",
+          event_type: "PAYMENT_STATUS_CHANGED",
+          transmission_time: "2026-04-06T00:00:00.000Z",
+          retried_count: 0,
+          created_at: "2026-04-06T00:00:01.000Z",
+        },
+      ],
+      error: null,
+    });
+    const client = { rpc } as never;
+
+    const result = await listWebhookTransmissionsByOrder(
+      client,
+      "order-1",
+      "user-1",
+    );
+
+    expect(rpc).toHaveBeenCalledWith("get_payment_webhook_transmissions", {
+      p_order_id: "order-1",
+      p_user_id: "user-1",
+    });
+    expect(result).toHaveLength(1);
   });
 
   it("finalizes payment through rpc and parses response", async () => {

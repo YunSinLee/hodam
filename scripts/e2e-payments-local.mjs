@@ -1,31 +1,63 @@
 #!/usr/bin/env node
 
+import fs from "fs";
 import { spawn, spawnSync } from "child_process";
 import path from "path";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
+import { shouldRequireAuthFlow } from "./lib/auth-e2e-utils.mjs";
 
 const cwd = process.cwd();
-const appPort = Number(process.env.HODAM_E2E_APP_PORT || "3002");
-const tossPort = Number(process.env.HODAM_E2E_TOSS_PORT || "4010");
-const paymentPackageId = (process.env.HODAM_TEST_PAYMENT_PACKAGE_ID || "bead_5").trim();
-const paymentKey = (process.env.HODAM_TEST_PAYMENT_KEY || "mock_payment_key").trim();
-const runWebhookFlow = process.env.HODAM_TEST_PAYMENT_WEBHOOK === "1";
+const fileEnv = loadLocalEnv({ cwd }).merged;
+
+function readEnv(name, fallback = "") {
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv,
+    fallback,
+  });
+}
+
+const rawAppPort = readEnv("HODAM_E2E_APP_PORT");
+const rawTossPort = readEnv("HODAM_E2E_TOSS_PORT");
+const appPort = Number(rawAppPort || "3002");
+const tossPort = Number(rawTossPort || "4010");
+const paymentPackageId = readEnv("HODAM_TEST_PAYMENT_PACKAGE_ID", "bead_5");
+const paymentKey = readEnv("HODAM_TEST_PAYMENT_KEY", "mock_payment_key");
+let runWebhookFlow = readEnv("HODAM_TEST_PAYMENT_WEBHOOK") === "1";
+const forceUnauthorizedFlow = readEnv("HODAM_E2E_FORCE_UNAUTHORIZED") === "1";
 
 const appBaseUrl = `http://localhost:${appPort}`;
 const tossBaseUrl = `http://localhost:${tossPort}`;
 const authCallbackUrl = `${appBaseUrl}/auth/callback`;
-const requireAuthFlow = process.env.HODAM_E2E_REQUIRE_AUTH === "1";
+const requireAuthFlow = shouldRequireAuthFlow({
+  explicitValue: readEnv("HODAM_E2E_REQUIRE_AUTH"),
+  processEnv: process.env,
+});
+const allowWebhookSkip = readEnv("HODAM_E2E_ALLOW_WEBHOOK_SKIP") === "1";
 
 if (!Number.isFinite(appPort) || appPort <= 0) {
-  console.error(`Invalid HODAM_E2E_APP_PORT: ${process.env.HODAM_E2E_APP_PORT}`);
+  console.error(`Invalid HODAM_E2E_APP_PORT: ${rawAppPort}`);
   process.exit(1);
 }
 
 if (!Number.isFinite(tossPort) || tossPort <= 0) {
-  console.error(`Invalid HODAM_E2E_TOSS_PORT: ${process.env.HODAM_E2E_TOSS_PORT}`);
+  console.error(`Invalid HODAM_E2E_TOSS_PORT: ${rawTossPort}`);
   process.exit(1);
 }
 
 const running = [];
+
+function resetNextArtifacts() {
+  const nextDirPath = path.join(cwd, ".next");
+  try {
+    fs.rmSync(nextDirPath, { recursive: true, force: true });
+    console.log("✓ reset .next artifacts for stable dev boot");
+  } catch (error) {
+    console.warn(
+      `warn: failed to reset .next artifacts (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+}
 
 function prefixStream(stream, prefix) {
   stream.on("data", chunk => {
@@ -151,8 +183,28 @@ async function runSmoke(accessToken) {
   });
 }
 
+function isTransientNextManifestError(status, body) {
+  if (status < 500) return false;
+  const normalized = String(body || "").toLowerCase();
+  return (
+    normalized.includes("unexpected end of json input") ||
+    normalized.includes("\"statuscode\":500")
+  );
+}
+
 function resolveAccessTokenWithMeta() {
-  const explicit = (process.env.HODAM_TEST_ACCESS_TOKEN || "").trim();
+  const hasServiceRoleKey = Boolean(readEnv("SUPABASE_SERVICE_ROLE_KEY"));
+  const autoUserFlag =
+    readEnv("HODAM_TEST_AUTO_USER") || (hasServiceRoleKey ? "1" : "0");
+  if (forceUnauthorizedFlow) {
+    return {
+      token: "",
+      source: "forced-unauthorized",
+      reason: "forced by HODAM_E2E_FORCE_UNAUTHORIZED=1",
+    };
+  }
+
+  const explicit = readEnv("HODAM_TEST_ACCESS_TOKEN");
   if (explicit) {
     return {
       token: explicit,
@@ -166,7 +218,10 @@ function resolveAccessTokenWithMeta() {
     [path.join("scripts", "get-test-access-token.mjs")],
     {
       cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        HODAM_TEST_AUTO_USER: autoUserFlag,
+      },
       encoding: "utf8",
     },
   );
@@ -198,35 +253,132 @@ function resolveAccessTokenWithMeta() {
   };
 }
 
-async function expectStatus(url, expectedStatus, init = {}) {
-  const response = await fetch(url, init);
-  const bodyText = await response.text();
-  if (response.status !== expectedStatus) {
-    throw new Error(
-      `${url} expected ${expectedStatus} but got ${response.status}: ${bodyText.slice(0, 300)}`,
-    );
+function resolveWebhookFlowMode() {
+  if (!runWebhookFlow) {
+    return;
   }
+
+  if (readEnv("SUPABASE_SERVICE_ROLE_KEY")) {
+    return;
+  }
+
+  if (allowWebhookSkip) {
+    console.warn(
+      "warn: SUPABASE_SERVICE_ROLE_KEY missing, disabling webhook e2e flow (set HODAM_E2E_ALLOW_WEBHOOK_SKIP=0 to fail hard).",
+    );
+    runWebhookFlow = false;
+    return;
+  }
+
+  throw new Error(
+    "HODAM_TEST_PAYMENT_WEBHOOK=1 requires SUPABASE_SERVICE_ROLE_KEY. Set the key or unset HODAM_TEST_PAYMENT_WEBHOOK.",
+  );
+}
+
+async function expectStatus(
+  url,
+  expectedStatus,
+  init = {},
+  { maxAttempts = 1, retryDelayMs = 500 } = {},
+) {
+  let lastStatus = 0;
+  let lastBodyText = "";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(url, init);
+    const bodyText = await response.text();
+    lastStatus = response.status;
+    lastBodyText = bodyText;
+
+    if (response.status === expectedStatus) {
+      return bodyText;
+    }
+
+    if (
+      attempt < maxAttempts &&
+      isTransientNextManifestError(response.status, bodyText)
+    ) {
+      await new Promise(resolve => {
+        setTimeout(resolve, retryDelayMs);
+      });
+      continue;
+    }
+
+    break;
+  }
+
+  throw new Error(
+    `${url} expected ${expectedStatus} but got ${lastStatus}: ${lastBodyText.slice(0, 300)}`,
+  );
+}
+
+async function expectJsonStatus(
+  url,
+  expectedStatus,
+  init = {},
+  retryOptions = {},
+) {
+  const bodyText = await expectStatus(url, expectedStatus, init, retryOptions);
+  let body = null;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    throw new Error(`${url} expected JSON response but got: ${bodyText}`);
+  }
+
+  if (!body || typeof body !== "object") {
+    throw new Error(`${url} expected JSON object response`);
+  }
+
+  return body;
 }
 
 async function runUnauthorizedSmoke() {
-  await expectStatus(`${appBaseUrl}/api/v1/payments/history`, 401, {
-    method: "GET",
-  });
-  await expectStatus(`${appBaseUrl}/api/v1/payments/prepare`, 401, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ packageId: paymentPackageId }),
-  });
-  await expectStatus(`${appBaseUrl}/api/v1/payments/confirm`, 401, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      paymentKey,
-      orderId: `UNAUTH_${Date.now()}`,
-      amount: 1000,
-    }),
-  });
-  await expectStatus(
+  const history = await expectJsonStatus(
+    `${appBaseUrl}/api/v1/payments/history`,
+    401,
+    {
+      method: "GET",
+    },
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
+  if (history.code !== "AUTH_UNAUTHORIZED") {
+    throw new Error(`/api/v1/payments/history expected AUTH_UNAUTHORIZED: ${JSON.stringify(history)}`);
+  }
+
+  const prepare = await expectJsonStatus(
+    `${appBaseUrl}/api/v1/payments/prepare`,
+    401,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packageId: paymentPackageId }),
+    },
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
+  if (prepare.code !== "AUTH_UNAUTHORIZED") {
+    throw new Error(`/api/v1/payments/prepare expected AUTH_UNAUTHORIZED: ${JSON.stringify(prepare)}`);
+  }
+
+  const confirm = await expectJsonStatus(
+    `${appBaseUrl}/api/v1/payments/confirm`,
+    401,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paymentKey,
+        orderId: `UNAUTH_${Date.now()}`,
+        amount: 1000,
+      }),
+    },
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
+  if (confirm.code !== "AUTH_UNAUTHORIZED") {
+    throw new Error(`/api/v1/payments/confirm expected AUTH_UNAUTHORIZED: ${JSON.stringify(confirm)}`);
+  }
+
+  const status = await expectJsonStatus(
     `${appBaseUrl}/api/v1/payments/status?orderId=${encodeURIComponent(
       `UNAUTH_${Date.now()}`,
     )}`,
@@ -234,21 +386,71 @@ async function runUnauthorizedSmoke() {
     {
       method: "GET",
     },
+    { maxAttempts: 3, retryDelayMs: 500 },
   );
+  if (status.code !== "AUTH_UNAUTHORIZED") {
+    throw new Error(`/api/v1/payments/status expected AUTH_UNAUTHORIZED: ${JSON.stringify(status)}`);
+  }
+
+  const timeline = await expectJsonStatus(
+    `${appBaseUrl}/api/v1/payments/timeline?orderId=${encodeURIComponent(
+      `UNAUTH_${Date.now()}`,
+    )}`,
+    401,
+    {
+      method: "GET",
+    },
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
+  if (timeline.code !== "AUTH_UNAUTHORIZED") {
+    throw new Error(
+      `/api/v1/payments/timeline expected AUTH_UNAUTHORIZED: ${JSON.stringify(timeline)}`,
+    );
+  }
+
+  const timelineByFlow = await expectJsonStatus(
+    `${appBaseUrl}/api/v1/payments/timeline?paymentFlowId=${encodeURIComponent(
+      `flow_unauth_${Date.now()}`,
+    )}`,
+    401,
+    {
+      method: "GET",
+    },
+    { maxAttempts: 3, retryDelayMs: 500 },
+  );
+  if (timelineByFlow.code !== "AUTH_UNAUTHORIZED") {
+    throw new Error(
+      `/api/v1/payments/timeline?paymentFlowId expected AUTH_UNAUTHORIZED: ${JSON.stringify(timelineByFlow)}`,
+    );
+  }
+
   await expectStatus(`${appBaseUrl}/bead`, 200, { method: "GET" });
 }
 
 function runEnsureTestUserIfRequested() {
-  if (process.env.HODAM_E2E_ENSURE_TEST_USER !== "1") {
+  const explicitEnsure = readEnv("HODAM_E2E_ENSURE_TEST_USER");
+  const autoEnsureEnabled = readEnv("HODAM_E2E_AUTO_ENSURE_TEST_USER", "1") !== "0";
+  const hasServiceRoleKey = Boolean(readEnv("SUPABASE_SERVICE_ROLE_KEY"));
+  const shouldEnsure =
+    explicitEnsure === "1" ||
+    (explicitEnsure !== "0" && autoEnsureEnabled && hasServiceRoleKey);
+
+  if (!shouldEnsure) {
     return;
   }
+
+  const autoUserFlag =
+    readEnv("HODAM_TEST_AUTO_USER") || (hasServiceRoleKey ? "1" : "0");
 
   const ensured = spawnSync(
     process.execPath,
     [path.join("scripts", "ensure-test-user.mjs")],
     {
       cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        HODAM_TEST_AUTO_USER: autoUserFlag,
+      },
       encoding: "utf8",
     },
   );
@@ -268,9 +470,14 @@ function runEnsureTestUserIfRequested() {
 
 async function main() {
   const nextBin = path.join(cwd, "node_modules", "next", "dist", "bin", "next");
+  resolveWebhookFlowMode();
   runEnsureTestUserIfRequested();
+  resetNextArtifacts();
   const accessTokenResult = resolveAccessTokenWithMeta();
   const accessToken = accessTokenResult.token;
+  console.log(
+    `- auth flow enforcement: ${requireAuthFlow ? "required" : "optional"}`,
+  );
 
   console.log("Starting mock Toss server...");
   spawnProcess({
@@ -288,7 +495,7 @@ async function main() {
     env: {
       TOSS_PAYMENTS_API_BASE_URL: tossBaseUrl,
       TOSS_PAYMENTS_SECRET_KEY:
-        process.env.TOSS_PAYMENTS_SECRET_KEY || "mock_toss_secret",
+        readEnv("TOSS_PAYMENTS_SECRET_KEY", "mock_toss_secret"),
       NEXT_PUBLIC_SITE_URL: appBaseUrl,
       NEXT_PUBLIC_AUTH_REDIRECT_URL: authCallbackUrl,
     },
@@ -311,7 +518,9 @@ async function main() {
 
   if (requireAuthFlow) {
     throw new Error(
-      `Failed to resolve HODAM_TEST_ACCESS_TOKEN: ${accessTokenResult.reason || "unknown error"}`,
+      `Failed to resolve HODAM_TEST_ACCESS_TOKEN: ${
+        accessTokenResult.reason || "unknown error"
+      }. Set HODAM_TEST_ACCESS_TOKEN or HODAM_TEST_USER_EMAIL/HODAM_TEST_USER_PASSWORD (or provide SUPABASE_SERVICE_ROLE_KEY with HODAM_TEST_AUTO_USER=1).`,
     );
   }
 

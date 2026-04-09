@@ -21,6 +21,26 @@ export function createApiRequestContext(request: RequestLike) {
       requestId,
     });
 
+  const failWithCode = (
+    status: number,
+    error: string,
+    code: string,
+    extra?: Record<string, unknown>,
+    init?: ResponseInitLike,
+  ) =>
+    baseFail(
+      status,
+      error,
+      {
+        code,
+        ...(extra || {}),
+      },
+      {
+        ...(init || {}),
+        requestId,
+      },
+    );
+
   const ok = <T>(data: T, init?: ResponseInitLike) =>
     baseOk(data, {
       ...(init || {}),
@@ -30,6 +50,7 @@ export function createApiRequestContext(request: RequestLike) {
   return {
     requestId,
     fail,
+    failWithCode,
     ok,
   };
 }

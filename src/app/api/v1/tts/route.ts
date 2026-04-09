@@ -20,21 +20,28 @@ interface TtsRequestBody {
 const LANGUAGE_CODE_PATTERN = /^[a-z]{2}(?:-[A-Z]{2})?$/;
 
 export async function POST(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/tts authenticateRequest", error, { requestId });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`tts:${auth.userId}`, 60, 60_000)) {
-    return fail(429, "Too many TTS requests");
+  if (!checkRateLimit(`tts:${authContext.userId}`, 60, 60_000)) {
+    return failWithCode(429, "Too many TTS requests", "TTS_RATE_LIMITED");
   }
 
   let body: TtsRequestBody;
   try {
     body = (await request.json()) as TtsRequestBody;
   } catch (error) {
-    return fail(400, "Invalid JSON body");
+    return failWithCode(400, "Invalid JSON body", "REQUEST_JSON_INVALID");
   }
 
   const text = (body.text || "").trim();
@@ -42,28 +49,32 @@ export async function POST(request: NextRequest) {
   const pitch = Number(body.pitch ?? 1);
 
   if (!text) {
-    return fail(400, "Text is required");
+    return failWithCode(400, "Text is required", "TTS_TEXT_REQUIRED");
   }
 
   if (!LANGUAGE_CODE_PATTERN.test(language)) {
-    return fail(400, "Invalid language code");
+    return failWithCode(400, "Invalid language code", "TTS_LANGUAGE_INVALID");
   }
 
   if (text.length > 5000) {
-    return fail(400, "Text is too long");
+    return failWithCode(400, "Text is too long", "TTS_TEXT_TOO_LONG");
   }
 
   if (!Number.isFinite(pitch) || pitch < 0.5 || pitch > 2) {
-    return fail(400, "Pitch must be between 0.5 and 2.0");
+    return failWithCode(
+      400,
+      "Pitch must be between 0.5 and 2.0",
+      "TTS_PITCH_INVALID",
+    );
   }
 
   try {
     const admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
     const ttsQuota = await consumeDailyTtsQuota(
       admin,
-      auth.userId,
+      authContext.userId,
       text.length,
       {
         endpoint: "tts",
@@ -95,13 +106,21 @@ export async function POST(request: NextRequest) {
       error instanceof DailyQuotaExceededError &&
       error.code === "DAILY_TTS_CHAR_LIMIT_EXCEEDED"
     ) {
-      return fail(429, "Daily TTS character quota exceeded");
+      return failWithCode(
+        429,
+        "Daily TTS character quota exceeded",
+        "TTS_DAILY_QUOTA_EXCEEDED",
+      );
     }
 
     logError("/api/v1/tts", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to generate speech audio");
+    return failWithCode(
+      500,
+      "Failed to generate speech audio",
+      "TTS_GENERATION_FAILED",
+    );
   }
 }

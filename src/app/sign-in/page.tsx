@@ -1,107 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import AuthAlert from "@/app/components/auth/AuthAlert";
 import AuthBrandMark from "@/app/components/auth/AuthBrandMark";
 import AuthCard from "@/app/components/auth/AuthCard";
 import AuthShell from "@/app/components/auth/AuthShell";
 import SocialLoginButton from "@/app/components/auth/SocialLoginButton";
-import { resolveOAuthRedirectUrl } from "@/lib/auth/oauth-redirect";
-import {
-  clearPostLoginRedirectPath,
-  sanitizePostLoginRedirectPath,
-  savePostLoginRedirectPath,
-} from "@/lib/auth/post-login-redirect";
-import { getSignInRecoveryHint } from "@/lib/auth/sign-in-recovery";
-import userApi from "@/lib/client/api/user";
+import useSignInPageController from "@/app/sign-in/useSignInPageController";
 
 export default function SignIn() {
-  const [isKakaoLoading, setIsKakaoLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [authConfigWarning, setAuthConfigWarning] = useState<string | null>(
-    null,
-  );
-  const [resolvedRedirectUrl, setResolvedRedirectUrl] = useState<string | null>(
-    null,
-  );
-  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
-
-  const recoveryHint = getSignInRecoveryHint(authErrorCode);
-  const isAnyLoading = isKakaoLoading || isGoogleLoading;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const searchParams = new URLSearchParams(window.location.search);
-    setAuthErrorCode(searchParams.get("auth_error"));
-
-    const rawNextPath = searchParams.get("next");
-    const safeNextPath = sanitizePostLoginRedirectPath(rawNextPath);
-    if (safeNextPath) {
-      savePostLoginRedirectPath(safeNextPath);
-    } else {
-      clearPostLoginRedirectPath();
-    }
-
-    const { warnings, redirectTo } = resolveOAuthRedirectUrl({
-      runtimeOrigin: window.location.origin,
-      configuredSiteUrl: process.env.NEXT_PUBLIC_SITE_URL,
-      configuredAuthRedirectUrl: process.env.NEXT_PUBLIC_AUTH_REDIRECT_URL,
-    });
-    setResolvedRedirectUrl(redirectTo);
-
-    if (warnings.length > 0) {
-      setAuthConfigWarning(warnings.join(" "));
-    }
-  }, []);
-
-  async function signInWithProvider(provider: "kakao" | "google") {
-    if (isAnyLoading) return;
-
-    const setLoading =
-      provider === "kakao" ? setIsKakaoLoading : setIsGoogleLoading;
-    setLoading(true);
-    setErrorMessage(null);
-
-    try {
-      if (provider === "kakao") {
-        await userApi.signInWithKakao();
-      } else {
-        await userApi.signInWithGoogle();
-      }
-    } catch (error) {
-      const providerLabel = provider === "kakao" ? "카카오" : "구글";
-      const detail = error instanceof Error ? ` (${error.message})` : "";
-      setErrorMessage(
-        `${providerLabel} 로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.${detail}`,
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { state, handlers } = useSignInPageController();
 
   return (
     <AuthShell>
       <div className="space-y-3 sm:space-y-4">
-        {errorMessage && <AuthAlert tone="error">{errorMessage}</AuthAlert>}
+        {state.errorMessage && (
+          <AuthAlert tone="error">{state.errorMessage}</AuthAlert>
+        )}
 
-        {recoveryHint && (
+        {state.recoveryHint && (
           <AuthAlert tone="warning">
-            이전 로그인 시도 안내: {recoveryHint}
+            이전 로그인 시도 안내: {state.recoveryHint}
           </AuthAlert>
         )}
 
-        {authConfigWarning && (
+        {state.authConfigWarning && (
           <AuthAlert tone="warning">
-            로그인 설정 점검 필요: {authConfigWarning}
+            로그인 설정 점검 필요: {state.authConfigWarning}
           </AuthAlert>
         )}
 
-        {!authConfigWarning && resolvedRedirectUrl && (
+        {state.authProviderWarning && (
+          <AuthAlert tone="warning">
+            OAuth provider 점검: {state.authProviderWarning}
+          </AuthAlert>
+        )}
+
+        {!state.authConfigWarning && state.resolvedRedirectUrl && (
           <AuthAlert tone="neutral" className="break-all text-xs">
-            OAuth callback URL: {resolvedRedirectUrl}
+            OAuth callback URL: {state.resolvedRedirectUrl}
           </AuthAlert>
         )}
 
@@ -120,16 +56,28 @@ export default function SignIn() {
           <div className="space-y-3 sm:space-y-4">
             <SocialLoginButton
               provider="kakao"
-              loading={isKakaoLoading}
-              disabled={isAnyLoading}
-              onClick={() => signInWithProvider("kakao")}
+              loading={state.isKakaoLoading}
+              disabled={state.isAnyLoading || !state.providerAvailability.kakao}
+              disabledReason={
+                !state.providerAvailability.kakao
+                  ? state.providerWarnings.kakao
+                  : null
+              }
+              onClick={() => handlers.signInWithProvider("kakao")}
             />
 
             <SocialLoginButton
               provider="google"
-              loading={isGoogleLoading}
-              disabled={isAnyLoading}
-              onClick={() => signInWithProvider("google")}
+              loading={state.isGoogleLoading}
+              disabled={
+                state.isAnyLoading || !state.providerAvailability.google
+              }
+              disabledReason={
+                !state.providerAvailability.google
+                  ? state.providerWarnings.google
+                  : null
+              }
+              onClick={() => handlers.signInWithProvider("google")}
             />
           </div>
 

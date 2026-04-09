@@ -38,7 +38,27 @@ describe("GET /api/v1/profile/summary", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const GET = await loadGetHandler();
+
+    const response = await GET({
+      headers: new Headers(),
+      nextUrl: new URL("http://localhost/api/v1/profile/summary"),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 401 when access token cannot resolve user", async () => {
@@ -69,7 +89,10 @@ describe("GET /api/v1/profile/summary", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -88,7 +111,10 @@ describe("GET /api/v1/profile/summary", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many profile summary requests" });
+    expect(body).toEqual({
+      error: "Too many profile summary requests",
+      code: "PROFILE_SUMMARY_RATE_LIMITED",
+    });
   });
 
   it("returns profile summary for authenticated user", async () => {
@@ -255,6 +281,9 @@ describe("GET /api/v1/profile/summary", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to fetch profile summary" });
+    expect(body).toEqual({
+      error: "Failed to fetch profile summary",
+      code: "PROFILE_SUMMARY_FETCH_FAILED",
+    });
   });
 });

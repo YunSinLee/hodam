@@ -73,10 +73,45 @@ describe("observability", () => {
       "hodam.request_id",
       "req-1",
     );
+    expect(sentryMockScope.setTag).toHaveBeenCalledWith(
+      "hodam.user_id",
+      "user-1",
+    );
     expect(sentryMockScope.setContext).toHaveBeenCalledWith("hodam", {
       requestId: "req-1",
       userId: "user-1",
     });
     expect(sentryMock.captureException).toHaveBeenCalledWith(error);
+  });
+
+  it("maps snake_case order/payment flow tags from context", async () => {
+    process.env.SENTRY_DSN = "https://public@example.ingest.sentry.io/1";
+
+    const { captureServerException } = await import("./observability");
+    const error = new Error("payment boom");
+
+    await captureServerException("/api/v1/payments/confirm", error, {
+      request_id: "req-2",
+      user_id: "user-2",
+      order_id: "order-2",
+      payment_flow_id: "order:order-2",
+    });
+
+    expect(sentryMockScope.setTag).toHaveBeenCalledWith(
+      "hodam.request_id",
+      "req-2",
+    );
+    expect(sentryMockScope.setTag).toHaveBeenCalledWith(
+      "hodam.user_id",
+      "user-2",
+    );
+    expect(sentryMockScope.setTag).toHaveBeenCalledWith(
+      "hodam.order_id",
+      "order-2",
+    );
+    expect(sentryMockScope.setTag).toHaveBeenCalledWith(
+      "hodam.payment_flow_id",
+      "order:order-2",
+    );
   });
 });

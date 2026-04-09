@@ -36,14 +36,29 @@ function getStoragePathFromPublicUrl(publicUrl: string): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/profile/image POST authenticateRequest", error, {
+      requestId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`profile:image:upload:${auth.userId}`, 30, 60_000)) {
-    return fail(429, "Too many profile image upload requests");
+  if (
+    !checkRateLimit(`profile:image:upload:${authContext.userId}`, 30, 60_000)
+  ) {
+    return failWithCode(
+      429,
+      "Too many profile image upload requests",
+      "PROFILE_IMAGE_UPLOAD_RATE_LIMITED",
+    );
   }
 
   try {
@@ -51,25 +66,37 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return fail(400, "Image file is required");
+      return failWithCode(
+        400,
+        "Image file is required",
+        "PROFILE_IMAGE_REQUIRED",
+      );
     }
 
     if (!file.type.startsWith("image/")) {
-      return fail(400, "Only image files are allowed");
+      return failWithCode(
+        400,
+        "Only image files are allowed",
+        "PROFILE_IMAGE_CONTENT_TYPE_INVALID",
+      );
     }
 
     if (file.size <= 0) {
-      return fail(400, "Empty image file");
+      return failWithCode(400, "Empty image file", "PROFILE_IMAGE_EMPTY");
     }
 
     if (file.size > MAX_PROFILE_IMAGE_SIZE) {
-      return fail(400, "Image file must be 5MB or smaller");
+      return failWithCode(
+        400,
+        "Image file must be 5MB or smaller",
+        "PROFILE_IMAGE_SIZE_EXCEEDED",
+      );
     }
 
     const ext = extractFileExtension(file);
-    const filePath = `${auth.userId}/profile_${Date.now()}.${ext}`;
+    const filePath = `${authContext.userId}/profile_${Date.now()}.${ext}`;
     const admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
 
     const { error: uploadError } = await admin.storage
@@ -95,7 +122,7 @@ export async function POST(request: NextRequest) {
         custom_profile_url: imageUrl,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", auth.userId);
+      .eq("id", authContext.userId);
 
     if (updateError) {
       throw updateError;
@@ -108,32 +135,51 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logError("/api/v1/profile/image POST", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to upload profile image");
+    return failWithCode(
+      500,
+      "Failed to upload profile image",
+      "PROFILE_IMAGE_UPLOAD_FAILED",
+    );
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/profile/image DELETE authenticateRequest", error, {
+      requestId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`profile:image:delete:${auth.userId}`, 30, 60_000)) {
-    return fail(429, "Too many profile image delete requests");
+  if (
+    !checkRateLimit(`profile:image:delete:${authContext.userId}`, 30, 60_000)
+  ) {
+    return failWithCode(
+      429,
+      "Too many profile image delete requests",
+      "PROFILE_IMAGE_DELETE_RATE_LIMITED",
+    );
   }
 
   try {
     const admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
 
     const { data: userData, error: userError } = await admin
       .from("users")
       .select("custom_profile_url")
-      .eq("id", auth.userId)
+      .eq("id", authContext.userId)
       .single();
 
     if (userError) {
@@ -147,7 +193,7 @@ export async function DELETE(request: NextRequest) {
         custom_profile_url: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", auth.userId);
+      .eq("id", authContext.userId);
 
     if (updateError) {
       throw updateError;
@@ -164,8 +210,12 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     logError("/api/v1/profile/image DELETE", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to remove profile image");
+    return failWithCode(
+      500,
+      "Failed to remove profile image",
+      "PROFILE_IMAGE_DELETE_FAILED",
+    );
   }
 }

@@ -1,62 +1,24 @@
 #!/usr/bin/env node
 
-import fs from "fs";
+import { spawnSync } from "child_process";
 import path from "path";
 
 import { createClient } from "@supabase/supabase-js";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
 
 const cwd = process.cwd();
 const nodeEnv = process.env.NODE_ENV || "development";
-const envFilesInOrder = [
-  ".env",
-  `.env.${nodeEnv}`,
-  ".env.local",
-  `.env.${nodeEnv}.local`,
-];
-
-function parseEnv(content) {
-  const out = {};
-
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-
-    const index = line.indexOf("=");
-    if (index <= 0) continue;
-
-    const key = line.slice(0, index).trim();
-    const value = line
-      .slice(index + 1)
-      .trim()
-      .replace(/^['"]|['"]$/g, "");
-    out[key] = value;
-  }
-
-  return out;
-}
-
-function loadFileEnv() {
-  const merged = {};
-  const loaded = [];
-
-  for (const fileName of envFilesInOrder) {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) continue;
-    Object.assign(merged, parseEnv(fs.readFileSync(fullPath, "utf8")));
-    loaded.push(fileName);
-  }
-
-  return { merged, loaded };
-}
-
-const { merged: localEnv, loaded: loadedFiles } = loadFileEnv();
+const { merged: localEnv, loaded: loadedFilePaths } = loadLocalEnv({
+  cwd,
+  nodeEnv,
+});
+const loadedFiles = loadedFilePaths.map(fullPath => path.basename(fullPath));
 
 function readEnv(name) {
-  const fromProcess = process.env[name];
-  if (fromProcess && fromProcess.trim()) return fromProcess.trim();
-  const fromLocal = localEnv[name];
-  if (fromLocal && fromLocal.trim()) return fromLocal.trim();
-  return "";
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv: localEnv,
+  });
 }
 
 function parseLimit() {
@@ -65,6 +27,89 @@ function parseLimit() {
   const parsed = Number(raw.slice("--limit=".length).trim());
   if (!Number.isFinite(parsed) || parsed <= 0) return 14;
   return Math.min(parsed, 90);
+}
+
+function parseRequireAuthCallbackMetricsFlag() {
+  return process.argv.includes("--require-auth-callback-metrics");
+}
+
+function parseRequireAuthCallbackProviderMetricsFlag() {
+  return process.argv.includes("--require-auth-callback-provider-metrics");
+}
+
+function resolveAccessToken() {
+  const explicit = readEnv("HODAM_TEST_ACCESS_TOKEN");
+  if (explicit) {
+    return { token: explicit, source: "env:HODAM_TEST_ACCESS_TOKEN", reason: "" };
+  }
+
+  const resolved = spawnSync(
+    process.execPath,
+    [path.join("scripts", "get-test-access-token.mjs")],
+    {
+      cwd,
+      env: process.env,
+      encoding: "utf8",
+    },
+  );
+
+  if (resolved.status === 0) {
+    const token = (resolved.stdout || "").trim();
+    if (token) {
+      return { token, source: "script:get-test-access-token", reason: "" };
+    }
+  }
+
+  const fallbackPat = readEnv("SUPABASE_ACCESS_TOKEN");
+  if (fallbackPat) {
+    const detail =
+      (resolved.stderr || resolved.stdout || "").trim() || "token resolver failed";
+    return {
+      token: fallbackPat,
+      source: "env:SUPABASE_ACCESS_TOKEN",
+      reason: detail,
+    };
+  }
+
+  const reason =
+    (resolved.stderr || resolved.stdout || "").trim() || "token unavailable";
+  return { token: "", source: "none", reason };
+}
+
+function formatError(error) {
+  if (!error) return "unknown error";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  if (typeof error === "object") {
+    const record = error;
+    const message =
+      typeof record.message === "string" && record.message.trim()
+        ? record.message.trim()
+        : "";
+    const code =
+      typeof record.code === "string" && record.code.trim()
+        ? record.code.trim()
+        : "";
+    const details =
+      typeof record.details === "string" && record.details.trim()
+        ? record.details.trim()
+        : "";
+    const hint =
+      typeof record.hint === "string" && record.hint.trim()
+        ? record.hint.trim()
+        : "";
+
+    const parts = [message, code && `code=${code}`, details, hint].filter(
+      Boolean,
+    );
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+  }
+
+  return String(error);
 }
 
 async function queryView(client, viewName, limit) {
@@ -95,9 +140,12 @@ async function queryView(client, viewName, limit) {
 async function main() {
   const supabaseUrl = readEnv("NEXT_PUBLIC_SUPABASE_URL");
   const supabaseAnonKey = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const accessToken =
-    readEnv("HODAM_TEST_ACCESS_TOKEN") || readEnv("SUPABASE_ACCESS_TOKEN");
+  const accessTokenResult = resolveAccessToken();
+  const accessToken = accessTokenResult.token;
   const limit = parseLimit();
+  const requireAuthCallbackMetrics = parseRequireAuthCallbackMetricsFlag();
+  const requireAuthCallbackProviderMetrics =
+    parseRequireAuthCallbackProviderMetricsFlag();
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error(
@@ -108,7 +156,7 @@ async function main() {
 
   if (!accessToken) {
     console.error(
-      "Missing HODAM_TEST_ACCESS_TOKEN (or SUPABASE_ACCESS_TOKEN fallback).",
+      `Missing access token. ${accessTokenResult.reason || "Set HODAM_TEST_ACCESS_TOKEN or test credentials for token resolver."}`,
     );
     process.exit(1);
   }
@@ -131,6 +179,16 @@ async function main() {
     `- loaded env files: ${loadedFiles.length > 0 ? loadedFiles.join(", ") : "(none)"}`,
   );
   console.log(`- limit: ${limit}`);
+  console.log(
+    `- require auth callback metrics: ${requireAuthCallbackMetrics ? "yes" : "no"}`,
+  );
+  console.log(
+    `- require auth callback provider metrics: ${requireAuthCallbackProviderMetrics ? "yes" : "no"}`,
+  );
+  console.log(`- token source: ${accessTokenResult.source}`);
+  if (accessTokenResult.reason && accessTokenResult.source !== "none") {
+    console.log(`! token resolver warning: ${accessTokenResult.reason}`);
+  }
 
   try {
     const [dailyRows, retentionRows, userRetentionRows] = await Promise.all([
@@ -144,6 +202,50 @@ async function main() {
       console.log("(empty)");
     } else {
       console.table(dailyRows);
+
+      const firstRow = dailyRows[0] || {};
+      const hasAuthCallbackMetrics =
+        Object.prototype.hasOwnProperty.call(
+          firstRow,
+          "auth_callback_success",
+        ) &&
+        Object.prototype.hasOwnProperty.call(firstRow, "auth_callback_error");
+
+      if (!hasAuthCallbackMetrics) {
+        const message =
+          "kpi_daily rows do not include auth_callback_success/auth_callback_error fields";
+        if (requireAuthCallbackMetrics) {
+          throw new Error(message);
+        }
+        console.warn(`! ${message}`);
+      }
+
+      const hasAuthCallbackProviderMetrics =
+        Object.prototype.hasOwnProperty.call(
+          firstRow,
+          "auth_callback_success_google",
+        ) &&
+        Object.prototype.hasOwnProperty.call(
+          firstRow,
+          "auth_callback_success_kakao",
+        ) &&
+        Object.prototype.hasOwnProperty.call(
+          firstRow,
+          "auth_callback_error_google",
+        ) &&
+        Object.prototype.hasOwnProperty.call(
+          firstRow,
+          "auth_callback_error_kakao",
+        );
+
+      if (!hasAuthCallbackProviderMetrics) {
+        const message =
+          "kpi_daily rows do not include auth callback provider breakdown fields";
+        if (requireAuthCallbackProviderMetrics) {
+          throw new Error(message);
+        }
+        console.warn(`! ${message}`);
+      }
     }
 
     console.log("\n[kpi_retention_daily]");
@@ -160,7 +262,7 @@ async function main() {
       console.table(userRetentionRows);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     console.error(`KPI check failed: ${message}`);
     process.exit(1);
   }

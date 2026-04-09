@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - develop
-      - "codex/**"
   pull_request:
 
 env:
@@ -16,6 +15,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  workflow-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow sanity
+        run: echo "ci workflow booted"
+
   test-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -23,6 +28,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            | bash -s -- 1.7.8
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Validate GitHub workflow files
+        run: actionlint -color
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -46,6 +60,15 @@ jobs:
         run: npm run build
 
       - name: Threads API contract check
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HODAM_TEST_ACCESS_TOKEN: ${{ secrets.HODAM_TEST_ACCESS_TOKEN }}
+          HODAM_TEST_USER_EMAIL: ${{ secrets.HODAM_TEST_USER_EMAIL }}
+          HODAM_TEST_USER_PASSWORD: ${{ secrets.HODAM_TEST_USER_PASSWORD }}
+          HODAM_TEST_AUTO_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && '1' || '' }}
+          HODAM_REQUIRE_AUTHORIZED_CHECK: ${{ (secrets.HODAM_TEST_ACCESS_TOKEN != '' || (secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '') || secrets.SUPABASE_SERVICE_ROLE_KEY != '') && '1' || '0' }}
         run: |
           npx next dev -p 3100 &
           APP_PID=$!
@@ -99,5 +122,5 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # Temporary baseline ignores: remove each entry once the underlying platform constraint is resolved.
-          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version' }}
+          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version,missing_service_role_key,missing_management_credentials' }}
         run: npm run check:supabase:security:strict

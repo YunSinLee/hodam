@@ -19,13 +19,21 @@ const VALID_CODES = new Set<SignInRecoveryCode>(
   Object.keys(HINTS) as SignInRecoveryCode[],
 );
 
+const LEGACY_ALIAS: Record<string, SignInRecoveryCode> = {
+  invalid_grant: "expired_code",
+  code_verifier: "invalid_request",
+  callback_timeout: "timeout",
+};
+
 export function parseSignInRecoveryCode(
   value: string | null | undefined,
 ): SignInRecoveryCode | null {
   if (!value) return null;
-  const normalized = value.trim().toLowerCase() as SignInRecoveryCode;
-  if (!VALID_CODES.has(normalized)) return null;
-  return normalized;
+  const normalized = value.trim().toLowerCase();
+  const canonical = (LEGACY_ALIAS[normalized] ||
+    normalized) as SignInRecoveryCode;
+  if (!VALID_CODES.has(canonical)) return null;
+  return canonical;
 }
 
 export function getSignInRecoveryHint(

@@ -2,6 +2,7 @@
 
 import { spawnSync } from "child_process";
 import path from "path";
+import { shouldRequireAuthFlow } from "./lib/auth-e2e-utils.mjs";
 
 const cwd = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -9,7 +10,12 @@ const baseUrl = (process.env.HODAM_API_BASE_URL || "http://localhost:3000").repl
   /\/$/,
   "",
 );
-const requireAuthorized = args.has("--require-authorized");
+const requireAuthorized =
+  args.has("--require-authorized") ||
+  shouldRequireAuthFlow({
+    explicitValue: process.env.HODAM_REQUIRE_AUTHORIZED_CHECK || "",
+    processEnv: process.env,
+  });
 
 function resolveOptionalAccessToken() {
   const explicit = (process.env.HODAM_TEST_ACCESS_TOKEN || "").trim();
@@ -170,6 +176,9 @@ function assertRequestIdPresent(result, contextLabel) {
 
 async function main() {
   console.log(`HODAM /api/v1/threads check base=${baseUrl}`);
+  console.log(
+    `- authorized check enforcement: ${requireAuthorized ? "required" : "optional"}`,
+  );
 
   const unauth = await callThreads();
   summarizeResult("unauthorized", unauth);

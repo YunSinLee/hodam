@@ -7,6 +7,26 @@ import {
 } from "@/lib/ui/thread-detail-error";
 
 describe("resolveThreadDetailErrorMessage", () => {
+  it("prioritizes THREAD_ID_INVALID error code", () => {
+    const message = resolveThreadDetailErrorMessage(
+      new ApiError(500, "unexpected", {
+        code: "THREAD_ID_INVALID",
+      }),
+    );
+    expect(message).toBe("잘못된 동화 ID입니다.");
+  });
+
+  it("prioritizes THREAD_NOT_FOUND error code", () => {
+    const message = resolveThreadDetailErrorMessage(
+      new ApiError(500, "unexpected", {
+        code: "THREAD_NOT_FOUND",
+      }),
+    );
+    expect(message).toBe(
+      "해당 동화를 찾을 수 없습니다. 목록에서 다른 동화를 선택해주세요.",
+    );
+  });
+
   it("maps 401 to session-expired message", () => {
     const message = resolveThreadDetailErrorMessage(
       new ApiError(401, "Unauthorized"),
@@ -54,6 +74,18 @@ describe("resolveThreadDetailErrorMessage", () => {
 });
 
 describe("resolveThreadDetailErrorState", () => {
+  it("prioritizes AUTH_UNAUTHORIZED error code", () => {
+    const state = resolveThreadDetailErrorState(
+      new ApiError(500, "unexpected", {
+        code: "AUTH_UNAUTHORIZED",
+      }),
+    );
+    expect(state).toEqual({
+      message: "로그인 세션이 만료되었습니다. 다시 로그인해주세요.",
+      shouldRedirectToSignIn: true,
+    });
+  });
+
   it("returns sign-in redirect state for 401", () => {
     const state = resolveThreadDetailErrorState(
       new ApiError(401, "Unauthorized"),

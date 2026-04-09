@@ -2,6 +2,7 @@
 
 import fs from "fs";
 import path from "path";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
 
 const args = new Set(process.argv.slice(2));
 const strictMode = args.has("--strict");
@@ -26,53 +27,19 @@ function parsePositiveInteger(raw, fallback) {
   return Math.floor(parsed);
 }
 
-function parseEnv(content) {
-  const out = {};
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const index = line.indexOf("=");
-    if (index <= 0) continue;
-    const key = line.slice(0, index).trim();
-    const value = line
-      .slice(index + 1)
-      .trim()
-      .replace(/^['"]|['"]$/g, "");
-    out[key] = value;
-  }
-  return out;
-}
-
-function loadLocalEnv() {
-  const cwd = process.cwd();
-  const nodeEnv = process.env.NODE_ENV || "development";
-  const envFilesInOrder = [
-    ".env",
-    `.env.${nodeEnv}`,
-    ".env.local",
-    `.env.${nodeEnv}.local`,
-  ];
-
-  const merged = {};
-  const loadedFiles = [];
-  envFilesInOrder.forEach(fileName => {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) return;
-    Object.assign(merged, parseEnv(fs.readFileSync(fullPath, "utf8")));
-    loadedFiles.push(fileName);
-  });
-
-  return { merged, loadedFiles, nodeEnv };
-}
-
-const { merged: localEnv, loadedFiles, nodeEnv } = loadLocalEnv();
+const cwd = process.cwd();
+const nodeEnv = process.env.NODE_ENV || "development";
+const { merged: localEnv, loaded: loadedFilePaths } = loadLocalEnv({
+  cwd,
+  nodeEnv,
+});
+const loadedFiles = loadedFilePaths.map(fullPath => path.basename(fullPath));
 
 function readEnv(name) {
-  const processValue = process.env[name];
-  if (processValue && processValue.trim()) return processValue.trim();
-  const localValue = localEnv[name];
-  if (localValue && localValue.trim()) return localValue.trim();
-  return "";
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv: localEnv,
+  });
 }
 
 function inferProjectRefFromUrl(url) {
@@ -92,6 +59,44 @@ function safeJsonParse(rawText) {
   } catch {
     return null;
   }
+}
+
+function readBaselineFile(filePath) {
+  if (!filePath) {
+    return {
+      ignoredIndexNames: new Set(),
+      ignoredCacheKeys: new Set(),
+      loadedPath: "",
+    };
+  }
+
+  const resolvedPath = path.isAbsolute(filePath)
+    ? filePath
+    : path.join(process.cwd(), filePath);
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Baseline file not found: ${filePath}`);
+  }
+
+  const parsed = safeJsonParse(fs.readFileSync(resolvedPath, "utf8"));
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`Invalid baseline JSON: ${filePath}`);
+  }
+
+  const toSet = value => {
+    if (!Array.isArray(value)) return new Set();
+    return new Set(
+      value
+        .map(item => String(item || "").trim())
+        .filter(Boolean),
+    );
+  };
+
+  return {
+    ignoredIndexNames: toSet(parsed.allowIndexNames),
+    ignoredCacheKeys: toSet(parsed.allowCacheKeys),
+    ignoredForeignKeyCacheKeys: toSet(parsed.allowForeignKeyCacheKeys),
+    loadedPath: filePath,
+  };
 }
 
 function toArray(value) {
@@ -145,6 +150,25 @@ async function main() {
     ...parseCsvValues(readEnv("HODAM_SUPABASE_PERFORMANCE_IGNORE_LINTS")),
     ...parseCsvValues(readArgValue("--ignore-cache-keys")),
   ]);
+  const ignoredForeignKeyCacheKeys = new Set([
+    ...parseCsvValues(
+      readEnv("HODAM_SUPABASE_PERFORMANCE_IGNORE_FOREIGN_KEYS"),
+    ),
+    ...parseCsvValues(readArgValue("--ignore-foreign-key-cache-keys")),
+  ]);
+  const baselineFile =
+    readArgValue("--baseline-file") ||
+    readEnv("HODAM_SUPABASE_PERFORMANCE_BASELINE_FILE");
+  const baseline = readBaselineFile(baselineFile);
+  baseline.ignoredIndexNames.forEach(indexName => {
+    ignoredIndexNames.add(indexName);
+  });
+  baseline.ignoredCacheKeys.forEach(cacheKey => {
+    ignoredCacheKeys.add(cacheKey);
+  });
+  baseline.ignoredForeignKeyCacheKeys.forEach(cacheKey => {
+    ignoredForeignKeyCacheKeys.add(cacheKey);
+  });
   const maxUnusedIndexes = parsePositiveInteger(
     readArgValue("--max-unused-indexes"),
     0,
@@ -161,6 +185,14 @@ async function main() {
   }
   if (ignoredCacheKeys.size > 0) {
     console.log(`- ignored cache keys: ${Array.from(ignoredCacheKeys).join(", ")}`);
+  }
+  if (ignoredForeignKeyCacheKeys.size > 0) {
+    console.log(
+      `- ignored foreign-key cache keys: ${Array.from(ignoredForeignKeyCacheKeys).join(", ")}`,
+    );
+  }
+  if (baseline.loadedPath) {
+    console.log(`- baseline file: ${baseline.loadedPath}`);
   }
 
   if (!accessToken || !projectRef) {
@@ -203,9 +235,14 @@ async function main() {
   const unusedIndexLints = lints.filter(
     lint => String(lint?.name || "") === "unused_index",
   );
+  const unindexedForeignKeyLints = lints.filter(
+    lint => String(lint?.name || "") === "unindexed_foreign_keys",
+  );
 
   const unresolved = [];
   const ignored = [];
+  const unresolvedForeignKeys = [];
+  const ignoredForeignKeys = [];
 
   unusedIndexLints.forEach(lint => {
     const cacheKey = String(lint?.cache_key || "");
@@ -229,10 +266,35 @@ async function main() {
     unresolved.push(normalized);
   });
 
+  unindexedForeignKeyLints.forEach(lint => {
+    const cacheKey = String(lint?.cache_key || "");
+    const schema = String(lint?.metadata?.schema || "");
+    const table = String(lint?.metadata?.name || "");
+    const foreignKeyName = String(lint?.metadata?.fkey_name || "");
+    const detail = String(lint?.detail || lint?.description || "");
+    const normalized = {
+      cacheKey,
+      schema,
+      table,
+      foreignKeyName,
+      detail,
+    };
+    if (cacheKey && ignoredForeignKeyCacheKeys.has(cacheKey)) {
+      ignoredForeignKeys.push(normalized);
+      return;
+    }
+    unresolvedForeignKeys.push(normalized);
+  });
+
   console.log(`- advisor lints total: ${lints.length}`);
   console.log(`- unused index lints: ${unusedIndexLints.length}`);
   console.log(`- ignored unused index lints: ${ignored.length}`);
   console.log(`- unresolved unused index lints: ${unresolved.length}`);
+  console.log(`- unindexed foreign-key lints: ${unindexedForeignKeyLints.length}`);
+  console.log(`- ignored unindexed foreign-key lints: ${ignoredForeignKeys.length}`);
+  console.log(
+    `- unresolved unindexed foreign-key lints: ${unresolvedForeignKeys.length}`,
+  );
 
   if (ignored.length > 0) {
     console.log("\nIgnored unused-index lints:");
@@ -257,9 +319,40 @@ async function main() {
     console.log("\nNo unresolved unused-index lints.");
   }
 
+  if (ignoredForeignKeys.length > 0) {
+    console.log("\nIgnored unindexed-foreign-key lints:");
+    ignoredForeignKeys.forEach(item => {
+      const location =
+        item.schema && item.table ? `${item.schema}.${item.table}` : "unknown";
+      console.log(
+        `- ✓ ${location}.${item.foreignKeyName || "foreign_key"} (ignored)`,
+      );
+    });
+  }
+
+  if (unresolvedForeignKeys.length > 0) {
+    console.log("\nUnresolved unindexed-foreign-key lints:");
+    unresolvedForeignKeys.forEach(item => {
+      const location =
+        item.schema && item.table ? `${item.schema}.${item.table}` : "unknown";
+      console.log(
+        `- ! ${location}.${item.foreignKeyName || "foreign_key"}: ${normalizeText(item.detail)}`,
+      );
+    });
+  } else {
+    console.log("\nNo unresolved unindexed-foreign-key lints.");
+  }
+
   if (strictMode && unresolved.length > maxUnusedIndexes) {
     console.error(
       `\nSupabase performance advisor check failed: unresolved unused indexes ${unresolved.length} > allowed ${maxUnusedIndexes}.`,
+    );
+    process.exit(1);
+  }
+
+  if (strictMode && unresolvedForeignKeys.length > 0) {
+    console.error(
+      `\nSupabase performance advisor check failed: unresolved unindexed foreign keys ${unresolvedForeignKeys.length} > allowed 0.`,
     );
     process.exit(1);
   }

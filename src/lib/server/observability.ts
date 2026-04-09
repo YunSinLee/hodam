@@ -60,6 +60,19 @@ function toError(error: unknown): Error {
   }
 }
 
+function extractContextTagValue(
+  context: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  const matched = keys
+    .map(key => context[key])
+    .find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+    );
+  return matched ? matched.trim() : null;
+}
+
 export async function captureServerException(
   scope: string,
   error: unknown,
@@ -72,10 +85,26 @@ export async function captureServerException(
     sentryScope.setTag("hodam.scope", scope);
 
     if (context && Object.keys(context).length > 0) {
-      const { requestId } = context;
-      if (typeof requestId === "string" && requestId.trim().length > 0) {
-        sentryScope.setTag("hodam.request_id", requestId.trim());
+      const requestId = extractContextTagValue(context, [
+        "requestId",
+        "request_id",
+      ]);
+      if (requestId) sentryScope.setTag("hodam.request_id", requestId);
+
+      const userId = extractContextTagValue(context, ["userId", "user_id"]);
+      if (userId) sentryScope.setTag("hodam.user_id", userId);
+
+      const orderId = extractContextTagValue(context, ["orderId", "order_id"]);
+      if (orderId) sentryScope.setTag("hodam.order_id", orderId);
+
+      const paymentFlowId = extractContextTagValue(context, [
+        "paymentFlowId",
+        "payment_flow_id",
+      ]);
+      if (paymentFlowId) {
+        sentryScope.setTag("hodam.payment_flow_id", paymentFlowId);
       }
+
       sentryScope.setContext("hodam", context);
     }
 

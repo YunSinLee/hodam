@@ -1,71 +1,15 @@
 #!/usr/bin/env node
 
-import fs from "fs";
-import path from "path";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
+import {
+  getMissingTestUserCredentialsMessage,
+  resolveTestUserCredentials,
+} from "./lib/test-user-credentials.mjs";
 
-const nodeEnv = process.env.NODE_ENV || "development";
-const cwd = process.cwd();
-const envFilesInOrder = [
-  ".env",
-  `.env.${nodeEnv}`,
-  ".env.local",
-  `.env.${nodeEnv}.local`,
-];
-
-function parseEnvFile(content) {
-  const result = {};
-  const lines = content.split(/\r?\n/);
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-
-    const equalIndex = line.indexOf("=");
-    if (equalIndex <= 0) continue;
-
-    const key = line.slice(0, equalIndex).trim();
-    const rawValue = line.slice(equalIndex + 1).trim();
-    const unquotedValue =
-      rawValue.startsWith('"') && rawValue.endsWith('"')
-        ? rawValue.slice(1, -1)
-        : rawValue.startsWith("'") && rawValue.endsWith("'")
-          ? rawValue.slice(1, -1)
-          : rawValue;
-
-    result[key] = unquotedValue;
-  }
-
-  return result;
-}
-
-function loadFileEnv() {
-  const merged = {};
-
-  for (const fileName of envFilesInOrder) {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) continue;
-    Object.assign(merged, parseEnvFile(fs.readFileSync(fullPath, "utf8")));
-  }
-
-  return merged;
-}
-
-const fileEnv = loadFileEnv();
-const DEFAULT_TEST_USER_EMAIL = "hodam.e2e.runner@gmail.com";
-const DEFAULT_TEST_USER_PASSWORD = "HodamE2E!23456";
+const fileEnv = loadLocalEnv().merged;
 
 function readEnv(name) {
-  const processValue = process.env[name];
-  if (typeof processValue === "string" && processValue.trim()) {
-    return processValue.trim();
-  }
-
-  const fileValue = fileEnv[name];
-  if (typeof fileValue === "string" && fileValue.trim()) {
-    return fileValue.trim();
-  }
-
-  return "";
+  return readEnvValue(name, { fileEnv });
 }
 
 function pickAuthUrl(baseUrl) {
@@ -81,9 +25,18 @@ async function main() {
 
   const supabaseUrl = readEnv("NEXT_PUBLIC_SUPABASE_URL");
   const anonKey = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const email = readEnv("HODAM_TEST_USER_EMAIL") || DEFAULT_TEST_USER_EMAIL;
-  const password =
-    readEnv("HODAM_TEST_USER_PASSWORD") || DEFAULT_TEST_USER_PASSWORD;
+  const credentials = resolveTestUserCredentials({
+    primaryEmail: readEnv("HODAM_TEST_USER_EMAIL"),
+    primaryPassword: readEnv("HODAM_TEST_USER_PASSWORD"),
+    fallbackEmail: readEnv("HODAM_TEST_DEFAULT_USER_EMAIL"),
+    fallbackPassword: readEnv("HODAM_TEST_DEFAULT_USER_PASSWORD"),
+    allowGeneratedDefaults: readEnv("HODAM_TEST_AUTO_USER") === "1",
+  });
+
+  if (!credentials.isConfigured) {
+    throw new Error(getMissingTestUserCredentialsMessage());
+  }
+  const { email, password } = credentials;
 
   if (!supabaseUrl || !anonKey) {
     throw new Error(
@@ -113,12 +66,8 @@ async function main() {
   }
 
   if (!response.ok || !body || typeof body !== "object") {
-    const fallbackHint =
-      email === DEFAULT_TEST_USER_EMAIL
-        ? " (fallback test user used; ensure DB has confirmed user)"
-        : "";
     throw new Error(
-      `Failed to issue access token (${response.status})${fallbackHint}: ${bodyText.slice(0, 300)}`,
+      `Failed to issue access token (${response.status}, source=${credentials.source}): ${bodyText.slice(0, 300)}`,
     );
   }
 

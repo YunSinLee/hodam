@@ -49,20 +49,27 @@ async function queryViewWithGracefulFallback(
 }
 
 export async function GET(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/analytics/kpi authenticateRequest", error, { requestId });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`analytics:kpi:${auth.userId}`, 60, 60_000)) {
-    return fail(429, "Too many KPI requests");
+  if (!checkRateLimit(`analytics:kpi:${authContext.userId}`, 60, 60_000)) {
+    return failWithCode(429, "Too many KPI requests", "KPI_RATE_LIMITED");
   }
 
   const days = parseDaysParam(request.nextUrl.searchParams.get("days"));
 
   try {
-    const userClient = requireUserClient(auth.accessToken);
+    const userClient = requireUserClient(authContext.accessToken);
 
     const [dailyResult, retentionDailyResult, userRetentionResult] =
       await Promise.all([
@@ -74,7 +81,7 @@ export async function GET(request: NextRequest) {
               .order("metric_date", { ascending: false })
               .limit(days),
           "kpi_daily_error",
-          { requestId, userId: auth.userId },
+          { requestId, userId: authContext.userId },
         ),
         queryViewWithGracefulFallback(
           () =>
@@ -84,17 +91,17 @@ export async function GET(request: NextRequest) {
               .order("cohort_date", { ascending: false })
               .limit(days),
           "kpi_retention_daily_error",
-          { requestId, userId: auth.userId },
+          { requestId, userId: authContext.userId },
         ),
         queryViewWithGracefulFallback(
           () =>
             userClient
               .from("kpi_user_retention")
               .select("*")
-              .eq("user_id", auth.userId)
+              .eq("user_id", authContext.userId)
               .limit(1),
           "kpi_user_retention_error",
-          { requestId, userId: auth.userId },
+          { requestId, userId: authContext.userId },
         ),
       ]);
 
@@ -125,8 +132,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logError("/api/v1/analytics/kpi", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to fetch KPI metrics");
+    return failWithCode(500, "Failed to fetch KPI metrics", "KPI_FETCH_FAILED");
   }
 }

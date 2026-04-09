@@ -8,7 +8,10 @@ import {
   generateStoryTurn,
 } from "@/lib/ai/story-service";
 import { authenticateRequest } from "@/lib/auth/request-auth";
-import { detectBlockedTopic } from "@/lib/safety/content-policy";
+import {
+  detectBlockedTopic,
+  detectBlockedTopicInStoryOutput,
+} from "@/lib/safety/content-policy";
 import { trackUserActivityBestEffort } from "@/lib/server/analytics";
 import {
   appendThreadRawText,
@@ -26,6 +29,10 @@ import {
 } from "@/lib/server/quota";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { createApiRequestContext } from "@/lib/server/request-context";
+import {
+  calculateStoryStartCost,
+  normalizeStoryKeywords,
+} from "@/lib/story/options";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface StartStoryRequestBody {
@@ -38,77 +45,99 @@ const MAX_KEYWORD_COUNT = 8;
 const MAX_KEYWORD_LENGTH = 30;
 const MAX_KEYWORDS_INPUT_LENGTH = 200;
 
-function normalizeKeywords(rawKeywords: string): string[] {
-  const deduplicated = new Set(
-    rawKeywords
-      .split(",")
-      .map(item => item.trim())
-      .filter(Boolean),
-  );
-  return Array.from(deduplicated);
-}
-
 export async function POST(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/story/start authenticateRequest", error, { requestId });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`story:start:${auth.userId}`, 20, 60_000)) {
-    return fail(429, "Too many story generation requests");
+  if (!checkRateLimit(`story:start:${authContext.userId}`, 20, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many story generation requests",
+      "STORY_START_RATE_LIMITED",
+    );
   }
 
   let body: StartStoryRequestBody;
   try {
     body = (await request.json()) as StartStoryRequestBody;
   } catch (error) {
-    return fail(400, "Invalid JSON body");
+    return failWithCode(400, "Invalid JSON body", "REQUEST_JSON_INVALID");
   }
 
   if (typeof body.keywords !== "string") {
-    return fail(400, "keywords must be a string");
-  }
-
-  if (body.keywords.length > MAX_KEYWORDS_INPUT_LENGTH) {
-    return fail(
+    return failWithCode(
       400,
-      `keywords input is too long (max ${MAX_KEYWORDS_INPUT_LENGTH})`,
+      "keywords must be a string",
+      "STORY_START_KEYWORDS_TYPE_INVALID",
     );
   }
 
-  const keywords = normalizeKeywords(body.keywords);
+  if (body.keywords.length > MAX_KEYWORDS_INPUT_LENGTH) {
+    return failWithCode(
+      400,
+      `keywords input is too long (max ${MAX_KEYWORDS_INPUT_LENGTH})`,
+      "STORY_START_KEYWORDS_INPUT_TOO_LONG",
+    );
+  }
+
+  const keywords = normalizeStoryKeywords(body.keywords);
   if (keywords.length === 0) {
-    return fail(400, "At least one keyword is required");
+    return failWithCode(
+      400,
+      "At least one keyword is required",
+      "STORY_START_KEYWORDS_REQUIRED",
+    );
   }
   if (keywords.length > MAX_KEYWORD_COUNT) {
-    return fail(400, `Too many keywords (max ${MAX_KEYWORD_COUNT})`);
+    return failWithCode(
+      400,
+      `Too many keywords (max ${MAX_KEYWORD_COUNT})`,
+      "STORY_START_KEYWORDS_TOO_MANY",
+    );
   }
   if (keywords.some(keyword => keyword.length > MAX_KEYWORD_LENGTH)) {
-    return fail(
+    return failWithCode(
       400,
       `Each keyword must be at most ${MAX_KEYWORD_LENGTH} characters`,
+      "STORY_START_KEYWORD_TOO_LONG",
     );
   }
 
   const blockedTopic = detectBlockedTopic(keywords);
   if (blockedTopic) {
-    return fail(400, "Unsafe content topic is not allowed");
+    return failWithCode(
+      400,
+      "Unsafe content topic is not allowed",
+      "STORY_START_BLOCKED_TOPIC",
+    );
   }
 
   const includeEnglish = Boolean(body.includeEnglish);
   const includeImage = Boolean(body.includeImage);
-  const cost = 1 + (includeEnglish ? 1 : 0) + (includeImage ? 1 : 0);
+  const cost = calculateStoryStartCost({
+    includeEnglish,
+    includeImage,
+  });
 
   let admin: ReturnType<typeof createSupabaseAdminClient> | null = null;
   let debitedCost = 0;
   try {
     admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
     await trackUserActivityBestEffort(
       admin,
-      auth.userId,
+      authContext.userId,
       "create_start",
       {
         include_english: includeEnglish,
@@ -118,23 +147,23 @@ export async function POST(request: NextRequest) {
       request,
     );
 
-    const aiQuota = await consumeDailyAiQuota(admin, auth.userId, cost, {
+    const aiQuota = await consumeDailyAiQuota(admin, authContext.userId, cost, {
       endpoint: "story_start",
       include_english: includeEnglish,
       include_image: includeImage,
       keyword_count: keywords.length,
     });
 
-    const debitRequestId = `story:start:${auth.userId}:${randomUUID()}`;
+    const debitRequestId = `story:start:${authContext.userId}:${randomUUID()}`;
     const beadCount = await debitBeads(
       admin,
-      auth.userId,
+      authContext.userId,
       cost,
       debitRequestId,
     );
     debitedCost = cost;
 
-    const thread = await createStoryThread(admin, auth.userId, {
+    const thread = await createStoryThread(admin, authContext.userId, {
       includeEnglish,
       includeImage,
     });
@@ -146,6 +175,11 @@ export async function POST(request: NextRequest) {
       includeEnglish,
     });
 
+    const blockedOutputTopic = detectBlockedTopicInStoryOutput(storyTurn);
+    if (blockedOutputTopic) {
+      throw new Error("BLOCKED_STORY_OUTPUT");
+    }
+
     const turn = 0;
     await saveStoryTurn(admin, thread.id, turn, storyTurn);
     await appendThreadRawText(admin, thread, storyTurn);
@@ -156,13 +190,13 @@ export async function POST(request: NextRequest) {
       if (base64Image) {
         imageUrl = await uploadThreadImage(
           admin,
-          auth.userId,
+          authContext.userId,
           thread.id,
           base64Image,
         );
         await trackUserActivityBestEffort(
           admin,
-          auth.userId,
+          authContext.userId,
           "image_generated",
           {
             thread_id: thread.id,
@@ -175,7 +209,7 @@ export async function POST(request: NextRequest) {
 
     await trackUserActivityBestEffort(
       admin,
-      auth.userId,
+      authContext.userId,
       "create_success",
       {
         thread_id: thread.id,
@@ -215,34 +249,49 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (admin && debitedCost > 0) {
       try {
-        await creditBeads(admin, auth.userId, debitedCost);
+        await creditBeads(admin, authContext.userId, debitedCost);
       } catch (refundError) {
         logError("/api/v1/story/start refund", refundError, {
           requestId,
-          userId: auth.userId,
+          userId: authContext.userId,
         });
       }
     }
 
     if (error instanceof AiServiceConfigurationError) {
-      return fail(503, "AI service is not configured");
+      return failWithCode(
+        503,
+        "AI service is not configured",
+        "AI_SERVICE_NOT_CONFIGURED",
+      );
     }
 
     if (
       error instanceof DailyQuotaExceededError &&
       error.code === "DAILY_AI_COST_LIMIT_EXCEEDED"
     ) {
-      return fail(429, "Daily AI budget exceeded");
+      return failWithCode(
+        429,
+        "Daily AI budget exceeded",
+        "AI_DAILY_BUDGET_EXCEEDED",
+      );
     }
 
     if (error instanceof Error && error.message === "INSUFFICIENT_BEADS") {
-      return fail(402, "Not enough beads");
+      return failWithCode(402, "Not enough beads", "BEADS_INSUFFICIENT");
+    }
+    if (error instanceof Error && error.message === "BLOCKED_STORY_OUTPUT") {
+      return failWithCode(
+        400,
+        "Generated content contained unsafe topic",
+        "STORY_START_BLOCKED_OUTPUT",
+      );
     }
 
     logError("/api/v1/story/start", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to start story");
+    return failWithCode(500, "Failed to start story", "STORY_START_FAILED");
   }
 }

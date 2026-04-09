@@ -7,7 +7,10 @@ import {
   generateStoryTurn,
 } from "@/lib/ai/story-service";
 import { authenticateRequest } from "@/lib/auth/request-auth";
-import { detectBlockedTopic } from "@/lib/safety/content-policy";
+import {
+  detectBlockedTopic,
+  detectBlockedTopicInStoryOutput,
+} from "@/lib/safety/content-policy";
 import { trackUserActivityBestEffort } from "@/lib/server/analytics";
 import {
   appendThreadRawText,
@@ -24,6 +27,7 @@ import {
 } from "@/lib/server/quota";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { createApiRequestContext } from "@/lib/server/request-context";
+import { calculateStoryContinueCost } from "@/lib/story/options";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface ContinueStoryRequestBody {
@@ -34,21 +38,34 @@ interface ContinueStoryRequestBody {
 const MAX_SELECTION_LENGTH = 200;
 
 export async function POST(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/story/continue authenticateRequest", error, {
+      requestId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`story:continue:${auth.userId}`, 30, 60_000)) {
-    return fail(429, "Too many story continuation requests");
+  if (!checkRateLimit(`story:continue:${authContext.userId}`, 30, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many story continuation requests",
+      "STORY_CONTINUE_RATE_LIMITED",
+    );
   }
 
   let body: ContinueStoryRequestBody;
   try {
     body = (await request.json()) as ContinueStoryRequestBody;
   } catch (error) {
-    return fail(400, "Invalid JSON body");
+    return failWithCode(400, "Invalid JSON body", "REQUEST_JSON_INVALID");
   }
 
   const threadId = Number(body.threadId);
@@ -56,43 +73,56 @@ export async function POST(request: NextRequest) {
   const selection = typeof selectionRaw === "string" ? selectionRaw.trim() : "";
 
   if (!Number.isFinite(threadId) || threadId <= 0) {
-    return fail(400, "Valid threadId is required");
+    return failWithCode(
+      400,
+      "Valid threadId is required",
+      "STORY_CONTINUE_THREAD_ID_INVALID",
+    );
   }
 
   if (!selection) {
-    return fail(400, "Selection is required");
+    return failWithCode(
+      400,
+      "Selection is required",
+      "STORY_CONTINUE_SELECTION_REQUIRED",
+    );
   }
   if (selection.length > MAX_SELECTION_LENGTH) {
-    return fail(
+    return failWithCode(
       400,
       `Selection is too long (max ${MAX_SELECTION_LENGTH} characters)`,
+      "STORY_CONTINUE_SELECTION_TOO_LONG",
     );
   }
 
   const blockedTopic = detectBlockedTopic([selection]);
   if (blockedTopic) {
-    return fail(400, "Unsafe content topic is not allowed");
+    return failWithCode(
+      400,
+      "Unsafe content topic is not allowed",
+      "STORY_CONTINUE_BLOCKED_TOPIC",
+    );
   }
 
   let admin: ReturnType<typeof createSupabaseAdminClient> | null = null;
   let debitedCost = 0;
   try {
     admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
-    const thread = await getThreadForUser(admin, threadId, auth.userId);
+    const thread = await getThreadForUser(admin, threadId, authContext.userId);
 
-    const cost = 1 + (thread.able_english ? 1 : 0);
-    const aiQuota = await consumeDailyAiQuota(admin, auth.userId, cost, {
+    const cost = calculateStoryContinueCost(thread.able_english);
+    const aiQuota = await consumeDailyAiQuota(admin, authContext.userId, cost, {
       endpoint: "story_continue",
       thread_id: threadId,
       include_english: thread.able_english,
     });
 
-    const debitRequestId = `story:continue:${auth.userId}:${threadId}:${randomUUID()}`;
+    const debitRequestId = `story:continue:${authContext.userId}:${threadId}:${randomUUID()}`;
     const beadCount = await debitBeads(
       admin,
-      auth.userId,
+      authContext.userId,
       cost,
       debitRequestId,
     );
@@ -104,13 +134,18 @@ export async function POST(request: NextRequest) {
       includeEnglish: thread.able_english,
     });
 
+    const blockedOutputTopic = detectBlockedTopicInStoryOutput(storyTurn);
+    if (blockedOutputTopic) {
+      throw new Error("BLOCKED_STORY_OUTPUT");
+    }
+
     const turn = await getNextTurn(admin, thread.id);
 
     await saveStoryTurn(admin, thread.id, turn, storyTurn);
     await appendThreadRawText(admin, thread, storyTurn);
     await trackUserActivityBestEffort(
       admin,
-      auth.userId,
+      authContext.userId,
       "continue_step",
       {
         thread_id: thread.id,
@@ -146,37 +181,56 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (admin && debitedCost > 0) {
       try {
-        await creditBeads(admin, auth.userId, debitedCost);
+        await creditBeads(admin, authContext.userId, debitedCost);
       } catch (refundError) {
         logError("/api/v1/story/continue refund", refundError, {
           requestId,
-          userId: auth.userId,
+          userId: authContext.userId,
         });
       }
     }
 
     if (error instanceof AiServiceConfigurationError) {
-      return fail(503, "AI service is not configured");
+      return failWithCode(
+        503,
+        "AI service is not configured",
+        "AI_SERVICE_NOT_CONFIGURED",
+      );
     }
 
     if (
       error instanceof DailyQuotaExceededError &&
       error.code === "DAILY_AI_COST_LIMIT_EXCEEDED"
     ) {
-      return fail(429, "Daily AI budget exceeded");
+      return failWithCode(
+        429,
+        "Daily AI budget exceeded",
+        "AI_DAILY_BUDGET_EXCEEDED",
+      );
     }
 
     if (error instanceof Error && error.message === "INSUFFICIENT_BEADS") {
-      return fail(402, "Not enough beads");
+      return failWithCode(402, "Not enough beads", "BEADS_INSUFFICIENT");
+    }
+    if (error instanceof Error && error.message === "BLOCKED_STORY_OUTPUT") {
+      return failWithCode(
+        400,
+        "Generated content contained unsafe topic",
+        "STORY_CONTINUE_BLOCKED_OUTPUT",
+      );
     }
     if (error instanceof Error && error.message === "THREAD_NOT_FOUND") {
-      return fail(404, "Thread not found");
+      return failWithCode(404, "Thread not found", "THREAD_NOT_FOUND");
     }
 
     logError("/api/v1/story/continue", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to continue story");
+    return failWithCode(
+      500,
+      "Failed to continue story",
+      "STORY_CONTINUE_FAILED",
+    );
   }
 }

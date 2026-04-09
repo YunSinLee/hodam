@@ -260,3 +260,11 @@ a {
     transform: translateY(0);
   }
 }
+
+.hodam-fade-in-up {
+  opacity: 0;
+  animation-name: fadeInUp;
+  animation-duration: 0.45s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}

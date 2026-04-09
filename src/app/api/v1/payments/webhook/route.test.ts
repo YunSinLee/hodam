@@ -91,7 +91,10 @@ describe("POST /api/v1/payments/webhook", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Invalid webhook secret" });
+    expect(body).toEqual({
+      error: "Invalid webhook secret",
+      code: "WEBHOOK_SECRET_INVALID",
+    });
   });
 
   it("returns 400 when transmission headers are invalid", async () => {
@@ -105,7 +108,10 @@ describe("POST /api/v1/payments/webhook", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid webhook transmission headers" });
+    expect(body).toEqual({
+      error: "Invalid webhook transmission headers",
+      code: "WEBHOOK_TRANSMISSION_HEADERS_INVALID",
+    });
   });
 
   it("returns duplicate response for repeated transmission id", async () => {
@@ -180,7 +186,10 @@ describe("POST /api/v1/payments/webhook", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid webhook payload" });
+    expect(body).toEqual({
+      error: "Invalid webhook payload",
+      code: "WEBHOOK_PAYLOAD_INVALID",
+    });
   });
 
   it("returns 401 when hmac signature is missing", async () => {
@@ -216,7 +225,10 @@ describe("POST /api/v1/payments/webhook", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Missing webhook signature" });
+    expect(body).toEqual({
+      error: "Missing webhook signature",
+      code: "WEBHOOK_SIGNATURE_INVALID",
+    });
   });
 
   it("accepts webhook when valid hmac signature is provided", async () => {
@@ -304,6 +316,9 @@ describe("POST /api/v1/payments/webhook", () => {
       ignored: true,
       reason: "status_not_done",
     });
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "order:order-status-1",
+    );
     expect(getPaymentByOrderIdMock).not.toHaveBeenCalled();
   });
 
@@ -360,6 +375,9 @@ describe("POST /api/v1/payments/webhook", () => {
       settled: true,
       alreadyProcessed: false,
     });
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "order:order-1",
+    );
   });
 
   it("ignores webhook when amount mismatches payment history", async () => {
@@ -585,7 +603,10 @@ describe("POST /api/v1/payments/webhook", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Invalid webhook secret payload" });
+    expect(body).toEqual({
+      error: "Invalid webhook secret payload",
+      code: "WEBHOOK_SECRET_PAYLOAD_INVALID",
+    });
     expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
   });
 

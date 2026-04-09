@@ -1,10 +1,6 @@
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Metadata } from "next";
-import { PrimeReactProvider } from "primereact/api";
 
-import "primeicons/primeicons.css";
-import "primereact/resources/primereact.min.css";
-import "primereact/resources/themes/lara-light-amber/theme.css";
 import "../styles/globals.css";
 
 import ChunkErrorRecovery from "./components/ChunkErrorRecovery";
@@ -29,17 +25,15 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body>
-        <PrimeReactProvider value={{ ripple: true }}>
-          <ChunkErrorRecovery />
-          <div className="min-h-screen flex flex-col">
-            <div className="h-navbar fixed top-0 z-10 w-full border-b-2 border-gray-300 bg-white">
-              <NavBar />
-            </div>
-            <main className="flex-1 pt-20">{children}</main>
-            <FooterWrapper />
+        <ChunkErrorRecovery />
+        <div className="min-h-screen flex flex-col">
+          <div className="h-navbar fixed top-0 z-10 w-full border-b-2 border-gray-300 bg-white">
+            <NavBar />
           </div>
-          {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
-        </PrimeReactProvider>
+          <main className="flex-1 pt-20">{children}</main>
+          <FooterWrapper />
+        </div>
+        {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
       </body>
     </html>
   );

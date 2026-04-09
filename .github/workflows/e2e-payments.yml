@@ -9,6 +9,28 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  workflow-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow sanity
+        run: echo "e2e-payments workflow booted"
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            | bash -s -- 1.7.8
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Validate GitHub workflow files
+        run: actionlint -color
+
   payments-local-mock:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -18,12 +40,15 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       HODAM_ENFORCE_SECRET_CHECKS: ${{ vars.HODAM_ENFORCE_SECRET_CHECKS || '0' }}
-      HODAM_E2E_ENSURE_TEST_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '' && '1' || '' }}
+      HODAM_E2E_ENSURE_TEST_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && '1' || '' }}
+      HODAM_TEST_AUTO_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && '1' || '' }}
+      HODAM_E2E_REQUIRE_AUTH: ${{ (secrets.HODAM_TEST_ACCESS_TOKEN != '' || (secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '') || secrets.SUPABASE_SERVICE_ROLE_KEY != '') && '1' || '0' }}
       HODAM_TEST_ACCESS_TOKEN: ${{ secrets.HODAM_TEST_ACCESS_TOKEN }}
       HODAM_TEST_USER_EMAIL: ${{ secrets.HODAM_TEST_USER_EMAIL }}
       HODAM_TEST_USER_PASSWORD: ${{ secrets.HODAM_TEST_USER_PASSWORD }}
       HODAM_TEST_PAYMENT_PACKAGE_ID: bead_5
       HODAM_TEST_PAYMENT_KEY: mock_payment_key
+      HODAM_TEST_PAYMENT_WEBHOOK: "1"
       TOSS_PAYMENTS_SECRET_KEY: mock_secret
 
     steps:
@@ -32,25 +57,41 @@ jobs:
         run: |
           has_supabase=0
           has_test_auth=0
+          has_service_role=0
+          requires_webhook=0
+
+          if [ "${HODAM_TEST_PAYMENT_WEBHOOK}" = "1" ]; then
+            requires_webhook=1
+          fi
 
           if [ -n "${NEXT_PUBLIC_SUPABASE_URL}" ] && [ -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
             has_supabase=1
+          fi
+
+          if [ -n "${SUPABASE_SERVICE_ROLE_KEY}" ]; then
+            has_service_role=1
           fi
 
           if [ -n "${HODAM_TEST_ACCESS_TOKEN}" ]; then
             has_test_auth=1
           elif [ -n "${HODAM_TEST_USER_EMAIL}" ] && [ -n "${HODAM_TEST_USER_PASSWORD}" ]; then
             has_test_auth=1
+          elif [ "$has_service_role" -eq 1 ]; then
+            has_test_auth=1
           fi
 
-          if [ "$has_supabase" -eq 1 ] && [ "$has_test_auth" -eq 1 ]; then
+          if [ "$has_supabase" -eq 1 ] && [ "$has_test_auth" -eq 1 ] && { [ "$requires_webhook" -eq 0 ] || [ "$has_service_role" -eq 1 ]; }; then
             echo "enabled=1" >> "$GITHUB_OUTPUT"
             echo "missing=0" >> "$GITHUB_OUTPUT"
             echo "Payments e2e checks are enabled."
           else
             echo "enabled=0" >> "$GITHUB_OUTPUT"
             echo "missing=1" >> "$GITHUB_OUTPUT"
-            echo "Payments e2e checks are skipped because required secrets are missing."
+            if [ "$requires_webhook" -eq 1 ] && [ "$has_service_role" -ne 1 ]; then
+              echo "Payments e2e checks are skipped because SUPABASE_SERVICE_ROLE_KEY is required for webhook validation."
+            else
+              echo "Payments e2e checks are skipped because required secrets are missing."
+            fi
           fi
 
       - name: Fail when required secrets are missing (strict mode)
@@ -97,7 +138,115 @@ jobs:
           echo "access_token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Run local mock payment e2e
+        id: run-payments-local
         if: ${{ steps.guard.outputs.enabled == '1' }}
+        continue-on-error: true
         env:
           HODAM_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
-        run: npm run test:e2e:payments:local
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          node scripts/run-with-retry.mjs \
+            --attempts=2 \
+            --delay-ms=2000 \
+            -- \
+            npm run test:e2e:payments:local 2>&1 | tee reports/e2e-payments-local.log
+
+      - name: Verify webhook coverage for recent completed payments
+        id: run-webhook-coverage
+        if: ${{ steps.guard.outputs.enabled == '1' }}
+        continue-on-error: true
+        env:
+          HODAM_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          npm run check:payments:webhook-coverage:strict -- --lookback-minutes=90 --max-orders=1 --report-file=reports/webhook-coverage.md 2>&1 | tee reports/webhook-coverage.log
+
+      - name: Upload webhook coverage report artifact
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: payments-webhook-coverage-report
+          path: reports/webhook-coverage.md
+          if-no-files-found: ignore
+
+      - name: Run unauthorized payment e2e
+        id: run-payments-unauth
+        if: ${{ steps.guard.outputs.enabled == '1' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          node scripts/run-with-retry.mjs \
+            --attempts=2 \
+            --delay-ms=2000 \
+            -- \
+            npm run test:e2e:payments:unauth:local 2>&1 | tee reports/e2e-payments-unauth.log
+
+      - name: Append payments e2e summary
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        run: |
+          {
+            echo "## Payments E2E Result"
+            echo "- local_mock_outcome: ${{ steps.run-payments-local.outcome }}"
+            echo "- webhook_coverage_outcome: ${{ steps.run-webhook-coverage.outcome }}"
+            echo "- unauthorized_outcome: ${{ steps.run-payments-unauth.outcome }}"
+            if [ -f reports/e2e-payments-local.log ]; then
+              echo ""
+              echo "### Local Mock Tail Logs"
+              echo '```text'
+              tail -n 120 reports/e2e-payments-local.log
+              echo '```'
+            fi
+            if [ -f reports/webhook-coverage.log ]; then
+              if grep -q "missing webhook transmissions" reports/webhook-coverage.log; then
+                echo "- diagnosis: completed payment exists without webhook transmission"
+              fi
+              echo ""
+              echo "### Webhook Coverage Tail Logs"
+              echo '```text'
+              tail -n 120 reports/webhook-coverage.log
+              echo '```'
+            fi
+            if [ -f reports/webhook-coverage.md ]; then
+              echo ""
+              echo "### Webhook Coverage Report"
+              cat reports/webhook-coverage.md
+            fi
+            if [ -f reports/e2e-payments-unauth.log ]; then
+              echo ""
+              echo "### Unauthorized Tail Logs"
+              echo '```text'
+              tail -n 120 reports/e2e-payments-unauth.log
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload payments e2e local log artifact
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-payments-local-log
+          path: reports/e2e-payments-local.log
+          if-no-files-found: ignore
+
+      - name: Upload webhook coverage log artifact
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: payments-webhook-coverage-log
+          path: reports/webhook-coverage.log
+          if-no-files-found: ignore
+
+      - name: Upload payments unauthorized log artifact
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-payments-unauth-log
+          path: reports/e2e-payments-unauth.log
+          if-no-files-found: ignore
+
+      - name: Fail workflow when payments e2e failed
+        if: ${{ steps.guard.outputs.enabled == '1' && (steps.run-payments-local.outcome != 'success' || steps.run-webhook-coverage.outcome != 'success' || steps.run-payments-unauth.outcome != 'success') }}
+        run: exit 1

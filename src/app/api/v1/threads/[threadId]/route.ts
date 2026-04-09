@@ -93,28 +93,42 @@ export async function GET(
   context: { params: Promise<{ threadId: string }> },
 ) {
   const {
-    fail: failWithRequestId,
+    failWithCode,
     ok: okWithRequestId,
     requestId,
   } = createApiRequestContext(request);
 
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return failWithRequestId(401, "Unauthorized");
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/threads/[threadId] authenticateRequest", error, {
+      requestId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
 
-  if (!checkRateLimit(`threads:detail:${auth.userId}`, 120, 60_000)) {
-    return failWithRequestId(429, "Too many thread detail requests");
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
+
+  if (!checkRateLimit(`threads:detail:${authContext.userId}`, 120, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many thread detail requests",
+      "THREAD_DETAIL_RATE_LIMITED",
+    );
   }
 
   const { threadId: threadIdParam } = await context.params;
   const threadId = Number(threadIdParam);
   if (!Number.isFinite(threadId) || threadId <= 0) {
-    return failWithRequestId(400, "Invalid threadId");
+    return failWithCode(400, "Invalid threadId", "THREAD_ID_INVALID");
   }
 
   try {
-    const userClient = requireUserClient(auth.accessToken);
+    const userClient = requireUserClient(authContext.accessToken);
     const degradationReasons: string[] = [];
     let source: ThreadDetailSource = "none";
     let usedFallback = false;
@@ -173,7 +187,7 @@ export async function GET(
 
     if (!thread) {
       usedFallback = true;
-      thread = await getThreadForUser(userClient, threadId, auth.userId);
+      thread = await getThreadForUser(userClient, threadId, authContext.userId);
     }
     if (!messages) {
       usedFallback = true;
@@ -191,7 +205,7 @@ export async function GET(
 
     const imageUrl = await getLatestThreadImageSignedUrl(
       userClient,
-      auth.userId,
+      authContext.userId,
       threadId,
     );
 
@@ -213,9 +227,13 @@ export async function GET(
     );
   } catch (error) {
     if (error instanceof Error && error.message === "THREAD_NOT_FOUND") {
-      return failWithRequestId(404, "Thread not found");
+      return failWithCode(404, "Thread not found", "THREAD_NOT_FOUND");
     }
     logError("/api/v1/threads/[threadId]", error, { requestId });
-    return failWithRequestId(500, "Failed to fetch thread detail");
+    return failWithCode(
+      500,
+      "Failed to fetch thread detail",
+      "THREAD_DETAIL_FETCH_FAILED",
+    );
   }
 }

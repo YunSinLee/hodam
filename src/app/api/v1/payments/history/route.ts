@@ -8,27 +8,44 @@ import { createApiRequestContext } from "@/lib/server/request-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/payments/history authenticateRequest", error, {
+      requestId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`payments:history:${auth.userId}`, 120, 60_000)) {
-    return fail(429, "Too many payment history requests");
+  if (!checkRateLimit(`payments:history:${authContext.userId}`, 120, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many payment history requests",
+      "PAYMENTS_HISTORY_RATE_LIMITED",
+    );
   }
 
   try {
     const admin = createSupabaseAdminClient({
-      fallbackAccessToken: auth.accessToken,
+      fallbackAccessToken: authContext.accessToken,
     });
-    const payments = await listPaymentsByUser(admin, auth.userId);
+    const payments = await listPaymentsByUser(admin, authContext.userId);
     return ok({ payments });
   } catch (error) {
     logError("/api/v1/payments/history", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to fetch payment history");
+    return failWithCode(
+      500,
+      "Failed to fetch payment history",
+      "PAYMENTS_HISTORY_FETCH_FAILED",
+    );
   }
 }

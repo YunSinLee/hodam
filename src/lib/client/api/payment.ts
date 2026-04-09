@@ -2,6 +2,7 @@ import {
   ConfirmPaymentResponseSchema,
   PaymentHistoryResponseSchema,
   PaymentStatusResponseSchema,
+  PaymentTimelineResponseSchema,
   PreparePaymentResponseSchema,
 } from "@/app/api/v1/schemas";
 import type {
@@ -9,9 +10,11 @@ import type {
   PaymentHistoryItem,
   PaymentHistoryResponse,
   PaymentStatusResponse,
+  PaymentTimelineResponse,
   PreparePaymentResponse,
 } from "@/app/api/v1/types";
-import { authorizedFetch } from "@/lib/client/api/http";
+import { ApiError, authorizedFetch } from "@/lib/client/api/http";
+import { PAYMENT_FLOW_HEADER } from "@/lib/payments/flow-diagnostics";
 import { BEAD_PACKAGES } from "@/lib/payments/packages";
 
 // 결제 관련 타입 정의
@@ -30,13 +33,39 @@ export interface PaymentResult {
   paymentKey?: string;
   orderId?: string;
   amount?: number;
+  paymentFlowId?: string;
   error?: string;
+  errorCode?: string;
+  errorStatus?: number;
   beadCount?: number;
   alreadyProcessed?: boolean;
 }
 
 export type PaymentHistory = PaymentHistoryItem;
 export type PaymentStatus = PaymentStatusResponse;
+export type PaymentTimeline = PaymentTimelineResponse;
+
+interface PaymentTimelineLookupParams {
+  orderId?: string;
+  paymentFlowId?: string;
+}
+
+function createPaymentFlowHeaders(
+  paymentFlowId?: string,
+): HeadersInit | undefined {
+  if (typeof paymentFlowId !== "string") {
+    return undefined;
+  }
+
+  const normalized = paymentFlowId.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  return {
+    [PAYMENT_FLOW_HEADER]: normalized,
+  };
+}
 
 const paymentApi = {
   // 신규 결제 준비 API
@@ -72,12 +101,14 @@ const paymentApi = {
     paymentKey: string,
     orderId: string,
     amount: number,
+    options: { paymentFlowId?: string } = {},
   ): Promise<PaymentResult> {
     try {
       const result = await authorizedFetch<ConfirmPaymentResponse>(
         "/api/v1/payments/confirm",
         {
           method: "POST",
+          headers: createPaymentFlowHeaders(options.paymentFlowId),
           body: JSON.stringify({
             paymentKey,
             orderId,
@@ -92,14 +123,18 @@ const paymentApi = {
         paymentKey: result.paymentKey,
         orderId: result.orderId,
         amount: result.amount,
+        paymentFlowId: result.paymentFlowId || options.paymentFlowId,
         beadCount: result.beadCount,
         alreadyProcessed: result.alreadyProcessed,
       };
     } catch (error) {
       return {
         success: false,
+        paymentFlowId: options.paymentFlowId,
         error:
           error instanceof Error ? error.message : "결제 승인에 실패했습니다.",
+        errorCode: error instanceof ApiError ? error.code : undefined,
+        errorStatus: error instanceof ApiError ? error.status : undefined,
       };
     }
   },
@@ -120,7 +155,11 @@ const paymentApi = {
   // 결제 상태 조회/복구
   async getPaymentStatus(
     orderId: string,
-    options: { paymentKey?: string; amount?: number } = {},
+    options: {
+      paymentKey?: string;
+      amount?: number;
+      paymentFlowId?: string;
+    } = {},
   ): Promise<PaymentStatus> {
     const searchParams = new URLSearchParams();
     searchParams.set("orderId", orderId);
@@ -135,8 +174,39 @@ const paymentApi = {
       `/api/v1/payments/status?${searchParams.toString()}`,
       {
         method: "GET",
+        headers: createPaymentFlowHeaders(options.paymentFlowId),
       },
       PaymentStatusResponseSchema,
+    );
+  },
+
+  async getPaymentTimeline(
+    params: PaymentTimelineLookupParams,
+    options: { paymentFlowId?: string } = {},
+  ): Promise<PaymentTimeline> {
+    const normalizedOrderId = (params.orderId || "").trim();
+    const normalizedPaymentFlowId = (params.paymentFlowId || "").trim();
+    if (!normalizedOrderId && !normalizedPaymentFlowId) {
+      throw new Error("orderId 또는 paymentFlowId가 필요합니다.");
+    }
+
+    const searchParams = new URLSearchParams();
+    if (normalizedOrderId) {
+      searchParams.set("orderId", normalizedOrderId);
+    }
+    if (normalizedPaymentFlowId) {
+      searchParams.set("paymentFlowId", normalizedPaymentFlowId);
+    }
+
+    return authorizedFetch<PaymentTimeline>(
+      `/api/v1/payments/timeline?${searchParams.toString()}`,
+      {
+        method: "GET",
+        headers: createPaymentFlowHeaders(
+          options.paymentFlowId || normalizedPaymentFlowId,
+        ),
+      },
+      PaymentTimelineResponseSchema,
     );
   },
 

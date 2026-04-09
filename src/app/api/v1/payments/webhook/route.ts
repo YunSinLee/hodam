@@ -4,11 +4,16 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 import { getOptionalEnv, getRequiredEnv } from "@/lib/env";
 import {
+  buildPaymentFlowHeaders,
+  readPaymentFlowIdFromHeaders,
+  resolvePaymentFlowId,
+} from "@/lib/payments/flow-diagnostics";
+import {
   buildTossApiUrl,
   createTossBasicAuthorization,
 } from "@/lib/payments/toss-api";
 import { trackUserActivityBestEffort } from "@/lib/server/analytics";
-import { logError } from "@/lib/server/logger";
+import { logError, logInfo } from "@/lib/server/logger";
 import {
   getPaymentByOrderId,
   PaymentDomainError,
@@ -282,40 +287,100 @@ async function fetchTossPaymentByOrderId(orderId: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  const incomingPaymentFlowId = readPaymentFlowIdFromHeaders(request.headers);
+  const requestPaymentFlowId = resolvePaymentFlowId({
+    candidate: incomingPaymentFlowId,
+    fallbackSeed: requestId,
+  });
   const webhookSecret = getOptionalEnv("TOSS_PAYMENTS_WEBHOOK_SECRET");
   if (webhookSecret) {
     const incomingSecret = request.headers.get("x-webhook-secret")?.trim();
     if (!incomingSecret || incomingSecret !== webhookSecret) {
-      return fail(401, "Invalid webhook secret");
+      return failWithCode(
+        401,
+        "Invalid webhook secret",
+        "WEBHOOK_SECRET_INVALID",
+        undefined,
+        {
+          headers: buildPaymentFlowHeaders("webhook", requestPaymentFlowId),
+        },
+      );
     }
   }
 
   const transmission = parseTransmissionHeaders(request);
   if (!transmission) {
-    return fail(400, "Invalid webhook transmission headers");
+    return failWithCode(
+      400,
+      "Invalid webhook transmission headers",
+      "WEBHOOK_TRANSMISSION_HEADERS_INVALID",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("webhook", requestPaymentFlowId),
+      },
+    );
   }
+  const transmissionPaymentFlowId = resolvePaymentFlowId({
+    candidate: incomingPaymentFlowId,
+    fallbackSeed: transmission.id || requestId,
+  });
 
   const { rawBody, payload: body } = await readWebhookPayload(request);
   if (!body) {
-    return fail(400, "Invalid webhook payload");
+    return failWithCode(
+      400,
+      "Invalid webhook payload",
+      "WEBHOOK_PAYLOAD_INVALID",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("webhook", transmissionPaymentFlowId),
+      },
+    );
   }
 
   const hmacVerification = verifyWebhookHmacSignature(request, rawBody);
   if (!hmacVerification.ok) {
-    return fail(
+    return failWithCode(
       hmacVerification.status,
       hmacVerification.message || "Invalid webhook signature",
+      "WEBHOOK_SIGNATURE_INVALID",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("webhook", transmissionPaymentFlowId),
+      },
     );
   }
 
   if (isDuplicateTransmission(transmission.id)) {
-    return ok({ received: true, ignored: true, reason: "duplicate_event" });
+    logInfo("/api/v1/payments/webhook", {
+      requestId,
+      transmissionId: transmission.id,
+      paymentFlowId: transmissionPaymentFlowId,
+      ignored: true,
+      reason: "duplicate_event_cache",
+    });
+    return ok(
+      { received: true, ignored: true, reason: "duplicate_event" },
+      {
+        headers: buildPaymentFlowHeaders("webhook", transmissionPaymentFlowId),
+      },
+    );
   }
 
   const paymentPayload = extractWebhookPaymentPayload(body);
+  const paymentFlowId = resolvePaymentFlowId({
+    orderId: paymentPayload?.orderId,
+    candidate: incomingPaymentFlowId,
+    fallbackSeed: transmission.id || requestId,
+  });
   if (!paymentPayload) {
-    return ok({ received: true, ignored: true });
+    return ok(
+      { received: true, ignored: true },
+      {
+        headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+      },
+    );
   }
 
   if (
@@ -323,7 +388,12 @@ export async function POST(request: NextRequest) {
     paymentPayload.status &&
     paymentPayload.status !== "DONE"
   ) {
-    return ok({ received: true, ignored: true, reason: "status_not_done" });
+    return ok(
+      { received: true, ignored: true, reason: "status_not_done" },
+      {
+        headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+      },
+    );
   }
 
   try {
@@ -336,21 +406,36 @@ export async function POST(request: NextRequest) {
       retriedCount: transmission.retriedCount,
     });
     if (!registered) {
-      return ok({ received: true, ignored: true, reason: "duplicate_event" });
+      return ok(
+        { received: true, ignored: true, reason: "duplicate_event" },
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
     }
 
     const payment = await getPaymentByOrderId(admin, paymentPayload.orderId);
 
     if (!payment) {
-      return ok({ received: true, ignored: true, reason: "order_not_found" });
+      return ok(
+        { received: true, ignored: true, reason: "order_not_found" },
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
     }
 
     if (payment.status === "cancelled") {
-      return ok({
-        received: true,
-        ignored: true,
-        reason: "payment_cancelled",
-      });
+      return ok(
+        {
+          received: true,
+          ignored: true,
+          reason: "payment_cancelled",
+        },
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
     }
 
     const requiresTossLookup =
@@ -367,11 +452,16 @@ export async function POST(request: NextRequest) {
       tossPayment?.paymentKey ||
       payment.payment_key;
     if (!paymentKeyToUse) {
-      return ok({
-        received: true,
-        ignored: true,
-        reason: "payment_key_missing",
-      });
+      return ok(
+        {
+          received: true,
+          ignored: true,
+          reason: "payment_key_missing",
+        },
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
     }
 
     const amountToCheck =
@@ -379,11 +469,16 @@ export async function POST(request: NextRequest) {
         ? paymentPayload.amount
         : tossPayment?.totalAmount ?? 0;
     if (Number(payment.amount) !== Number(amountToCheck)) {
-      return ok({
-        received: true,
-        ignored: true,
-        reason: "amount_mismatch",
-      });
+      return ok(
+        {
+          received: true,
+          ignored: true,
+          reason: "amount_mismatch",
+        },
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
     }
 
     if (
@@ -392,7 +487,15 @@ export async function POST(request: NextRequest) {
       tossPayment?.secret &&
       paymentPayload.secret !== tossPayment.secret
     ) {
-      return fail(401, "Invalid webhook secret payload");
+      return failWithCode(
+        401,
+        "Invalid webhook secret payload",
+        "WEBHOOK_SECRET_PAYLOAD_INVALID",
+        undefined,
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
     }
 
     const settled = await settlePaymentAndCredit(
@@ -410,46 +513,87 @@ export async function POST(request: NextRequest) {
         already_processed: settled.alreadyProcessed,
         transmission_id: transmission.id,
         transmission_retried_count: transmission.retriedCount,
+        payment_flow_id: paymentFlowId,
       },
       request,
     );
 
-    return ok({
-      received: true,
+    logInfo("/api/v1/payments/webhook", {
+      requestId,
+      orderId: paymentPayload.orderId,
+      transmissionId: transmission.id,
+      paymentFlowId,
       settled: true,
       alreadyProcessed: settled.alreadyProcessed,
     });
+
+    return ok(
+      {
+        received: true,
+        settled: true,
+        alreadyProcessed: settled.alreadyProcessed,
+      },
+      {
+        headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+      },
+    );
   } catch (error) {
     if (error instanceof PaymentDomainError) {
       if (error.code === "PAYMENT_CANCELLED") {
-        return ok({
-          received: true,
-          ignored: true,
-          reason: "payment_cancelled",
-        });
+        return ok(
+          {
+            received: true,
+            ignored: true,
+            reason: "payment_cancelled",
+          },
+          {
+            headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+          },
+        );
       }
 
       if (
         error.code === "PAYMENT_KEY_MISMATCH" ||
         error.code === "PAYMENT_INVALID_STATUS_TRANSITION"
       ) {
-        return ok({
-          received: true,
-          ignored: true,
-          reason: "payment_state_conflict",
-        });
+        return ok(
+          {
+            received: true,
+            ignored: true,
+            reason: "payment_state_conflict",
+          },
+          {
+            headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+          },
+        );
       }
 
       if (error.code === "PAYMENT_KEY_REQUIRED") {
-        return ok({
-          received: true,
-          ignored: true,
-          reason: "payment_key_missing",
-        });
+        return ok(
+          {
+            received: true,
+            ignored: true,
+            reason: "payment_key_missing",
+          },
+          {
+            headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+          },
+        );
       }
     }
 
-    logError("/api/v1/payments/webhook", error, { requestId });
-    return fail(500, "Failed to process webhook");
+    logError("/api/v1/payments/webhook", error, {
+      requestId,
+      paymentFlowId,
+    });
+    return failWithCode(
+      500,
+      "Failed to process webhook",
+      "WEBHOOK_PROCESS_FAILED",
+      undefined,
+      {
+        headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+      },
+    );
   }
 }

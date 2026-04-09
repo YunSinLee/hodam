@@ -79,3 +79,6 @@ next-env.d.ts
 *.log
 logs/
 **/*.log
+
+# local generated reports
+/reports/local/

@@ -10,9 +10,16 @@ vi.mock("@/lib/client/api/http", () => ({
   ApiError: class MockApiError extends Error {
     status: number;
 
-    constructor(status: number, message: string) {
+    code?: string;
+
+    constructor(
+      status: number,
+      message: string,
+      details?: { code?: string } | null,
+    ) {
       super(message);
       this.status = status;
+      this.code = details?.code;
     }
   },
   authorizedFetch: authorizedFetchMock,
@@ -76,6 +83,34 @@ describe("profileApi", () => {
     expect(path).toBe("/api/v1/profile/image");
     expect(init.method).toBe("POST");
     expect(init.body).toBeInstanceOf(FormData);
+  });
+
+  it("rethrows ApiError from profile image upload", async () => {
+    const { ApiError } = await import("@/lib/client/api/http");
+    authorizedFetchMock.mockRejectedValue(
+      new ApiError(400, "Only image files are allowed", {
+        code: "PROFILE_IMAGE_CONTENT_TYPE_INVALID",
+      }),
+    );
+
+    const imageFile = new File(["test"], "profile.png", { type: "image/png" });
+
+    await expect(
+      profileApi.uploadProfileImage("user-1", imageFile),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Only image files are allowed",
+      code: "PROFILE_IMAGE_CONTENT_TYPE_INVALID",
+    });
+  });
+
+  it("returns null on unknown upload errors", async () => {
+    authorizedFetchMock.mockRejectedValue(new Error("network error"));
+    const imageFile = new File(["test"], "profile.png", { type: "image/png" });
+
+    const result = await profileApi.uploadProfileImage("user-1", imageFile);
+
+    expect(result).toBeNull();
   });
 
   it("removes custom profile image through v1 endpoint", async () => {

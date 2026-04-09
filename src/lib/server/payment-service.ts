@@ -7,6 +7,7 @@ export interface PaymentHistoryRow {
   user_id: string;
   order_id: string;
   payment_key?: string;
+  payment_flow_id?: string | null;
   amount: number;
   bead_quantity: number;
   status: "pending" | "completed" | "failed" | "cancelled";
@@ -14,6 +15,15 @@ export interface PaymentHistoryRow {
   completed_at?: string;
   credited_at?: string | null;
   credited_user_id?: string | null;
+}
+
+export interface PaymentWebhookTransmissionRow {
+  transmission_id: string;
+  order_id: string | null;
+  event_type: string | null;
+  transmission_time: string | null;
+  retried_count: number;
+  created_at: string;
 }
 
 interface RegisterWebhookTransmissionInput {
@@ -71,13 +81,21 @@ export async function createPendingPayment(
     orderId: string;
     amount: number;
     beadQuantity: number;
+    paymentFlowId?: string | null;
   },
 ) {
+  const paymentFlowId =
+    typeof input.paymentFlowId === "string" &&
+    input.paymentFlowId.trim().length > 0
+      ? input.paymentFlowId.trim()
+      : null;
+
   const { data, error } = await admin
     .from("payment_history")
     .insert({
       user_id: input.userId,
       order_id: input.orderId,
+      payment_flow_id: paymentFlowId,
       amount: input.amount,
       bead_quantity: input.beadQuantity,
       status: "pending",
@@ -107,6 +125,36 @@ export async function getPaymentByOrderId(
   }
 
   if (!data) return null;
+  return data as PaymentHistoryRow;
+}
+
+export async function getLatestPaymentByFlowId(
+  admin: SupabaseClient,
+  userId: string,
+  paymentFlowId: string,
+): Promise<PaymentHistoryRow | null> {
+  const normalizedFlowId = paymentFlowId.trim();
+  if (!normalizedFlowId) {
+    return null;
+  }
+
+  const { data, error } = await admin
+    .from("payment_history")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("payment_flow_id", normalizedFlowId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
   return data as PaymentHistoryRow;
 }
 
@@ -187,6 +235,26 @@ export async function registerWebhookTransmission(
   }
 
   return Boolean(data);
+}
+
+export async function listWebhookTransmissionsByOrder(
+  admin: SupabaseClient,
+  orderId: string,
+  userId: string,
+): Promise<PaymentWebhookTransmissionRow[]> {
+  const { data, error } = await admin.rpc("get_payment_webhook_transmissions", {
+    p_order_id: orderId,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data as PaymentWebhookTransmissionRow[];
 }
 
 export async function settlePaymentAndCredit(

@@ -13,6 +13,7 @@ const {
   consumeDailyAiQuotaMock,
   checkRateLimitMock,
   createAdminMock,
+  detectBlockedTopicMock,
 } = vi.hoisted(() => ({
   translateKoreanParagraphsMock: vi.fn(),
   authenticateRequestMock: vi.fn(),
@@ -26,6 +27,7 @@ const {
   consumeDailyAiQuotaMock: vi.fn(),
   checkRateLimitMock: vi.fn(),
   createAdminMock: vi.fn(),
+  detectBlockedTopicMock: vi.fn(),
 }));
 
 class DailyQuotaExceededErrorMock extends Error {
@@ -86,6 +88,10 @@ vi.mock("@/lib/server/rate-limit", () => ({
   checkRateLimit: checkRateLimitMock,
 }));
 
+vi.mock("@/lib/safety/content-policy", () => ({
+  detectBlockedTopic: detectBlockedTopicMock,
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseAdminClient: createAdminMock,
 }));
@@ -99,6 +105,7 @@ describe("POST /api/v1/story/translate", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     checkRateLimitMock.mockReturnValue(true);
+    detectBlockedTopicMock.mockReturnValue(null);
     createAdminMock.mockReturnValue({ from: vi.fn(), rpc: vi.fn() });
     getThreadForUserMock.mockResolvedValue({ id: 321, user_id: "user-1" });
     trackUserActivityBestEffortMock.mockResolvedValue(undefined);
@@ -137,7 +144,27 @@ describe("POST /api/v1/story/translate", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ threadId: 321 }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -156,7 +183,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many translation requests" });
+    expect(body).toEqual({
+      error: "Too many translation requests",
+      code: "STORY_TRANSLATE_RATE_LIMITED",
+    });
   });
 
   it("returns 400 when threadId is invalid", async () => {
@@ -174,7 +204,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Valid threadId is required" });
+    expect(body).toEqual({
+      error: "Valid threadId is required",
+      code: "STORY_TRANSLATE_THREAD_ID_INVALID",
+    });
   });
 
   it("returns 404 when thread does not exist", async () => {
@@ -193,7 +226,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(404);
-    expect(body).toEqual({ error: "Thread not found" });
+    expect(body).toEqual({
+      error: "Thread not found",
+      code: "THREAD_NOT_FOUND",
+    });
   });
 
   it("translates thread messages and returns updated list", async () => {
@@ -236,6 +272,34 @@ describe("POST /api/v1/story/translate", () => {
       { id: 1, text: "안녕하세요", text_en: "Hello" },
       { id: 2, text: "모험을 시작해요", text_en: "Let's begin adventure" },
     ]);
+  });
+
+  it("returns 400 and refunds when translated output includes blocked topic", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    detectBlockedTopicMock.mockReturnValue("살인");
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ threadId: 321 }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: "Generated translation contained unsafe topic",
+      code: "STORY_TRANSLATE_BLOCKED_OUTPUT",
+    });
+    expect(updateMessageTranslationsMock).not.toHaveBeenCalled();
+    expect(creditBeadsMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      "user-1",
+      1,
+    );
   });
 
   it("returns existing messages without charging when all messages are translated", async () => {
@@ -293,7 +357,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Daily AI budget exceeded" });
+    expect(body).toEqual({
+      error: "Daily AI budget exceeded",
+      code: "AI_DAILY_BUDGET_EXCEEDED",
+    });
   });
 
   it("returns 402 when beads are insufficient", async () => {
@@ -312,7 +379,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(402);
-    expect(body).toEqual({ error: "Not enough beads" });
+    expect(body).toEqual({
+      error: "Not enough beads",
+      code: "BEADS_INSUFFICIENT",
+    });
   });
 
   it("returns 503 when ai service key is not configured", async () => {
@@ -333,7 +403,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(503);
-    expect(body).toEqual({ error: "AI service is not configured" });
+    expect(body).toEqual({
+      error: "AI service is not configured",
+      code: "AI_SERVICE_NOT_CONFIGURED",
+    });
     expect(creditBeadsMock).toHaveBeenCalledWith(
       expect.any(Object),
       "user-1",
@@ -357,7 +430,10 @@ describe("POST /api/v1/story/translate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to translate story" });
+    expect(body).toEqual({
+      error: "Failed to translate story",
+      code: "STORY_TRANSLATE_FAILED",
+    });
     expect(creditBeadsMock).toHaveBeenCalledWith(
       expect.any(Object),
       "user-1",

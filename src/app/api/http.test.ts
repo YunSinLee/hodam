@@ -270,10 +270,16 @@ describe("authorizedFetch", () => {
 
     const fetchMock = vi.fn().mockImplementation(
       async () =>
-        new Response(JSON.stringify({ error: "Failed to fetch threads" }), {
-          status: 500,
-          headers: { "content-type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({
+            error: "Failed to fetch threads",
+            code: "THREADS_FETCH_FAILED",
+          }),
+          {
+            status: 500,
+            headers: { "content-type": "application/json" },
+          },
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -282,6 +288,7 @@ describe("authorizedFetch", () => {
     ).rejects.toMatchObject({
       status: 500,
       message: "Failed to fetch threads",
+      code: "THREADS_FETCH_FAILED",
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -423,7 +430,68 @@ describe("authorizedFetch", () => {
     expect(secondHeaders.get("Authorization")).toBe("Bearer token-new");
   });
 
-  it("throws 401 when refresh does not provide a new token", async () => {
+  it("retries GET once with latest token when refresh keeps same token", async () => {
+    const { authorizedFetch } = await loadHttpModule();
+    setSession("token-1");
+    refreshSessionMock.mockResolvedValue({
+      data: { session: { access_token: "token-1" } },
+      error: null,
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await authorizedFetch<{ ok: boolean }>("/api/v1/threads", {
+      method: "GET",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(refreshSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws 401 after fallback retry when refresh does not provide a new token", async () => {
+    const { authorizedFetch } = await loadHttpModule();
+    setSession("token-1");
+    refreshSessionMock.mockResolvedValue({
+      data: { session: { access_token: "token-1" } },
+      error: null,
+    });
+
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      authorizedFetch("/api/v1/threads", { method: "GET" }),
+    ).rejects.toMatchObject({
+      status: 401,
+      message: "Unauthorized",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(refreshSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not run fallback 401 retry for non-idempotent methods", async () => {
     const { authorizedFetch } = await loadHttpModule();
     setSession("token-1");
     refreshSessionMock.mockResolvedValue({
@@ -440,7 +508,10 @@ describe("authorizedFetch", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      authorizedFetch("/api/v1/threads", { method: "GET" }),
+      authorizedFetch("/api/v1/story/start", {
+        method: "POST",
+        body: JSON.stringify({ prompt: "start" }),
+      }),
     ).rejects.toMatchObject({
       status: 401,
       message: "Unauthorized",
@@ -478,5 +549,30 @@ describe("authorizedFetch", () => {
     const headers = new Headers(init.headers);
     expect(headers.get("Authorization")).toBe("Bearer token-1");
     expect(headers.get("Content-Type")).toBeNull();
+  });
+});
+
+describe("getApiErrorCode", () => {
+  it("returns code from ApiError instances", async () => {
+    const { ApiError, getApiErrorCode } = await loadHttpModule();
+
+    const error = new ApiError(400, "failed", {
+      code: "SAMPLE_CODE",
+    });
+
+    expect(getApiErrorCode(error)).toBe("SAMPLE_CODE");
+  });
+
+  it("returns code from generic error-like objects", async () => {
+    const { getApiErrorCode } = await loadHttpModule();
+
+    expect(getApiErrorCode({ code: "GENERIC_CODE" })).toBe("GENERIC_CODE");
+  });
+
+  it("returns null when code is unavailable", async () => {
+    const { getApiErrorCode } = await loadHttpModule();
+
+    expect(getApiErrorCode(new Error("boom"))).toBeNull();
+    expect(getApiErrorCode(null)).toBeNull();
   });
 });

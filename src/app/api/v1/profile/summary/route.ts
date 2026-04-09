@@ -30,18 +30,31 @@ interface KeywordRow {
 }
 
 export async function GET(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/profile/summary authenticateRequest", error, {
+      requestId,
+    });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`profile:summary:${auth.userId}`, 60, 60_000)) {
-    return fail(429, "Too many profile summary requests");
+  if (!checkRateLimit(`profile:summary:${authContext.userId}`, 60, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many profile summary requests",
+      "PROFILE_SUMMARY_RATE_LIMITED",
+    );
   }
 
   try {
-    const userClient = requireUserClient(auth.accessToken);
+    const userClient = requireUserClient(authContext.accessToken);
 
     const limitParam = Number(request.nextUrl.searchParams.get("limit") || "5");
     const recentLimit =
@@ -52,7 +65,7 @@ export async function GET(request: NextRequest) {
     const { data: authUserData, error: authUserError } =
       await userClient.auth.getUser();
     if (authUserError || !authUserData.user) {
-      return fail(401, "Unauthorized");
+      return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
     }
 
     const authUser = authUserData.user;
@@ -60,7 +73,7 @@ export async function GET(request: NextRequest) {
     const { data: existingUser, error: userRowError } = await userClient
       .from("users")
       .select("display_name, custom_profile_url")
-      .eq("id", auth.userId)
+      .eq("id", authContext.userId)
       .maybeSingle();
 
     if (userRowError) {
@@ -72,13 +85,13 @@ export async function GET(request: NextRequest) {
       const defaultDisplayName =
         authUser.user_metadata?.full_name ||
         authUser.user_metadata?.name ||
-        `User_${auth.userId.slice(-8)}`;
+        `User_${authContext.userId.slice(-8)}`;
 
       const { data: createdUser, error: createUserError } = await userClient
         .from("users")
         .insert({
-          id: auth.userId,
-          email: auth.email,
+          id: authContext.userId,
+          email: authContext.email,
           display_name: defaultDisplayName,
         })
         .select("display_name, custom_profile_url")
@@ -93,16 +106,19 @@ export async function GET(request: NextRequest) {
 
     const [threadsResult, paymentsResult, recentThreadsResult] =
       await Promise.all([
-        userClient.from("thread").select("id").eq("user_id", auth.userId),
+        userClient
+          .from("thread")
+          .select("id")
+          .eq("user_id", authContext.userId),
         userClient
           .from("payment_history")
           .select("bead_quantity, amount")
-          .eq("user_id", auth.userId)
+          .eq("user_id", authContext.userId)
           .eq("status", "completed"),
         userClient
           .from("thread")
           .select("id, created_at, able_english, has_image")
-          .eq("user_id", auth.userId)
+          .eq("user_id", authContext.userId)
           .order("created_at", { ascending: false })
           .limit(recentLimit),
       ]);
@@ -164,8 +180,8 @@ export async function GET(request: NextRequest) {
     });
 
     const profile = {
-      id: auth.userId,
-      email: auth.email || "",
+      id: authContext.userId,
+      email: authContext.email || "",
       display_name:
         userRow?.display_name ||
         authUser.user_metadata?.full_name ||
@@ -201,8 +217,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logError("/api/v1/profile/summary", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to fetch profile summary");
+    return failWithCode(
+      500,
+      "Failed to fetch profile summary",
+      "PROFILE_SUMMARY_FETCH_FAILED",
+    );
   }
 }

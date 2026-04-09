@@ -38,7 +38,24 @@ describe("GET /api/v1/threads", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const GET = await loadGetHandler();
+
+    const response = await GET({ headers: new Headers() } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns threads for authenticated user", async () => {
@@ -117,7 +134,10 @@ describe("GET /api/v1/threads", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many thread list requests" });
+    expect(body).toEqual({
+      error: "Too many thread list requests",
+      code: "THREAD_LIST_RATE_LIMITED",
+    });
   });
 
   it("falls back to direct thread query when rpc fails", async () => {

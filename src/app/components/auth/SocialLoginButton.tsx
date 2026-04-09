@@ -4,6 +4,7 @@ interface SocialLoginButtonProps {
   provider: "kakao" | "google";
   loading: boolean;
   disabled: boolean;
+  disabledReason?: string | null;
   onClick: () => void | Promise<void>;
 }
 
@@ -36,50 +37,60 @@ export default function SocialLoginButton({
   provider,
   loading,
   disabled,
+  disabledReason,
   onClick,
 }: SocialLoginButtonProps) {
   const config = PROVIDER_CONFIG[provider];
+  const showDisabledReason = disabled && Boolean(disabledReason);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        "group relative w-full overflow-hidden rounded-2xl px-4 py-3 transition-all duration-300",
-        "disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none",
-        "hover:scale-[1.01] hover:shadow-lg",
-        config.buttonClass,
-      ].join(" ")}
-    >
-      <div className="relative z-10 flex items-center justify-center gap-3">
-        {loading ? (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={[
+          "group relative w-full overflow-hidden rounded-2xl px-4 py-3 transition-all duration-300",
+          "disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none",
+          "hover:scale-[1.01] hover:shadow-lg",
+          config.buttonClass,
+        ].join(" ")}
+      >
+        <div className="relative z-10 flex items-center justify-center gap-3">
+          {loading ? (
+            <div
+              className={`h-6 w-6 animate-spin rounded-full border-2 ${config.spinnerClass}`}
+            />
+          ) : (
+            <Image
+              src={config.iconSrc}
+              alt={config.iconAlt}
+              className="h-6 w-6"
+              width={24}
+              height={24}
+            />
+          )}
+          <span className="text-base font-semibold sm:text-lg">
+            {loading ? config.loadingLabel : config.idleLabel}
+          </span>
+        </div>
+
+        {!loading && !disabled && (
           <div
-            className={`h-6 w-6 animate-spin rounded-full border-2 ${config.spinnerClass}`}
-          />
-        ) : (
-          <Image
-            src={config.iconSrc}
-            alt={config.iconAlt}
-            className="h-6 w-6"
-            width={24}
-            height={24}
+            className={[
+              "absolute inset-0 translate-x-[-100%] transition-transform duration-700",
+              "group-hover:translate-x-[100%]",
+              config.shimmerClass,
+            ].join(" ")}
           />
         )}
-        <span className="text-base font-semibold sm:text-lg">
-          {loading ? config.loadingLabel : config.idleLabel}
-        </span>
-      </div>
+      </button>
 
-      {!loading && !disabled && (
-        <div
-          className={[
-            "absolute inset-0 translate-x-[-100%] transition-transform duration-700",
-            "group-hover:translate-x-[100%]",
-            config.shimmerClass,
-          ].join(" ")}
-        />
+      {showDisabledReason && (
+        <p className="px-1 text-left text-xs text-amber-700">
+          사용 불가 사유: {disabledReason}
+        </p>
       )}
-    </button>
+    </div>
   );
 }

@@ -122,6 +122,66 @@ describe("threadApi", () => {
       reasons: ["rpc_error", "keywords_error"],
     });
   });
+
+  it("returns degraded empty list when thread list request fails with 5xx", async () => {
+    authorizedFetchWithMetaMock.mockRejectedValue({
+      status: 500,
+      message: "Failed to fetch threads",
+    });
+
+    const result = await threadApi.fetchThreadsByUserIdWithDiagnostics();
+
+    expect(result).toEqual({
+      threads: [],
+      diagnostics: {
+        source: "none",
+        degraded: true,
+        reasons: ["request_retry_exhausted", "request_failed_500"],
+      },
+    });
+    expect(authorizedFetchWithMetaMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries once and returns data when second attempt succeeds", async () => {
+    authorizedFetchWithMetaMock
+      .mockRejectedValueOnce({
+        status: 503,
+        message: "Service unavailable",
+      })
+      .mockResolvedValueOnce({
+        data: {
+          threads: [{ id: 1 }],
+        },
+        status: 200,
+        headers: new Headers({
+          "x-hodam-threads-source": "fallback",
+          "x-hodam-threads-degraded": "1",
+          "x-hodam-threads-degraded-reasons": "rpc_error",
+        }),
+      });
+
+    const result = await threadApi.fetchThreadsByUserIdWithDiagnostics();
+
+    expect(result.threads).toEqual([{ id: 1 }]);
+    expect(result.diagnostics).toEqual({
+      source: "fallback",
+      degraded: true,
+      reasons: ["rpc_error"],
+    });
+    expect(authorizedFetchWithMetaMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rethrows non-5xx errors from thread list request", async () => {
+    const unauthorizedError = {
+      status: 401,
+      message: "Unauthorized",
+    };
+    authorizedFetchWithMetaMock.mockRejectedValue(unauthorizedError);
+
+    await expect(threadApi.fetchThreadsByUserIdWithDiagnostics()).rejects.toBe(
+      unauthorizedError,
+    );
+  });
 });
 
 describe("isThreadListUnavailable", () => {
@@ -162,5 +222,18 @@ describe("isThreadListUnavailable", () => {
     });
 
     expect(unavailable).toBe(false);
+  });
+
+  it("returns true when degraded reason indicates repeated request failure", () => {
+    const unavailable = isThreadListUnavailable({
+      threads: [],
+      diagnostics: {
+        source: "none",
+        degraded: true,
+        reasons: ["request_retry_exhausted", "request_failed_500"],
+      },
+    });
+
+    expect(unavailable).toBe(true);
   });
 });

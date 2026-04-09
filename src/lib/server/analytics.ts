@@ -3,11 +3,18 @@ import { NextRequest } from "next/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 
 interface ActivityPayload {
-  user_id: string;
+  user_id?: string | null;
   action: string;
   details: Record<string, unknown>;
   ip_address?: string;
   user_agent?: string;
+}
+
+interface TrackActivityParams {
+  userId?: string | null;
+  action: string;
+  details?: Record<string, unknown>;
+  request?: NextRequest;
 }
 
 function getClientIp(request?: NextRequest): string | undefined {
@@ -30,18 +37,18 @@ function getUserAgent(request?: NextRequest): string | undefined {
   return userAgent || undefined;
 }
 
-export async function trackUserActivity(
+export async function trackActivity(
   admin: SupabaseClient,
-  userId: string,
-  action: string,
-  details: Record<string, unknown> = {},
-  request?: NextRequest,
+  params: TrackActivityParams,
 ) {
+  const { userId, action, details = {}, request } = params;
   const payload: ActivityPayload = {
-    user_id: userId,
     action,
     details,
   };
+  if (userId) {
+    payload.user_id = userId;
+  }
 
   const ip = getClientIp(request);
   if (ip) {
@@ -59,6 +66,32 @@ export async function trackUserActivity(
   }
 }
 
+export async function trackActivityBestEffort(
+  admin: SupabaseClient,
+  params: TrackActivityParams,
+) {
+  try {
+    await trackActivity(admin, params);
+  } catch (error) {
+    // Analytics is best-effort and must not break product flows.
+  }
+}
+
+export async function trackUserActivity(
+  admin: SupabaseClient,
+  userId: string,
+  action: string,
+  details: Record<string, unknown> = {},
+  request?: NextRequest,
+) {
+  await trackActivity(admin, {
+    userId,
+    action,
+    details,
+    request,
+  });
+}
+
 export async function trackUserActivityBestEffort(
   admin: SupabaseClient,
   userId: string,
@@ -66,9 +99,10 @@ export async function trackUserActivityBestEffort(
   details: Record<string, unknown> = {},
   request?: NextRequest,
 ) {
-  try {
-    await trackUserActivity(admin, userId, action, details, request);
-  } catch (error) {
-    // Analytics is best-effort and must not break product flows.
-  }
+  await trackActivityBestEffort(admin, {
+    userId,
+    action,
+    details,
+    request,
+  });
 }

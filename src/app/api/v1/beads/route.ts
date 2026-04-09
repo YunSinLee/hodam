@@ -10,32 +10,39 @@ import { checkRateLimit } from "@/lib/server/rate-limit";
 import { createApiRequestContext } from "@/lib/server/request-context";
 
 export async function GET(request: NextRequest) {
-  const { fail, ok, requestId } = createApiRequestContext(request);
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return fail(401, "Unauthorized");
+  const { failWithCode, ok, requestId } = createApiRequestContext(request);
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/beads authenticateRequest", error, { requestId });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
 
-  if (!checkRateLimit(`beads:read:${auth.userId}`, 120, 60_000)) {
-    return fail(429, "Too many bead requests");
+  if (!checkRateLimit(`beads:read:${authContext.userId}`, 120, 60_000)) {
+    return failWithCode(429, "Too many bead requests", "BEADS_RATE_LIMITED");
   }
 
   try {
-    const userClient = requireUserClient(auth.accessToken);
-    const bead = await ensureBeadRow(userClient, auth.userId);
+    const userClient = requireUserClient(authContext.accessToken);
+    const bead = await ensureBeadRow(userClient, authContext.userId);
 
     return ok({
       bead: {
         id: bead.id,
-        user_id: auth.userId,
+        user_id: authContext.userId,
         count: bead.count,
       },
     });
   } catch (error) {
     logError("/api/v1/beads", error, {
       requestId,
-      userId: auth.userId,
+      userId: authContext.userId,
     });
-    return fail(500, "Failed to fetch beads");
+    return failWithCode(500, "Failed to fetch beads", "BEADS_FETCH_FAILED");
   }
 }

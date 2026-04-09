@@ -89,22 +89,34 @@ function buildThreadResponseHeaders(
 
 export async function GET(request: NextRequest) {
   const {
-    fail: failWithRequestId,
+    failWithCode,
     ok: okWithRequestId,
     requestId,
   } = createApiRequestContext(request);
 
-  const auth = await authenticateRequest(request);
-  if (!auth) {
-    return failWithRequestId(401, "Unauthorized");
+  let auth: Awaited<ReturnType<typeof authenticateRequest>> = null;
+  try {
+    auth = await authenticateRequest(request);
+  } catch (error) {
+    logError("/api/v1/threads authenticateRequest", error, { requestId });
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
   }
 
-  if (!checkRateLimit(`threads:list:${auth.userId}`, 120, 60_000)) {
-    return failWithRequestId(429, "Too many thread list requests");
+  if (!auth) {
+    return failWithCode(401, "Unauthorized", "AUTH_UNAUTHORIZED");
+  }
+  const authContext = auth;
+
+  if (!checkRateLimit(`threads:list:${authContext.userId}`, 120, 60_000)) {
+    return failWithCode(
+      429,
+      "Too many thread list requests",
+      "THREAD_LIST_RATE_LIMITED",
+    );
   }
 
   try {
-    const userClient = requireUserClient(auth.accessToken);
+    const userClient = requireUserClient(authContext.accessToken);
     let threadRows: ThreadRowLike[] = [];
     let source: ThreadSource = "none";
     const degradationReasons: string[] = [];
@@ -120,13 +132,13 @@ export async function GET(request: NextRequest) {
         degradationReasons.push("rpc_error");
         logError("/api/v1/threads rpc get_my_threads failed", error, {
           requestId,
-          userId: auth.userId,
+          userId: authContext.userId,
         });
       } catch (rpcError) {
         degradationReasons.push("rpc_exception");
         logError("/api/v1/threads rpc get_my_threads threw", rpcError, {
           requestId,
-          userId: auth.userId,
+          userId: authContext.userId,
         });
       }
 
@@ -137,7 +149,7 @@ export async function GET(request: NextRequest) {
           .select(
             "id, openai_thread_id, created_at, user_id, able_english, has_image",
           )
-          .eq("user_id", auth.userId)
+          .eq("user_id", authContext.userId)
           .order("created_at", { ascending: false });
 
         if (fallbackError) {
@@ -147,7 +159,7 @@ export async function GET(request: NextRequest) {
             fallbackError,
             {
               requestId,
-              userId: auth.userId,
+              userId: authContext.userId,
             },
           );
           threadRows = [];
@@ -163,7 +175,7 @@ export async function GET(request: NextRequest) {
           fallbackThrownError,
           {
             requestId,
-            userId: auth.userId,
+            userId: authContext.userId,
           },
         );
         threadRows = [];
@@ -230,7 +242,7 @@ export async function GET(request: NextRequest) {
               // Keywords are optional metadata; do not fail the thread list response.
               logError("/api/v1/threads keywords lookup", keywordError, {
                 requestId,
-                userId: auth.userId,
+                userId: authContext.userId,
               });
               return;
             }
@@ -261,7 +273,7 @@ export async function GET(request: NextRequest) {
         // If keyword query fails unexpectedly, still serve thread list.
         logError("/api/v1/threads keywords lookup threw", keywordThrownError, {
           requestId,
-          userId: auth.userId,
+          userId: authContext.userId,
         });
       }
     }
@@ -274,9 +286,9 @@ export async function GET(request: NextRequest) {
           ...thread,
           keywords: keywordsByThreadId.get(thread.id) || [],
           user: {
-            id: auth.userId,
-            email: auth.email,
-            display_name: auth.email || "사용자",
+            id: authContext.userId,
+            email: authContext.email,
+            display_name: authContext.email || "사용자",
           },
         })),
       },

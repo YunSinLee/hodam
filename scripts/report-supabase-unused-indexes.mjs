@@ -2,6 +2,7 @@
 
 import fs from "fs";
 import path from "path";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
 
 const args = new Set(process.argv.slice(2));
 
@@ -11,53 +12,19 @@ function readArgValue(prefix) {
   return raw.slice(prefix.length + 1).trim();
 }
 
-function parseEnv(content) {
-  const out = {};
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const index = line.indexOf("=");
-    if (index <= 0) continue;
-    const key = line.slice(0, index).trim();
-    const value = line
-      .slice(index + 1)
-      .trim()
-      .replace(/^['"]|['"]$/g, "");
-    out[key] = value;
-  }
-  return out;
-}
-
-function loadLocalEnv() {
-  const cwd = process.cwd();
-  const nodeEnv = process.env.NODE_ENV || "development";
-  const envFilesInOrder = [
-    ".env",
-    `.env.${nodeEnv}`,
-    ".env.local",
-    `.env.${nodeEnv}.local`,
-  ];
-
-  const merged = {};
-  const loadedFiles = [];
-  envFilesInOrder.forEach(fileName => {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) return;
-    Object.assign(merged, parseEnv(fs.readFileSync(fullPath, "utf8")));
-    loadedFiles.push(fileName);
-  });
-
-  return { merged, loadedFiles, nodeEnv };
-}
-
-const { merged: localEnv, loadedFiles, nodeEnv } = loadLocalEnv();
+const cwd = process.cwd();
+const nodeEnv = process.env.NODE_ENV || "development";
+const { merged: localEnv, loaded: loadedFilePaths } = loadLocalEnv({
+  cwd,
+  nodeEnv,
+});
+const loadedFiles = loadedFilePaths.map(fullPath => path.basename(fullPath));
 
 function readEnv(name) {
-  const processValue = process.env[name];
-  if (processValue && processValue.trim()) return processValue.trim();
-  const localValue = localEnv[name];
-  if (localValue && localValue.trim()) return localValue.trim();
-  return "";
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv: localEnv,
+  });
 }
 
 function inferProjectRefFromUrl(url) {
@@ -144,6 +111,11 @@ const KNOWN_INDEX_COLUMNS = {
   idx_payment_history_status: ["status"],
   idx_payment_history_user_id: ["user_id"],
   payment_history_user_created_at_idx: ["user_id", "created_at"],
+  payment_history_user_flow_created_at_idx: [
+    "user_id",
+    "payment_flow_id",
+    "created_at",
+  ],
   idx_user_activity_logs_created_at: ["created_at"],
   idx_user_activity_logs_user_id: ["user_id"],
   user_activity_logs_action_created_at_idx: ["action", "created_at"],

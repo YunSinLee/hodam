@@ -62,7 +62,27 @@ describe("GET /api/v1/threads/[threadId]", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const GET = await loadGetHandler();
+
+    const response = await GET(
+      { headers: new Headers() } as never,
+      contextWithThreadId("1"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 400 when threadId is invalid", async () => {
@@ -80,7 +100,10 @@ describe("GET /api/v1/threads/[threadId]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid threadId" });
+    expect(body).toEqual({
+      error: "Invalid threadId",
+      code: "THREAD_ID_INVALID",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -99,7 +122,10 @@ describe("GET /api/v1/threads/[threadId]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many thread detail requests" });
+    expect(body).toEqual({
+      error: "Too many thread detail requests",
+      code: "THREAD_DETAIL_RATE_LIMITED",
+    });
   });
 
   it("returns thread detail from rpc when available", async () => {
@@ -305,7 +331,10 @@ describe("GET /api/v1/threads/[threadId]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(404);
-    expect(body).toEqual({ error: "Thread not found" });
+    expect(body).toEqual({
+      error: "Thread not found",
+      code: "THREAD_NOT_FOUND",
+    });
   });
 
   it("returns 500 on unexpected errors", async () => {
@@ -329,6 +358,9 @@ describe("GET /api/v1/threads/[threadId]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to fetch thread detail" });
+    expect(body).toEqual({
+      error: "Failed to fetch thread detail",
+      code: "THREAD_DETAIL_FETCH_FAILED",
+    });
   });
 });

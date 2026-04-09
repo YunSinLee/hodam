@@ -65,6 +65,45 @@ export const ThreadDetailResponseSchema = z.object({
   messages: z.array(ThreadDetailMessageSchema),
 });
 
+export const AuthProviderStatusSchema = z.object({
+  enabled: z.boolean().nullable(),
+  reason: z.string().optional(),
+});
+
+export const AuthProvidersResponseSchema = z.object({
+  runtimeOrigin: z.string(),
+  redirectTo: z.string().nullable(),
+  warnings: z.array(z.string()),
+  checkedAt: z.string(),
+  settingsReachable: z.boolean(),
+  settingsStatus: z.number().int().nullable(),
+  allEnabled: z.boolean(),
+  providers: z.object({
+    google: AuthProviderStatusSchema,
+    kakao: AuthProviderStatusSchema,
+  }),
+});
+
+export const AuthCallbackMetricEventSchema = z.object({
+  stage: z.string(),
+  callbackPath: z.string(),
+  timestampMs: z.number().int().positive(),
+  details: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean(), z.null()]),
+    )
+    .optional(),
+});
+
+export const AuthCallbackRecentMetricsResponseSchema = z.object({
+  attemptId: z.string(),
+  events: z.array(AuthCallbackMetricEventSchema),
+  truncated: z.boolean(),
+  degraded: z.boolean(),
+  degradedReason: z.string().nullable(),
+});
+
 export const BeadPackageSchema = z
   .object({
     id: z.string(),
@@ -81,6 +120,7 @@ export const PreparePaymentResponseSchema = z.object({
   orderId: z.string(),
   amount: z.number().int().positive(),
   orderName: z.string(),
+  paymentFlowId: z.string().optional(),
   package: BeadPackageSchema,
 });
 
@@ -91,6 +131,7 @@ export const ConfirmPaymentResponseSchema = z.object({
   amount: z.number().int().positive(),
   beadCount: z.number().int().nonnegative(),
   alreadyProcessed: z.boolean(),
+  paymentFlowId: z.string().optional(),
   paymentStatus: z.string().optional(),
   approvedAt: z.string().nullable().optional(),
 });
@@ -103,11 +144,35 @@ export const PaymentStatusResponseSchema = z.object({
   paymentKey: z.string().nullable().optional(),
   beadCount: z.number().int().nonnegative().optional(),
   alreadyProcessed: z.boolean().optional(),
+  paymentFlowId: z.string().optional(),
   completedAt: z.string().nullable().optional(),
   providerStatus: z.string().optional(),
   reconciliationState: z
     .enum(["not_attempted", "pending", "settled", "amount_mismatch", "error"])
     .optional(),
+});
+
+export const PaymentTimelineEventSchema = z.object({
+  type: z.enum([
+    "payment_created",
+    "payment_completed",
+    "payment_failed",
+    "payment_cancelled",
+    "webhook_received",
+  ]),
+  source: z.enum(["payment_history", "webhook_transmissions"]),
+  timestamp: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const PaymentTimelineResponseSchema = z.object({
+  orderId: z.string(),
+  status: z.enum(["pending", "completed", "failed", "cancelled"]),
+  amount: z.number().int().nonnegative(),
+  beadQuantity: z.number().int().nonnegative(),
+  paymentKey: z.string().nullable().optional(),
+  paymentFlowId: z.string().optional(),
+  events: z.array(PaymentTimelineEventSchema),
 });
 
 export const PaymentHistoryItemSchema = z
@@ -116,6 +181,7 @@ export const PaymentHistoryItemSchema = z
     user_id: z.string(),
     order_id: z.string(),
     payment_key: z.string().optional(),
+    payment_flow_id: z.string().nullable().optional(),
     amount: z.number().int().nonnegative(),
     bead_quantity: z.number().int().nonnegative(),
     status: z.enum(["pending", "completed", "failed", "cancelled"]),
@@ -234,6 +300,12 @@ export const KpiDailyItemSchema = z
     image_generated: z.number().int().nonnegative().optional(),
     purchase_prepare: z.number().int().nonnegative().optional(),
     purchase_success: z.number().int().nonnegative().optional(),
+    auth_callback_success: z.number().int().nonnegative().optional(),
+    auth_callback_error: z.number().int().nonnegative().optional(),
+    auth_callback_success_google: z.number().int().nonnegative().optional(),
+    auth_callback_success_kakao: z.number().int().nonnegative().optional(),
+    auth_callback_error_google: z.number().int().nonnegative().optional(),
+    auth_callback_error_kakao: z.number().int().nonnegative().optional(),
     ai_cost_total: z.number().int().nonnegative().optional(),
     tts_chars_total: z.number().int().nonnegative().optional(),
     cost_per_story: NumericLikeSchema.optional(),

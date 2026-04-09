@@ -69,6 +69,7 @@ AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
 - 커밋 전 민감한 정보 노출 여부 확인
 - `grep -r "sk_\|secret\|key\|token" .` 명령어로 정기 검사
 - 문서 파일(.md)에서도 실제 키 노출 주의
+- 스토리 생성/이어쓰기/번역 API는 입력뿐 아니라 AI 출력 결과도 안전 주제 필터를 통과해야 저장됨
 
 ## 📘 운영 런북
 
@@ -97,16 +98,40 @@ npm run dev
 - 저장소 변수 `HODAM_SUPABASE_SECURITY_IGNORE_LINTS`로 strict 무시 목록을 설정할 수 있습니다.
 - 기본 fallback 무시 목록은 `auth_leaked_password_protection,vulnerable_postgres_version` 입니다.
 - 위 fallback은 임시 조치이므로 Supabase 플랜/DB 패치 이후 제거해야 합니다.
+- `Security Check`의 GitHub failed-runs 진단 결과는 Step Summary와 `github-failed-runs-main-report` artifact로 저장됩니다.
 - `Security Check` / `E2E Auth` / `E2E Payments`는 required secret이 없으면 기본적으로 `skip`(성공 종료)됩니다.
 - 저장소 변수 `HODAM_ENFORCE_SECRET_CHECKS=1`을 설정하면 required secret 누락 시 즉시 `fail` 처리됩니다.
 - 운영에서 정기 검증을 강제하려면, secret 세팅 완료 후 `HODAM_ENFORCE_SECRET_CHECKS`를 `1`로 올리세요.
-- GitHub Actions `E2E Payments` 워크플로우는 수동 실행/주간 실행으로 `npm run test:e2e:payments:local`를 수행합니다.
+- GitHub Actions `E2E Payments` 워크플로우는 수동 실행/주간 실행으로 아래를 수행합니다.
+- `npm run test:e2e:payments:local` (인증 결제 + webhook 타임라인)
+- `npm run check:payments:webhook-coverage:strict` (최근 완료 결제 webhook 누락 진단)
+- `npm run test:e2e:payments:unauth:local` (비인증 401 경계)
+- webhook coverage 결과는 Actions Step Summary와 `payments-webhook-coverage-report` artifact로 저장됩니다.
+- GitHub Actions `E2E Auth` 워크플로우는 실행 로그를 `e2e-auth-local-log` artifact로 업로드하며, 실패 시 최근 로그 요약을 Step Summary에 남깁니다.
 - `E2E Payments`에 필요한 주요 secret:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `HODAM_TEST_ACCESS_TOKEN` (직접 토큰 주입) 또는 `HODAM_TEST_USER_EMAIL` + `HODAM_TEST_USER_PASSWORD` (워크플로우가 토큰 자동 발급)
+- (선택) 로컬 fallback 계정 env: `HODAM_TEST_DEFAULT_USER_EMAIL` + `HODAM_TEST_DEFAULT_USER_PASSWORD`
 - (선택) `SUPABASE_SERVICE_ROLE_KEY`
 - 위 secret 조합이 없으면 `E2E Payments` job은 자동으로 skip 됩니다.
+- GitHub failed-runs 진단:
+- `npm run check:github:failed-runs -- --limit=20 --branch=main --max-age-hours=240`
+- (동일 preset) `npm run check:github:failed-runs:main`
+- (로컬 리포트 파일 생성) `npm run check:github:failed-runs:main:report:local`
+- (CI 리포트 파일 생성) `npm run check:github:failed-runs:main:report`
+- (예산 임계치 0건 게이트) `npm run check:github:failed-runs:main:budget:zero`
+- 기본 동작은 "해당 워크플로우에서 더 최근 성공 런이 있으면 과거 실패를 자동 제외"합니다.
+- 과거 실패까지 모두 보고 싶다면 `--include-resolved-failures`를 추가하세요.
+- `no_jobs_started(workflow_file_or_trigger_issue)` 감지 시 fail 하고 싶다면:
+- `npm run check:github:failed-runs:strict-no-jobs -- --limit=20 --branch=main --max-age-hours=240`
+- (동일 preset) `npm run check:github:failed-runs:strict-no-jobs:main`
+- strict enforcement는 저장소 변수 `HODAM_ENFORCE_GITHUB_NO_JOBS_GUARD=1`로 켤 수 있습니다.
+- 실패 예산 enforcement는 저장소 변수로 제어:
+- `HODAM_ENFORCE_GITHUB_FAILED_RUN_BUDGET=1`
+- `HODAM_GITHUB_FAILED_RUN_MAX_REPORT_FAILURES` (기본 0)
+- `HODAM_GITHUB_FAILED_RUN_MAX_NO_JOBS_STARTED` (기본 0)
+- 과거 실패 SHA를 임시 무시하려면 저장소 변수 `HODAM_GITHUB_FAILED_RUN_IGNORE_SHAS`에 쉼표 구분 prefix 목록을 넣으세요.
 
 ## ✅ 운영 점검 커맨드
 
@@ -136,12 +161,22 @@ npm run check:oauth
 # runtime origin이 현재 접속 주소와 다르면 명시
 npm run check:oauth -- --runtime-origin=http://localhost:3000
 # check-oauth는 provider 활성화 여부(google/kakao)도 함께 검사
+# 로그인 실패 메시지의 [시도 ID]로 callback 메트릭 조회
+npm run check:auth:attempt -- --attempt-id=YOUR_ATTEMPT_ID
+# runtime origin이 다른 환경이면 명시
+npm run check:auth:attempt -- --attempt-id=YOUR_ATTEMPT_ID --runtime-origin=https://your-domain.com
 
 # 로컬 인증 E2E (sign-in CTA + recovery route + threads/list/detail 401 경계 + OAuth provider authorize)
 npm run test:e2e:auth:local
+# 인증 토큰 필수 모드(토큰 해석 실패 시 즉시 실패)
+npm run test:e2e:auth:local:auth
 # callback 오류 경로(예: invalid_grant, invalid_request) 렌더링 점검 포함
 # 서비스 role + 테스트 계정이 있으면 e2e 시작 전에 테스트 사용자 자동 보정
 HODAM_E2E_ENSURE_TEST_USER=1 HODAM_TEST_USER_EMAIL=... HODAM_TEST_USER_PASSWORD=... SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:auth:local
+# 서비스 role이 있고 고정 테스트 계정을 별도 지정하지 않으면 기본 테스트 유저 자동 생성/사용
+HODAM_TEST_AUTO_USER=1 SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:auth:local
+# auto ensure 비활성화(명시된 자격증명만 사용)
+HODAM_E2E_AUTO_ENSURE_TEST_USER=0 npm run test:e2e:auth:local
 # 포트/프로바이더 커스터마이즈
 HODAM_E2E_APP_PORT=3004 HODAM_E2E_OAUTH_PROVIDERS=google,kakao npm run test:e2e:auth:local
 
@@ -151,8 +186,10 @@ npm run check:supabase:security
 npm run check:supabase:performance
 # strict 모드: unresolved unused index가 있으면 실패
 npm run check:supabase:performance:strict
-# unused index 자동 분류 리포트 생성 (reports/supabase-unused-indexes-report.md)
+# unused index 자동 분류 리포트 생성 (로컬: reports/local/supabase-unused-indexes-report.md)
 npm run check:supabase:performance:report
+# CI artifact 경로로 생성
+npm run check:supabase:performance:report:ci
 # service role key가 없어도 anon 민감 RPC 차단 여부(권한 경계)는 검사됨
 # 엄격 모드: WARN(예: OTP 만료, leaked password protection 비활성화)도 실패 처리
 npm run check:supabase:security:strict
@@ -178,9 +215,17 @@ npm run check:supabase:performance -- --ignore-cache-keys=unused_index_public_me
 
 # KPI 조회 (activity/retention 지표)
 # 인증 토큰이 필요하며, 기본은 HODAM_TEST_ACCESS_TOKEN 사용
+# 미설정 시 scripts/get-test-access-token.mjs 로 자동 해석 시도
 npm run check:kpi
 # 조회 개수 조정 (기본 14, 최대 90)
 npm run check:kpi -- --limit=30
+# auth callback 진단 수집이 활성화된 경우, kpi_daily에 아래 필드가 추가 집계됩니다.
+# - auth_callback_success
+# - auth_callback_error
+# 위 필드 존재를 강제 검증하려면
+npm run check:kpi:auth:strict
+# provider 분해 집계(google/kakao) 필드 존재까지 강제하려면
+npm run check:kpi:auth:provider:strict
 
 # Supabase Auth 보안 하드닝 (OTP 만료/유출 비밀번호 보호)
 # 기본: dry-run (변경 없음)
@@ -211,12 +256,44 @@ npm run mock:toss -- --port=4011
 
 # mock Toss + next dev + 결제 smoke를 한 번에 실행
 HODAM_TEST_ACCESS_TOKEN=... npm run test:e2e:payments:local
+# 인증 토큰 필수 모드(토큰 해석 실패 시 즉시 실패)
+npm run test:e2e:payments:local:auth
 # 또는 테스트 계정으로 토큰 자동 발급
 HODAM_TEST_USER_EMAIL=... HODAM_TEST_USER_PASSWORD=... npm run test:e2e:payments:local
+# 또는 로컬 fallback 계정 env 사용
+HODAM_TEST_DEFAULT_USER_EMAIL=... HODAM_TEST_DEFAULT_USER_PASSWORD=... npm run test:e2e:payments:local
 # 서비스 role + 테스트 계정이 있으면 결제 e2e 시작 전에 테스트 사용자 자동 보정
 HODAM_E2E_ENSURE_TEST_USER=1 HODAM_TEST_USER_EMAIL=... HODAM_TEST_USER_PASSWORD=... SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:payments:local
+# 서비스 role이 있고 고정 테스트 계정을 별도 지정하지 않으면 기본 테스트 유저 자동 생성/사용
+HODAM_TEST_AUTO_USER=1 SUPABASE_SERVICE_ROLE_KEY=... npm run test:e2e:payments:local
+# auto ensure 비활성화(명시된 자격증명만 사용)
+HODAM_E2E_AUTO_ENSURE_TEST_USER=0 npm run test:e2e:payments:local
 # 포트 커스터마이즈
 HODAM_TEST_ACCESS_TOKEN=... HODAM_E2E_APP_PORT=3002 HODAM_E2E_TOSS_PORT=4010 npm run test:e2e:payments:local
+# webhook 정산/타임라인 이벤트까지 강제 검증
+HODAM_TEST_ACCESS_TOKEN=... HODAM_TEST_PAYMENT_WEBHOOK=1 npm run test:e2e:payments:local
+# webhook e2e + strict coverage를 한 번에 실행(필수 env 자동 검증/테스트유저 자동 보정 포함)
+npm run test:e2e:payments:webhook:local
+# HODAM_TEST_PAYMENT_WEBHOOK=1 모드에는 SUPABASE_SERVICE_ROLE_KEY가 필요
+# 없으면 즉시 실패하며, 로컬에서만 스킵하려면 HODAM_E2E_ALLOW_WEBHOOK_SKIP=1 사용 가능
+# 로컬 optional 모드(서비스 롤 키가 없으면 strict coverage를 경고 후 건너뜀)
+npm run test:e2e:payments:webhook:local:optional
+# 결제 API 비인증 접근 차단(401) 검증
+npm run test:e2e:payments:unauth:local
+# 최근 완료 결제의 webhook transmission 누락 진단
+npm run check:payments:webhook-coverage
+# strict: 누락이 있으면 실패
+npm run check:payments:webhook-coverage:strict -- --lookback-minutes=180 --max-orders=10
+# 리포트 파일 생성(마크다운)
+npm run check:payments:webhook-coverage -- --report-file=reports/webhook-coverage.md
+# 로컬 권장 경로 예시
+npm run check:payments:webhook-coverage -- --report-file=reports/local/webhook-coverage.md
+# access token 미지정 시 get-test-access-token 스크립트로 자동 해석 시도
+# get-test-access-token은 기본 계정 하드코딩 없이 env 기반으로만 동작
+
+# 결제 타임라인 API: orderId 또는 paymentFlowId 둘 중 하나로 조회 가능
+# (예) GET /api/v1/payments/timeline?orderId=HODAM_...
+# (예) GET /api/v1/payments/timeline?paymentFlowId=order:HODAM_...
 ```
 
 ## 📡 관측성 (Sentry)
@@ -234,6 +311,18 @@ HODAM_TEST_ACCESS_TOKEN=... HODAM_E2E_APP_PORT=3002 HODAM_E2E_TOSS_PORT=4010 npm
 - `src/app/api/*.ts`는 하위 호환을 위한 얇은 re-export 래퍼입니다.
 - 신규 코드는 `src/lib/client/api/*` 경로를 직접 import 하세요.
 
+## 📗 Story API 계약
+
+- `POST /api/v1/story/start` 성공 응답: `threadId`, `turn`, `beadCount`, `includeEnglish`, `includeImage`, `notice`, `imageUrl`, `messages[]`, `selections[]`
+- `POST /api/v1/story/continue` 성공 응답: `threadId`, `turn`, `beadCount`, `notice`, `messages[]`, `selections[]`
+- `POST /api/v1/story/translate` 성공 응답: `threadId`, `beadCount`, `messages[]`
+- `story/start` 주요 에러 코드:
+- `AUTH_UNAUTHORIZED`, `REQUEST_JSON_INVALID`, `STORY_START_RATE_LIMITED`, `STORY_START_KEYWORDS_*`, `STORY_START_BLOCKED_TOPIC`, `STORY_START_BLOCKED_OUTPUT`, `AI_SERVICE_NOT_CONFIGURED`, `AI_DAILY_BUDGET_EXCEEDED`, `BEADS_INSUFFICIENT`, `STORY_START_FAILED`
+- `story/continue` 주요 에러 코드:
+- `AUTH_UNAUTHORIZED`, `REQUEST_JSON_INVALID`, `STORY_CONTINUE_RATE_LIMITED`, `STORY_CONTINUE_THREAD_ID_INVALID`, `STORY_CONTINUE_SELECTION_*`, `STORY_CONTINUE_BLOCKED_TOPIC`, `STORY_CONTINUE_BLOCKED_OUTPUT`, `AI_SERVICE_NOT_CONFIGURED`, `AI_DAILY_BUDGET_EXCEEDED`, `BEADS_INSUFFICIENT`, `THREAD_NOT_FOUND`, `STORY_CONTINUE_FAILED`
+- `story/translate` 주요 에러 코드:
+- `AUTH_UNAUTHORIZED`, `REQUEST_JSON_INVALID`, `STORY_TRANSLATE_RATE_LIMITED`, `STORY_TRANSLATE_THREAD_ID_INVALID`, `STORY_TRANSLATE_BLOCKED_OUTPUT`, `AI_SERVICE_NOT_CONFIGURED`, `AI_DAILY_BUDGET_EXCEEDED`, `BEADS_INSUFFICIENT`, `THREAD_NOT_FOUND`, `STORY_TRANSLATE_FAILED`
+
 ## 🔧 로그인 멈춤 트러블슈팅
 
 - 증상: `카카오/구글로 시작하기` 클릭 후 콜백 페이지에서 `로그인 처리 중...` 정체
@@ -248,6 +337,9 @@ HODAM_TEST_ACCESS_TOKEN=... HODAM_E2E_APP_PORT=3002 HODAM_E2E_TOSS_PORT=4010 npm
   - 브라우저에서 사이트 데이터/쿠키 삭제 후 재로그인
   - Supabase Auth provider 설정에서 callback URL 허용 목록 재확인
   - 개발 중 포트를 고정(`3000`)하거나, runtime origin 기준으로 재점검
+  - `GET /api/v1/auth/providers` 응답에서 provider별 `enabled`/`reason` 확인
+    - `disabled_in_supabase_auth_settings`: Supabase Auth에서 provider 비활성
+    - `missing_in_supabase_auth_settings`: provider 구성 누락
 
 ## 🔎 `/api/v1/threads` 장애 진단
 

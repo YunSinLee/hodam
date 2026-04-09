@@ -44,7 +44,7 @@ async function call(path, init = {}) {
     body = null;
   }
 
-  return { status: response.status, body };
+  return { status: response.status, body, headers: response.headers };
 }
 
 async function expectOk(path, init) {
@@ -55,6 +55,20 @@ async function expectOk(path, init) {
     );
   }
   return result.body;
+}
+
+async function expectOkWithHeaders(path, init) {
+  const result = await call(path, init);
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(
+      `${path} failed: ${result.status} ${JSON.stringify(result.body)}`,
+    );
+  }
+
+  return {
+    body: result.body,
+    headers: result.headers,
+  };
 }
 
 async function main() {
@@ -267,6 +281,118 @@ async function main() {
     }
 
     console.log(`- payment history reflects order state (orderId=${orderId})`);
+
+    const timelineResponse = await expectOkWithHeaders(
+      `/api/v1/payments/timeline?orderId=${encodeURIComponent(orderId)}`,
+      {
+        method: "GET",
+      },
+    );
+    const timeline = timelineResponse.body;
+    const timelineEventCount = Array.isArray(timeline?.events)
+      ? timeline.events.length
+      : 0;
+    const timelineLookupMode =
+      timelineResponse.headers.get("x-hodam-payment-timeline-lookup-mode") ||
+      "";
+    const timelineDegraded =
+      timelineResponse.headers.get("x-hodam-payment-timeline-degraded") === "1";
+    const timelineDegradedReason =
+      timelineResponse.headers.get("x-hodam-payment-timeline-degraded-reason") ||
+      "-";
+
+    if (timeline?.orderId !== orderId || timelineEventCount < 1) {
+      throw new Error(
+        `payment/timeline invalid response for ${orderId}: ${JSON.stringify(timeline)}`,
+      );
+    }
+    if (timelineLookupMode !== "order_id") {
+      throw new Error(
+        `payment/timeline lookup mode mismatch for order lookup: ${timelineLookupMode || "missing"}`,
+      );
+    }
+    if (runPaymentsWebhook) {
+      const hasWebhookEvent = timeline.events.some(
+        event => event?.type === "webhook_received",
+      );
+      if (!hasWebhookEvent) {
+        throw new Error(
+          `payment/timeline missing webhook event for ${orderId}: ${JSON.stringify(timeline)}`,
+        );
+      }
+    }
+
+    console.log(
+      `- payment timeline ok (orderId=${orderId}, events=${timelineEventCount}, lookup=${timelineLookupMode}, degraded=${timelineDegraded ? `yes:${timelineDegradedReason}` : "no"})`,
+    );
+
+    const flowIdFromTimeline =
+      typeof timeline?.paymentFlowId === "string"
+        ? timeline.paymentFlowId.trim()
+        : "";
+    if (flowIdFromTimeline) {
+      const timelineByFlowResponse = await expectOkWithHeaders(
+        `/api/v1/payments/timeline?paymentFlowId=${encodeURIComponent(
+          flowIdFromTimeline,
+        )}`,
+        {
+          method: "GET",
+        },
+      );
+      const timelineByFlow = timelineByFlowResponse.body;
+      const timelineByFlowLookupMode =
+        timelineByFlowResponse.headers.get(
+          "x-hodam-payment-timeline-lookup-mode",
+        ) || "";
+
+      if (timelineByFlow?.orderId !== orderId) {
+        throw new Error(
+          `payment/timeline(flow) order mismatch: expected=${orderId} actual=${timelineByFlow?.orderId}`,
+        );
+      }
+      if (timelineByFlowLookupMode !== "payment_flow_id") {
+        throw new Error(
+          `payment/timeline lookup mode mismatch for flow lookup: ${timelineByFlowLookupMode || "missing"}`,
+        );
+      }
+
+      console.log(
+        `- payment timeline flow lookup ok (paymentFlowId=${flowIdFromTimeline}, lookup=${timelineByFlowLookupMode})`,
+      );
+
+      const timelineByFlowAliasResponse = await expectOkWithHeaders(
+        `/api/v1/payments/timeline?flowId=${encodeURIComponent(
+          flowIdFromTimeline,
+        )}`,
+        {
+          method: "GET",
+        },
+      );
+      const timelineByFlowAlias = timelineByFlowAliasResponse.body;
+      const timelineByFlowAliasLookupMode =
+        timelineByFlowAliasResponse.headers.get(
+          "x-hodam-payment-timeline-lookup-mode",
+        ) || "";
+
+      if (timelineByFlowAlias?.orderId !== orderId) {
+        throw new Error(
+          `payment/timeline(flowId) order mismatch: expected=${orderId} actual=${timelineByFlowAlias?.orderId}`,
+        );
+      }
+      if (timelineByFlowAliasLookupMode !== "payment_flow_id") {
+        throw new Error(
+          `payment/timeline lookup mode mismatch for flowId alias lookup: ${timelineByFlowAliasLookupMode || "missing"}`,
+        );
+      }
+
+      console.log(
+        `- payment timeline flowId alias lookup ok (flowId=${flowIdFromTimeline}, lookup=${timelineByFlowAliasLookupMode})`,
+      );
+    } else if (runPaymentsWebhook) {
+      throw new Error(
+        `payment/timeline missing paymentFlowId for ${orderId}: ${JSON.stringify(timeline)}`,
+      );
+    }
   }
 
   const listThreadId =

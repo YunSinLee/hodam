@@ -9,6 +9,28 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  workflow-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow sanity
+        run: echo "e2e-auth workflow booted"
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            | bash -s -- 1.7.8
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Validate GitHub workflow files
+        run: actionlint -color
+
   auth-local-check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -21,7 +43,9 @@ jobs:
       NEXT_PUBLIC_SITE_URL: http://localhost:3003
       HODAM_E2E_APP_PORT: 3003
       HODAM_E2E_OAUTH_PROVIDERS: google,kakao
-      HODAM_E2E_ENSURE_TEST_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '' && '1' || '' }}
+      HODAM_E2E_ENSURE_TEST_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && '1' || '' }}
+      HODAM_TEST_AUTO_USER: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && '1' || '' }}
+      HODAM_E2E_REQUIRE_AUTH: ${{ (secrets.HODAM_TEST_ACCESS_TOKEN != '' || (secrets.HODAM_TEST_USER_EMAIL != '' && secrets.HODAM_TEST_USER_PASSWORD != '') || secrets.SUPABASE_SERVICE_ROLE_KEY != '') && '1' || '0' }}
       HODAM_TEST_ACCESS_TOKEN: ${{ secrets.HODAM_TEST_ACCESS_TOKEN }}
       HODAM_TEST_USER_EMAIL: ${{ secrets.HODAM_TEST_USER_EMAIL }}
       HODAM_TEST_USER_PASSWORD: ${{ secrets.HODAM_TEST_USER_PASSWORD }}
@@ -67,5 +91,83 @@ jobs:
         run: npm ci
 
       - name: Run local auth e2e checks
+        id: run-auth-local
         if: ${{ steps.guard.outputs.enabled == '1' }}
-        run: npm run test:e2e:auth:local
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          node scripts/run-with-retry.mjs \
+            --attempts=2 \
+            --delay-ms=2000 \
+            -- \
+            npm run test:e2e:auth:local 2>&1 | tee reports/e2e-auth-local.log
+
+      - name: Verify auth callback provider KPI fields
+        id: verify-kpi-auth-provider
+        if: ${{ steps.guard.outputs.enabled == '1' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          node scripts/run-with-retry.mjs \
+            --attempts=2 \
+            --delay-ms=2000 \
+            -- \
+            npm run check:kpi:auth:provider:strict -- --limit=7 2>&1 | tee reports/kpi-auth-provider.log
+
+      - name: Append auth e2e summary
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        run: |
+          {
+            echo "## Auth E2E Result"
+            echo "- outcome: ${{ steps.run-auth-local.outcome }}"
+            echo "- kpi_auth_provider_outcome: ${{ steps.verify-kpi-auth-provider.outcome }}"
+            if [ -f reports/e2e-auth-local.log ]; then
+              if grep -q "OAuth provider disabled" reports/e2e-auth-local.log; then
+                echo "- diagnosis: OAuth provider is disabled or misconfigured"
+              fi
+              if grep -q "Missing required environment variable" reports/e2e-auth-local.log; then
+                echo "- diagnosis: required environment variable is missing"
+              fi
+              echo ""
+              echo "### Tail Logs"
+              echo '```text'
+              tail -n 120 reports/e2e-auth-local.log
+              echo '```'
+            else
+              echo "- report: auth e2e log file was not generated"
+            fi
+            if [ -f reports/kpi-auth-provider.log ]; then
+              if grep -q "kpi_daily rows do not include auth callback provider breakdown fields" reports/kpi-auth-provider.log; then
+                echo "- diagnosis: kpi_daily view is missing auth callback provider fields"
+              fi
+              echo ""
+              echo "### KPI Auth Provider Tail Logs"
+              echo '```text'
+              tail -n 80 reports/kpi-auth-provider.log
+              echo '```'
+            else
+              echo "- report: kpi auth provider log file was not generated"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload auth e2e log artifact
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-auth-local-log
+          path: reports/e2e-auth-local.log
+          if-no-files-found: ignore
+
+      - name: Upload kpi auth provider log artifact
+        if: ${{ always() && steps.guard.outputs.enabled == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpi-auth-provider-log
+          path: reports/kpi-auth-provider.log
+          if-no-files-found: ignore
+
+      - name: Fail workflow when auth e2e failed
+        if: ${{ steps.guard.outputs.enabled == '1' && (steps.run-auth-local.outcome != 'success' || steps.verify-kpi-auth-provider.outcome != 'success') }}
+        run: exit 1

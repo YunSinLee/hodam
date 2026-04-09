@@ -47,7 +47,24 @@ describe("GET /api/v1/beads", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const GET = await loadGetHandler();
+
+    const response = await GET({ headers: new Headers() } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns bead info for authenticated user", async () => {
@@ -93,7 +110,10 @@ describe("GET /api/v1/beads", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many bead requests" });
+    expect(body).toEqual({
+      error: "Too many bead requests",
+      code: "BEADS_RATE_LIMITED",
+    });
   });
 
   it("returns 500 when repository fails", async () => {
@@ -111,6 +131,9 @@ describe("GET /api/v1/beads", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to fetch beads" });
+    expect(body).toEqual({
+      error: "Failed to fetch beads",
+      code: "BEADS_FETCH_FAILED",
+    });
   });
 });

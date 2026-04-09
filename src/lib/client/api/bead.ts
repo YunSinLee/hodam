@@ -9,6 +9,26 @@ import type { Bead } from "@/services/hooks/use-bead";
 
 import paymentApi from "./payment";
 
+interface PaymentFlowError extends Error {
+  code?: string;
+  status?: number;
+}
+
+function createPaymentFlowError(
+  message: string,
+  code?: string,
+  status?: number,
+): PaymentFlowError {
+  const error = new Error(message) as PaymentFlowError;
+  if (code) {
+    error.code = code;
+  }
+  if (typeof status === "number") {
+    error.status = status;
+  }
+  return error;
+}
+
 function toBead(data: BeadResponse["bead"]): Bead {
   return {
     id: data.id,
@@ -35,7 +55,7 @@ const beadApi = {
   async purchaseBeads(
     quantity: number,
     amount: number,
-  ): Promise<{ orderId: string; amount: number }> {
+  ): Promise<{ orderId: string; amount: number; paymentFlowId?: string }> {
     const packageInfo = BEAD_PACKAGES.find(
       item => item.quantity === quantity && item.price === amount,
     );
@@ -49,6 +69,7 @@ const beadApi = {
     return {
       orderId: prepared.orderId,
       amount: prepared.amount,
+      paymentFlowId: prepared.paymentFlowId,
     };
   },
 
@@ -57,11 +78,13 @@ const beadApi = {
     paymentKey: string,
     orderId: string,
     amount: number,
+    paymentFlowId?: string,
   ): Promise<Bead> {
     const paymentResult = await paymentApi.confirmPayment(
       paymentKey,
       orderId,
       amount,
+      { paymentFlowId },
     );
 
     if (!paymentResult.success) {
@@ -69,6 +92,7 @@ const beadApi = {
         .getPaymentStatus(orderId, {
           paymentKey,
           amount,
+          paymentFlowId: paymentResult.paymentFlowId || paymentFlowId,
         })
         .catch(() => null);
 
@@ -84,12 +108,17 @@ const beadApi = {
       }
 
       if (status?.status === "pending") {
-        throw new Error(
+        throw createPaymentFlowError(
           "결제가 아직 처리 중입니다. 잠시 후 다시 확인해주세요.",
+          "PAYMENT_PENDING",
         );
       }
 
-      throw new Error(paymentResult.error || "결제 승인에 실패했습니다.");
+      throw createPaymentFlowError(
+        paymentResult.error || "결제 승인에 실패했습니다.",
+        paymentResult.errorCode,
+        paymentResult.errorStatus,
+      );
     }
 
     if (typeof paymentResult.beadCount === "number") {

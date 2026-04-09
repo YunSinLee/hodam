@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import fs from "fs";
 import path from "path";
+import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
 
 const args = new Set(process.argv.slice(2));
 
@@ -17,69 +17,17 @@ const providersArg = readArgValue("--providers");
 
 const nodeEnv = process.env.NODE_ENV || "development";
 const cwd = process.cwd();
-const envFilesInOrder = [
-  ".env",
-  `.env.${nodeEnv}`,
-  ".env.local",
-  `.env.${nodeEnv}.local`,
-];
-
-function parseEnvFile(content) {
-  const result = {};
-  const lines = content.split(/\r?\n/);
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-
-    const eqIdx = line.indexOf("=");
-    if (eqIdx <= 0) continue;
-
-    const key = line.slice(0, eqIdx).trim();
-    const value = line.slice(eqIdx + 1).trim();
-    const normalized =
-      value.startsWith('"') && value.endsWith('"')
-        ? value.slice(1, -1)
-        : value.startsWith("'") && value.endsWith("'")
-          ? value.slice(1, -1)
-          : value;
-
-    result[key] = normalized;
-  }
-
-  return result;
-}
-
-function loadFileEnv() {
-  const merged = {};
-  const loaded = [];
-
-  for (const fileName of envFilesInOrder) {
-    const fullPath = path.join(cwd, fileName);
-    if (!fs.existsSync(fullPath)) continue;
-
-    const content = fs.readFileSync(fullPath, "utf8");
-    Object.assign(merged, parseEnvFile(content));
-    loaded.push(fileName);
-  }
-
-  return { merged, loaded };
-}
-
-const { merged: fileEnv, loaded: loadedFiles } = loadFileEnv();
+const { merged: fileEnv, loaded: loadedFilePaths } = loadLocalEnv({
+  cwd,
+  nodeEnv,
+});
+const loadedFiles = loadedFilePaths.map(fullPath => path.basename(fullPath));
 
 function getEnvValue(name) {
-  const fromProcess = process.env[name];
-  if (typeof fromProcess === "string" && fromProcess.trim()) {
-    return fromProcess.trim();
-  }
-
-  const fromFile = fileEnv[name];
-  if (typeof fromFile === "string" && fromFile.trim()) {
-    return fromFile.trim();
-  }
-
-  return "";
+  return readEnvValue(name, {
+    processEnv: process.env,
+    fileEnv,
+  });
 }
 
 function toOrigin(rawUrl) {

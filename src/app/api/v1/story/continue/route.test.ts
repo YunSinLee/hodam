@@ -90,6 +90,7 @@ vi.mock("@/lib/server/rate-limit", () => ({
 
 vi.mock("@/lib/safety/content-policy", () => ({
   detectBlockedTopic: detectBlockedTopicMock,
+  detectBlockedTopicInStoryOutput: detectBlockedTopicMock,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -140,7 +141,27 @@ describe("POST /api/v1/story/continue", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ threadId: 321, selection: "선택지" }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 400 when threadId is invalid", async () => {
@@ -158,7 +179,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Valid threadId is required" });
+    expect(body).toEqual({
+      error: "Valid threadId is required",
+      code: "STORY_CONTINUE_THREAD_ID_INVALID",
+    });
   });
 
   it("returns 400 when selection is empty", async () => {
@@ -176,7 +200,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Selection is required" });
+    expect(body).toEqual({
+      error: "Selection is required",
+      code: "STORY_CONTINUE_SELECTION_REQUIRED",
+    });
   });
 
   it("returns 400 when selection is too long", async () => {
@@ -199,6 +226,7 @@ describe("POST /api/v1/story/continue", () => {
     expect(response.status).toBe(400);
     expect(body).toEqual({
       error: "Selection is too long (max 200 characters)",
+      code: "STORY_CONTINUE_SELECTION_TOO_LONG",
     });
   });
 
@@ -220,7 +248,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Unsafe content topic is not allowed" });
+    expect(body).toEqual({
+      error: "Unsafe content topic is not allowed",
+      code: "STORY_CONTINUE_BLOCKED_TOPIC",
+    });
     expect(generateStoryTurnMock).not.toHaveBeenCalled();
   });
 
@@ -242,7 +273,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(404);
-    expect(body).toEqual({ error: "Thread not found" });
+    expect(body).toEqual({
+      error: "Thread not found",
+      code: "THREAD_NOT_FOUND",
+    });
   });
 
   it("continues story and returns next turn payload", async () => {
@@ -282,6 +316,39 @@ describe("POST /api/v1/story/continue", () => {
     );
   });
 
+  it("returns 400 and refunds when generated output includes blocked topic", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    detectBlockedTopicMock
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce("살인");
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi
+        .fn()
+        .mockResolvedValue({ threadId: 321, selection: "문을 연다" }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: "Generated content contained unsafe topic",
+      code: "STORY_CONTINUE_BLOCKED_OUTPUT",
+    });
+    expect(saveStoryTurnMock).not.toHaveBeenCalled();
+    expect(appendThreadRawTextMock).not.toHaveBeenCalled();
+    expect(creditBeadsMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      "user-1",
+      2,
+    );
+  });
+
   it("returns 429 when ai daily quota is exceeded", async () => {
     authenticateRequestMock.mockResolvedValue({
       accessToken: "token-1",
@@ -302,7 +369,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Daily AI budget exceeded" });
+    expect(body).toEqual({
+      error: "Daily AI budget exceeded",
+      code: "AI_DAILY_BUDGET_EXCEEDED",
+    });
   });
 
   it("returns 402 when bead balance is insufficient", async () => {
@@ -323,7 +393,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(402);
-    expect(body).toEqual({ error: "Not enough beads" });
+    expect(body).toEqual({
+      error: "Not enough beads",
+      code: "BEADS_INSUFFICIENT",
+    });
   });
 
   it("returns 503 when ai service key is not configured", async () => {
@@ -344,7 +417,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(503);
-    expect(body).toEqual({ error: "AI service is not configured" });
+    expect(body).toEqual({
+      error: "AI service is not configured",
+      code: "AI_SERVICE_NOT_CONFIGURED",
+    });
     expect(creditBeadsMock).toHaveBeenCalledWith(
       expect.any(Object),
       "user-1",
@@ -370,7 +446,10 @@ describe("POST /api/v1/story/continue", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to continue story" });
+    expect(body).toEqual({
+      error: "Failed to continue story",
+      code: "STORY_CONTINUE_FAILED",
+    });
     expect(creditBeadsMock).toHaveBeenCalledWith(
       expect.any(Object),
       "user-1",

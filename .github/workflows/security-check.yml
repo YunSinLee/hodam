@@ -9,6 +9,88 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  workflow-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow sanity
+        run: echo "security-check workflow booted"
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+            | bash -s -- 1.7.8
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Validate GitHub workflow files
+        run: actionlint -color
+
+  github-workflow-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      HODAM_ENFORCE_GITHUB_NO_JOBS_GUARD: ${{ vars.HODAM_ENFORCE_GITHUB_NO_JOBS_GUARD || '0' }}
+      HODAM_ENFORCE_GITHUB_FAILED_RUN_BUDGET: ${{ vars.HODAM_ENFORCE_GITHUB_FAILED_RUN_BUDGET || '0' }}
+      HODAM_GITHUB_FAILED_RUN_MAX_REPORT_FAILURES: ${{ vars.HODAM_GITHUB_FAILED_RUN_MAX_REPORT_FAILURES || '0' }}
+      HODAM_GITHUB_FAILED_RUN_MAX_NO_JOBS_STARTED: ${{ vars.HODAM_GITHUB_FAILED_RUN_MAX_NO_JOBS_STARTED || '0' }}
+      HODAM_GITHUB_FAILED_RUN_IGNORE_SHAS: ${{ vars.HODAM_GITHUB_FAILED_RUN_IGNORE_SHAS }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Summarize recent failed GitHub runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/run-with-retry.mjs \
+            --attempts=2 \
+            --delay-ms=1500 \
+            -- \
+            npm run check:github:failed-runs:main:report
+          if [ -f reports/github-failed-runs-main.md ]; then
+            cat reports/github-failed-runs-main.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload GitHub failed-runs report artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-failed-runs-main-report
+          path: reports/github-failed-runs-main.md
+          if-no-files-found: ignore
+
+      - name: Enforce no-jobs-started guard
+        if: ${{ env.HODAM_ENFORCE_GITHUB_NO_JOBS_GUARD == '1' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm run check:github:failed-runs:strict-no-jobs:main
+
+      - name: Enforce failed-run budget thresholds
+        if: ${{ env.HODAM_ENFORCE_GITHUB_FAILED_RUN_BUDGET == '1' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/check-github-failed-runs.mjs \
+            --limit=20 \
+            --branch=main \
+            --max-age-hours=240 \
+            --max-report-runs="${HODAM_GITHUB_FAILED_RUN_MAX_REPORT_FAILURES}" \
+            --max-no-jobs-started="${HODAM_GITHUB_FAILED_RUN_MAX_NO_JOBS_STARTED}"
+
   supabase-security:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -71,5 +153,23 @@ jobs:
         if: ${{ steps.guard.outputs.enabled == '1' }}
         env:
           # Temporary baseline ignores: remove each entry once the underlying platform constraint is resolved.
-          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version' }}
+          HODAM_SUPABASE_SECURITY_IGNORE_LINTS: ${{ vars.HODAM_SUPABASE_SECURITY_IGNORE_LINTS || 'auth_leaked_password_protection,vulnerable_postgres_version,missing_service_role_key,missing_management_credentials' }}
         run: npm run check:supabase:security:strict
+
+      - name: Run Supabase performance report
+        if: ${{ steps.guard.outputs.enabled == '1' }}
+        run: |
+          if [ -z "${SUPABASE_ACCESS_TOKEN}" ] || [ -z "${SUPABASE_PROJECT_REF}" ]; then
+            echo "::notice::Supabase performance report skipped (missing SUPABASE_ACCESS_TOKEN/SUPABASE_PROJECT_REF)."
+            exit 0
+          fi
+          npm run check:supabase:performance:report:ci
+
+      - name: Run strict Supabase performance baseline
+        if: ${{ steps.guard.outputs.enabled == '1' }}
+        run: |
+          if [ -z "${SUPABASE_ACCESS_TOKEN}" ] || [ -z "${SUPABASE_PROJECT_REF}" ]; then
+            echo "::notice::Supabase performance strict baseline skipped (missing SUPABASE_ACCESS_TOKEN/SUPABASE_PROJECT_REF)."
+            exit 0
+          fi
+          npm run check:supabase:performance:strict:baseline

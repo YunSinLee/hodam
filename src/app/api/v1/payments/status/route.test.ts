@@ -109,7 +109,24 @@ describe("GET /api/v1/payments/status", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const GET = await loadGetHandler();
+
+    const response = await GET(makeGetRequest({ orderId: "order_1" }) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -125,7 +142,10 @@ describe("GET /api/v1/payments/status", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many payment status requests" });
+    expect(body).toEqual({
+      error: "Too many payment status requests",
+      code: "PAYMENTS_STATUS_RATE_LIMITED",
+    });
   });
 
   it("returns 400 when orderId is missing", async () => {
@@ -140,7 +160,10 @@ describe("GET /api/v1/payments/status", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "orderId is required" });
+    expect(body).toEqual({
+      error: "orderId is required",
+      code: "ORDER_ID_REQUIRED",
+    });
   });
 
   it("returns 404 when payment is missing", async () => {
@@ -156,7 +179,10 @@ describe("GET /api/v1/payments/status", () => {
     const body = await response.json();
 
     expect(response.status).toBe(404);
-    expect(body).toEqual({ error: "Payment record not found" });
+    expect(body).toEqual({
+      error: "Payment record not found",
+      code: "PAYMENT_NOT_FOUND",
+    });
   });
 
   it("returns completed status without reconciliation", async () => {
@@ -187,10 +213,52 @@ describe("GET /api/v1/payments/status", () => {
         orderId: "order_1",
         status: "completed",
         paymentKey: "pay_1",
+        paymentFlowId: "order:order_1",
         reconciliationState: "not_attempted",
       }),
     );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "order:order_1",
+    );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves caller payment flow id header", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      id: "payment-1",
+      user_id: "user-1",
+      order_id: "order_1",
+      amount: 5000,
+      bead_quantity: 10,
+      payment_key: "pay_1",
+      status: "completed",
+      created_at: "2026-04-05T00:00:00.000Z",
+      completed_at: "2026-04-05T00:01:00.000Z",
+    });
+    const GET = await loadGetHandler();
+
+    const response = await GET({
+      headers: new Headers({
+        "x-hodam-payment-flow-id": "flow_status_1",
+      }),
+      url: "http://localhost/api/v1/payments/status?orderId=order_1",
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(
+      expect.objectContaining({
+        paymentFlowId: "flow_status_1",
+      }),
+    );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "flow_status_1",
+    );
   });
 
   it("returns pending when provider status is not DONE", async () => {
@@ -363,6 +431,9 @@ describe("GET /api/v1/payments/status", () => {
     const body = await response.json();
 
     expect(response.status).toBe(409);
-    expect(body).toEqual({ error: "Payment state conflict" });
+    expect(body).toEqual({
+      error: "Payment state conflict",
+      code: "PAYMENT_STATE_CONFLICT",
+    });
   });
 });

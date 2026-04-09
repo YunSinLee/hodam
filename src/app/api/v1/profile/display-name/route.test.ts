@@ -38,7 +38,27 @@ describe("POST /api/v1/profile/display-name", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ displayName: "정상닉네임" }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 400 when displayName is missing", async () => {
@@ -56,7 +76,10 @@ describe("POST /api/v1/profile/display-name", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "displayName is required" });
+    expect(body).toEqual({
+      error: "displayName is required",
+      code: "PROFILE_DISPLAY_NAME_REQUIRED",
+    });
   });
 
   it("returns 400 when body is invalid json", async () => {
@@ -74,7 +97,10 @@ describe("POST /api/v1/profile/display-name", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid JSON body" });
+    expect(body).toEqual({
+      error: "Invalid JSON body",
+      code: "REQUEST_JSON_INVALID",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -93,7 +119,10 @@ describe("POST /api/v1/profile/display-name", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many display name update requests" });
+    expect(body).toEqual({
+      error: "Too many display name update requests",
+      code: "PROFILE_DISPLAY_NAME_RATE_LIMITED",
+    });
   });
 
   it("returns 400 when displayName length is invalid", async () => {
@@ -113,6 +142,7 @@ describe("POST /api/v1/profile/display-name", () => {
     expect(response.status).toBe(400);
     expect(body).toEqual({
       error: "displayName must be between 2 and 30 characters",
+      code: "PROFILE_DISPLAY_NAME_LENGTH_INVALID",
     });
   });
 
@@ -133,6 +163,7 @@ describe("POST /api/v1/profile/display-name", () => {
     expect(response.status).toBe(400);
     expect(body).toEqual({
       error: "displayName contains unsupported characters",
+      code: "PROFILE_DISPLAY_NAME_UNSUPPORTED_CHARACTERS",
     });
   });
 
@@ -189,6 +220,9 @@ describe("POST /api/v1/profile/display-name", () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "Failed to update display name" });
+    expect(body).toEqual({
+      error: "Failed to update display name",
+      code: "PROFILE_DISPLAY_NAME_UPDATE_FAILED",
+    });
   });
 });

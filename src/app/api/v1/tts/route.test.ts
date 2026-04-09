@@ -80,7 +80,27 @@ describe("POST /api/v1/tts", () => {
     expect(response.headers.get("x-request-id")).toMatch(
       /[A-Za-z0-9._:-]{1,128}/,
     );
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ text: "안녕하세요" }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
@@ -99,7 +119,10 @@ describe("POST /api/v1/tts", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Too many TTS requests" });
+    expect(body).toEqual({
+      error: "Too many TTS requests",
+      code: "TTS_RATE_LIMITED",
+    });
   });
 
   it("returns 400 when pitch is outside range", async () => {
@@ -117,7 +140,10 @@ describe("POST /api/v1/tts", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Pitch must be between 0.5 and 2.0" });
+    expect(body).toEqual({
+      error: "Pitch must be between 0.5 and 2.0",
+      code: "TTS_PITCH_INVALID",
+    });
   });
 
   it("returns 400 when language code is invalid", async () => {
@@ -137,7 +163,10 @@ describe("POST /api/v1/tts", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid language code" });
+    expect(body).toEqual({
+      error: "Invalid language code",
+      code: "TTS_LANGUAGE_INVALID",
+    });
   });
 
   it("returns audio data for short text", async () => {
@@ -208,6 +237,9 @@ describe("POST /api/v1/tts", () => {
     const body = await response.json();
 
     expect(response.status).toBe(429);
-    expect(body).toEqual({ error: "Daily TTS character quota exceeded" });
+    expect(body).toEqual({
+      error: "Daily TTS character quota exceeded",
+      code: "TTS_DAILY_QUOTA_EXCEEDED",
+    });
   });
 });
