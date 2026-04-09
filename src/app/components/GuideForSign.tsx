@@ -2,85 +2,58 @@ import Link from "next/link";
 
 export default function GuideForSign() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center p-4">
-      <div className="relative">
-        {/* 배경 장식 */}
-        <div className="absolute inset-0 -m-8 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-3xl blur-sm" />
+    <section className="hodam-page-shell min-h-[65vh] px-2 py-4 sm:py-6">
+      <div className="mx-auto max-w-3xl rounded-[30px] border border-[#ef8d3d]/20 bg-white/90 p-6 shadow-[0_24px_48px_rgba(181,94,23,0.12)] backdrop-blur-sm sm:p-8">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#ef8d3d]/25 bg-[#fff8ee] px-3 py-1 text-xs font-semibold text-[#a85b18]">
+              Access Required
+            </div>
+            <h2 className="hodam-heading text-3xl leading-tight text-[#2f3033] sm:text-4xl">
+              동화 생성을 시작하려면
+              <br />
+              로그인해주세요
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-[#6b7280] sm:text-base">
+              로그인 후 키워드 입력, 분기 선택, 영어 번역, 이미지 생성 기능을
+              바로 사용할 수 있습니다.
+            </p>
 
-        {/* 메인 카드 */}
-        <div className="relative bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-orange-100 p-8 max-w-md mx-auto text-center">
-          {/* 아이콘 */}
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 flex items-center justify-center shadow-lg">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="hodam-chip">카카오 로그인</span>
+              <span className="hodam-chip">Google 로그인</span>
+              <span className="hodam-chip">1분 내 시작</span>
+            </div>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/sign-in"
+                className="hodam-primary-button text-sm sm:text-base"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
+                로그인하고 시작하기
+              </Link>
+              <Link
+                href="/"
+                className="hodam-outline-button text-sm sm:text-base"
+              >
+                홈에서 서비스 보기
+              </Link>
             </div>
           </div>
 
-          {/* 제목 */}
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-3">
-            로그인이 필요합니다
-          </h2>
-
-          {/* 설명 */}
-          <p className="text-gray-600 mb-6 leading-relaxed">
-            호담의 모든 기능을 이용하려면
-            <br />
-            로그인해 주세요
-          </p>
-
-          {/* 로그인 버튼 */}
-          <Link href="/sign-in">
-            <button
-              type="button"
-              className="w-full group relative overflow-hidden bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg"
-            >
-              <span className="relative z-10 flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                  />
-                </svg>
-                로그인하기
-              </span>
-              {/* 호버 효과 */}
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/0 via-orange-400/20 to-orange-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-            </button>
-          </Link>
-
-          {/* 하단 정보 */}
-          <div className="mt-6">
-            <p className="text-sm text-gray-500">
-              카카오 또는 Google 계정으로
-              <br />
-              간편하게 시작하세요
+          <div className="rounded-2xl border border-[#ef8d3d]/20 bg-[#fff8ef] p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#a85b18]">
+              로그인 후 가능 기능
             </p>
+            <ul className="mt-3 space-y-2 text-sm text-[#4b5563]">
+              <li>• 키워드 기반 동화 즉시 생성</li>
+              <li>• 스토리 분기 선택으로 전개 확장</li>
+              <li>• 영어 번역 및 일러스트 생성</li>
+              <li>• 내 동화 저장 및 다시보기</li>
+            </ul>
           </div>
         </div>
-
-        {/* 장식 요소 */}
-        <div className="absolute -top-4 -right-4 w-8 h-8 bg-orange-200 rounded-full opacity-60 animate-pulse" />
-        <div className="absolute -bottom-4 -left-4 w-6 h-6 bg-amber-200 rounded-full opacity-60 animate-pulse delay-300" />
       </div>
-    </div>
+    </section>
   );
 }

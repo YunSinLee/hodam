@@ -7,7 +7,7 @@ interface AuthCardProps {
 
 export default function AuthCard({ children, className }: AuthCardProps) {
   const cardClasses = [
-    "rounded-3xl border border-white/40 bg-white/85 p-5 shadow-2xl backdrop-blur-sm sm:p-8",
+    "hodam-glass-card rounded-[28px] p-6 shadow-[0_24px_52px_rgba(146,73,16,0.16)] sm:p-8",
     className,
   ]
     .filter(Boolean)
