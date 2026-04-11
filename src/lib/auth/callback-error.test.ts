@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatSessionErrorMessage,
+  isRecoverableSessionExchangeError,
   isTerminalSessionExchangeError,
   toSignInRecoveryCode,
 } from "@/lib/auth/callback-error";
@@ -86,6 +87,35 @@ describe("isTerminalSessionExchangeError", () => {
     expect(isTerminalSessionExchangeError("")).toBe(false);
     expect(isTerminalSessionExchangeError(null)).toBe(false);
     expect(isTerminalSessionExchangeError("network timeout")).toBe(false);
+  });
+});
+
+describe("isRecoverableSessionExchangeError", () => {
+  it("returns true for already-used authorization code", () => {
+    expect(
+      isRecoverableSessionExchangeError(
+        "authorization code has already been used",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns true for invalid_grant authorization code conflicts", () => {
+    expect(
+      isRecoverableSessionExchangeError(
+        "invalid_grant: authorization code has already been used",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false for non-recoverable exchange errors", () => {
+    expect(
+      isRecoverableSessionExchangeError(
+        "Both auth code and code verifier should be non-empty",
+      ),
+    ).toBe(false);
+    expect(
+      isRecoverableSessionExchangeError("invalid_grant: refresh token expired"),
+    ).toBe(false);
   });
 });
 

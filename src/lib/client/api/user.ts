@@ -71,7 +71,6 @@ async function startOAuthSignIn(provider: "kakao" | "google") {
       provider,
       options: {
         redirectTo,
-        skipBrowserRedirect: true,
       },
     }),
     OAUTH_SIGNIN_TIMEOUT_MS,
@@ -82,32 +81,11 @@ async function startOAuthSignIn(provider: "kakao" | "google") {
     throw error;
   }
 
-  if (data?.url) {
+  if (data?.url && window.location.href !== data.url) {
     window.location.assign(data.url);
-    return data;
   }
 
-  const fallbackResult = await withTimeout(
-    supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo,
-      },
-    }),
-    OAUTH_SIGNIN_TIMEOUT_MS,
-    "OAuth redirect request",
-  );
-
-  if (fallbackResult.error) {
-    throw fallbackResult.error;
-  }
-
-  if (fallbackResult.data?.url) {
-    window.location.assign(fallbackResult.data.url);
-    return fallbackResult.data;
-  }
-
-  throw new Error("OAuth redirect URL을 가져오지 못했습니다.");
+  return data;
 }
 
 const userApi = {

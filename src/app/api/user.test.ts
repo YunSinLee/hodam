@@ -50,6 +50,7 @@ describe("userApi OAuth", () => {
       configurable: true,
       value: {
         location: {
+          href: "http://localhost:3000/sign-in",
           origin: "http://localhost:3000",
           assign: assignMock,
         },
@@ -69,7 +70,6 @@ describe("userApi OAuth", () => {
       provider: "kakao",
       options: {
         redirectTo: "http://localhost:3000/auth/callback",
-        skipBrowserRedirect: true,
       },
     });
     expect(signInWithOAuthMock).toHaveBeenCalledTimes(1);
@@ -78,108 +78,33 @@ describe("userApi OAuth", () => {
     );
   });
 
-  it("falls back to browser redirect flow when skipBrowserRedirect returns no url", async () => {
+  it("uses one OAuth call and does not force assign when redirect url is absent", async () => {
     const assignMock = vi.fn();
 
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: {
         location: {
+          href: "http://localhost:3000/sign-in",
           origin: "http://localhost:3000",
           assign: assignMock,
         },
       },
     });
 
-    signInWithOAuthMock
-      .mockResolvedValueOnce({
-        data: {},
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: {
-          url: "https://auth.example.com/oauth/fallback",
-        },
-        error: null,
-      });
-
-    await userApi.signInWithGoogle();
-
-    expect(signInWithOAuthMock).toHaveBeenNthCalledWith(1, {
-      provider: "google",
-      options: {
-        redirectTo: "http://localhost:3000/auth/callback",
-        skipBrowserRedirect: true,
-      },
+    signInWithOAuthMock.mockResolvedValue({
+      data: {},
+      error: null,
     });
-    expect(signInWithOAuthMock).toHaveBeenNthCalledWith(2, {
+
+    await expect(userApi.signInWithGoogle()).resolves.toEqual({});
+    expect(signInWithOAuthMock).toHaveBeenCalledTimes(1);
+    expect(signInWithOAuthMock).toHaveBeenCalledWith({
       provider: "google",
       options: {
         redirectTo: "http://localhost:3000/auth/callback",
       },
     });
-    expect(assignMock).toHaveBeenCalledWith(
-      "https://auth.example.com/oauth/fallback",
-    );
-  });
-
-  it("throws when Supabase does not return redirect url in both attempts", async () => {
-    const assignMock = vi.fn();
-
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: {
-        location: {
-          origin: "http://localhost:3000",
-          assign: assignMock,
-        },
-      },
-    });
-
-    signInWithOAuthMock
-      .mockResolvedValueOnce({
-        data: {},
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: {},
-        error: null,
-      });
-
-    await expect(userApi.signInWithGoogle()).rejects.toThrow(
-      "OAuth redirect URL을 가져오지 못했습니다.",
-    );
-    expect(signInWithOAuthMock).toHaveBeenCalledTimes(2);
-    expect(assignMock).not.toHaveBeenCalled();
-  });
-
-  it("throws when fallback redirect request returns an error", async () => {
-    const assignMock = vi.fn();
-
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: {
-        location: {
-          origin: "http://localhost:3000",
-          assign: assignMock,
-        },
-      },
-    });
-
-    signInWithOAuthMock
-      .mockResolvedValueOnce({
-        data: {},
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: new Error("fallback oauth failed"),
-      });
-
-    await expect(userApi.signInWithGoogle()).rejects.toThrow(
-      "fallback oauth failed",
-    );
-    expect(signInWithOAuthMock).toHaveBeenCalledTimes(2);
     expect(assignMock).not.toHaveBeenCalled();
   });
 
@@ -219,6 +144,7 @@ describe("userApi OAuth", () => {
       configurable: true,
       value: {
         location: {
+          href: "http://localhost:3000/sign-in",
           origin: "http://localhost:3000",
           assign: vi.fn(),
         },
@@ -232,39 +158,5 @@ describe("userApi OAuth", () => {
 
     await expect(userApi.signInWithKakao()).rejects.toThrow("oauth failed");
     expect(signInWithOAuthMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("throws when fallback redirect request times out", async () => {
-    vi.useFakeTimers();
-    try {
-      const assignMock = vi.fn();
-
-      Object.defineProperty(globalThis, "window", {
-        configurable: true,
-        value: {
-          location: {
-            origin: "http://localhost:3000",
-            assign: assignMock,
-          },
-        },
-      });
-
-      signInWithOAuthMock
-        .mockResolvedValueOnce({
-          data: {},
-          error: null,
-        })
-        .mockImplementationOnce(() => new Promise(() => {}) as never);
-
-      const promise = userApi.signInWithGoogle();
-      const expectation = expect(promise).rejects.toThrow(
-        "OAuth redirect request timeout",
-      );
-      await vi.advanceTimersByTimeAsync(12_001);
-      await expectation;
-      expect(assignMock).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

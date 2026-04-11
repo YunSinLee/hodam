@@ -55,6 +55,20 @@ export function isTerminalSessionExchangeError(errorMessage: string | null) {
   );
 }
 
+export function isRecoverableSessionExchangeError(errorMessage: string | null) {
+  const normalized = normalize(errorMessage);
+  if (!normalized) return false;
+
+  if (normalized.includes("already been used")) {
+    return true;
+  }
+
+  return (
+    normalized.includes("invalid_grant") &&
+    normalized.includes("authorization code")
+  );
+}
+
 export function toSignInRecoveryCode(
   errorMessage: string | null | undefined,
 ): SignInRecoveryCode {

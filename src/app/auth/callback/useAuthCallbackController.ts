@@ -38,6 +38,7 @@ import {
 import { supabase } from "@/app/utils/supabase";
 import {
   formatSessionErrorMessage,
+  isRecoverableSessionExchangeError,
   isTerminalSessionExchangeError,
   toSignInRecoveryCode,
   type SignInRecoveryCode,
@@ -337,6 +338,25 @@ export default function useAuthCallbackController() {
           hasError: Boolean(result.errorMessage),
         },
       );
+
+      if (
+        result.terminal &&
+        isRecoverableSessionExchangeError(result.errorMessage)
+      ) {
+        setLoadingMessage("세션을 다시 확인하는 중...");
+        const recoveredSession = await waitForSession(8, 400);
+        emitAndSyncMetric("wait_for_session_complete", {
+          source: "recoverable_exchange_error",
+          foundSession: Boolean(recoveredSession),
+        });
+        if (recoveredSession) {
+          return {
+            session: recoveredSession,
+            errorMessage: result.errorMessage,
+            terminal: false,
+          };
+        }
+      }
       return result;
     };
 
