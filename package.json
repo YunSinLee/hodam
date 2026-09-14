@@ -12,6 +12,7 @@
     "lint": "eslint src --ext .ts,.tsx --max-warnings=0",
     "test": "vitest run --maxWorkers=2",
     "test:watch": "vitest --maxWorkers=1 --no-file-parallelism",
+    "qa:picturebook": "node scripts/qa-picturebook.mjs",
     "test:smoke:v1": "node scripts/smoke-v1.mjs",
     "test:user:ensure": "node scripts/ensure-test-user.mjs",
     "token:test:access": "node scripts/get-test-access-token.mjs",

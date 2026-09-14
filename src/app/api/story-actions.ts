@@ -440,6 +440,8 @@ export async function drawPicturebookPageAction(
         {
           title: book.title,
           childName: book.childName,
+          ageBand: book.ageBand,
+          visualStyle: book.storyGuide?.visualStyle,
           pageNumber,
           textKo: page.textKo,
           imagePrompt: page.imagePrompt,

@@ -370,6 +370,48 @@ describe("ending failure boundaries", () => {
 });
 
 describe("private saved page images", () => {
+  it.each([
+    undefined,
+    "별이는 노란 잠옷을 입어요. 흰 토끼 인형과 수채화 장면.",
+  ])(
+    "passes saved age and optional shared visual context to image generation: %s",
+    async visualStyle => {
+      const saved = book();
+      if (visualStyle)
+        saved.storyGuide = {
+          coreConflict: "불을 끄면 혼자 잠들기 어려워해요.",
+          characters: ["노란 잠옷을 입은 별이", "흰 토끼 인형"],
+          keyObject: "흰 토끼 인형",
+          resolutionGoal: "토끼를 안고 안심하며 누워 있어요.",
+          visualStyle,
+        };
+      query({ raw_text: JSON.stringify(saved) });
+      query({ id: 42 });
+      mocks.signedUrl
+        .mockResolvedValueOnce({ data: null, error: { code: "NoSuchKey" } })
+        .mockResolvedValueOnce({
+          data: { signedUrl: "https://storage.test/generated" },
+          error: null,
+        });
+      expect(await drawPicturebookPageAction(42, 1, "token")).toEqual({
+        ok: true,
+        url: "https://storage.test/generated",
+      });
+      expect(mocks.image).toHaveBeenCalledWith(
+        {
+          title: saved.title,
+          childName: saved.childName,
+          ageBand: saved.ageBand,
+          visualStyle,
+          pageNumber: 1,
+          textKo: saved.pages[0].textKo,
+          imagePrompt: saved.pages[0].imagePrompt,
+        },
+        "token",
+      );
+    },
+  );
+
   it("reuses a saved image and repairs its book marker without a paid request", async () => {
     query({ raw_text: JSON.stringify(book()) });
     query({ id: 42 });
