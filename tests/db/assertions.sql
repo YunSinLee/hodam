@@ -10,6 +10,10 @@ DO $$ BEGIN
   IF NOT has_function_privilege('service_role', 'public.finalize_payment(text,text,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Server lost payment finalization access';
   END IF;
+  IF EXISTS (SELECT 1 FROM public.hodam_security_grants_smoke_check() WHERE NOT ok)
+     OR (SELECT count(*) FROM public.hodam_security_grants_smoke_check()) <> 24 THEN
+    RAISE EXCEPTION 'Operational grant smoke check does not match the hardened boundary';
+  END IF;
 END; $$;
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.role', 'authenticated', false);

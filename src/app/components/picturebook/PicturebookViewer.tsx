@@ -162,12 +162,12 @@ export default function PicturebookViewer({
   }, [bookIdentity, picturebook.choice.afterPage, picturebook.status]);
 
   useEffect(() => {
-    const target =
-      pendingFocus.current === "choice"
-        ? choiceRef.current
-        : pendingFocus.current === "title"
-          ? titleRef.current
-          : null;
+    let target: HTMLHeadingElement | null = null;
+    if (pendingFocus.current === "choice") {
+      target = choiceRef.current;
+    } else if (pendingFocus.current === "title") {
+      target = titleRef.current;
+    }
     if (target) {
       target.focus();
       pendingFocus.current = null;
@@ -304,6 +304,13 @@ export default function PicturebookViewer({
         그림책 페이지를 불러올 수 없습니다.
       </div>
     );
+  }
+
+  let readingStatus = "완결된 그림책";
+  if (picturebook.status === "choice-ready") {
+    readingStatus = isChoicePage
+      ? "위 선택지 중 하나를 골라주세요"
+      : "4쪽까지 넘기면 선택지가 나옵니다";
   }
 
   // The named reading region supports optional page keys as well as native buttons.
@@ -505,11 +512,7 @@ export default function PicturebookViewer({
           이전
         </button>
         <div className="text-sm text-gray-600 text-center" aria-live="polite">
-          {picturebook.status === "choice-ready" && isChoicePage
-            ? "위 선택지 중 하나를 골라주세요"
-            : picturebook.status === "choice-ready"
-              ? "4쪽까지 넘기면 선택지가 나옵니다"
-              : "완결된 그림책"}
+          {readingStatus}
         </div>
         <button
           type="button"

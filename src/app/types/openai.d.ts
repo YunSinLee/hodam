@@ -7,7 +7,7 @@ export interface Thread {
   user_id: string;
   able_english: boolean;
   has_image: boolean;
-  raw_text?: string;
+  raw_text?: string | null;
 }
 
 export interface ThreadWithUser extends Thread {

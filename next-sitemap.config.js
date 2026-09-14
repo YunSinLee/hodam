@@ -4,6 +4,8 @@ module.exports = {
     ? process.env.NEXT_PUBLIC_SITE_URL
     : "https://hodam.vercel.app",
   generateRobotsTxt: true,
+  sitemapSize: 5000,
+  autoLastmod: false,
   changefreq: "weekly",
   priority: 0.7,
   exclude: [

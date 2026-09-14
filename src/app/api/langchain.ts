@@ -308,9 +308,10 @@ function parsePicturebookEndingResponse(value: string) {
 }
 
 function normalizeChoiceOption(
-  option: any,
+  value: unknown,
   index: number,
 ): PicturebookChoiceOption {
+  const option = isRecord(value) ? value : {};
   const ids: PicturebookChoiceOption["id"][] = ["A", "B", "C"];
   const candidateLabel =
     typeof option?.labelKo === "string" ? option.labelKo.trim() : "";
@@ -333,17 +334,19 @@ function normalizeChoiceOption(
 }
 
 function normalizePage(
-  page: any,
+  value: unknown,
   index: number,
   fallbackText: string,
 ): PicturebookPage {
-  const emotionalBeat = allowedPicturebookBeats.includes(page?.emotionalBeat)
-    ? page.emotionalBeat
-    : index < 2
-      ? "setup"
-      : index === 2
-        ? "choice"
-        : "resolution";
+  const page = isRecord(value) ? value : {};
+  let emotionalBeat = allowedPicturebookBeats.find(
+    beat => beat === page.emotionalBeat,
+  );
+  if (!emotionalBeat) {
+    if (index < 2) emotionalBeat = "setup";
+    else if (index === 2) emotionalBeat = "choice";
+    else emotionalBeat = "resolution";
+  }
 
   return {
     pageNumber:
@@ -440,7 +443,7 @@ function createFallbackPicturebookStart(
 }
 
 function normalizePicturebookStart(
-  raw: any,
+  raw: Record<string, unknown>,
   input: PicturebookInput,
 ): PicturebookDraft {
   const fallback = createFallbackPicturebookStart(input);
@@ -449,14 +452,13 @@ function normalizePicturebookStart(
     normalizePage(rawPages[index], index, fallback.pages[index].textKo),
   );
 
-  const rawOptions = Array.isArray(raw?.choice?.options)
-    ? raw.choice.options
-    : [];
+  const rawChoice = isRecord(raw.choice) ? raw.choice : {};
+  const rawOptions = Array.isArray(rawChoice.options) ? rawChoice.options : [];
   const choice: PicturebookChoice = {
     afterPage: 4,
     promptKo:
-      typeof raw?.choice?.promptKo === "string" && raw.choice.promptKo.trim()
-        ? raw.choice.promptKo.trim()
+      typeof rawChoice.promptKo === "string" && rawChoice.promptKo.trim()
+        ? rawChoice.promptKo.trim()
         : fallback.choice.promptKo,
     options: [0, 1, 2].map(index =>
       normalizeChoiceOption(rawOptions[index], index),
@@ -478,7 +480,7 @@ function normalizePicturebookStart(
 }
 
 function normalizePicturebookEnding(
-  raw: any,
+  raw: Record<string, unknown>,
   draft: PicturebookDraft,
   selectedChoiceId: PicturebookChoiceOption["id"],
 ): PicturebookDraft {
@@ -584,8 +586,7 @@ qualityNotes와 revisionNotes에는 내부 검수 메모를 짧게 넣어도 됩
         ...(rewritten.revisionNotes || []),
       ]),
     };
-  } catch (error) {
-    console.error("Error rewriting picturebook start:", error);
+  } catch {
     return {
       ...draft,
       qualityNotes: uniqueStrings([
@@ -657,8 +658,7 @@ qualityNotes와 revisionNotes에는 내부 검수 메모를 짧게 넣어도 됩
         ...(rewritten.revisionNotes || []),
       ]),
     };
-  } catch (error) {
-    console.error("Error rewriting picturebook ending:", error);
+  } catch {
     return {
       ...completedDraft,
       qualityNotes: uniqueStrings([
@@ -670,18 +670,18 @@ qualityNotes와 revisionNotes에는 내부 검수 메모를 짧게 넣어도 됩
 }
 
 export async function generatePicturebookStart(
-  input: PicturebookInput,
+  rawInput: PicturebookInput,
   accessToken: string,
 ): Promise<PicturebookDraft> {
   await requireServerUser(accessToken);
-  const invalid = validatePicturebookInput(input);
+  const invalid = validatePicturebookInput(rawInput);
   if (invalid) throw new Error(invalid);
-  input = {
-    ...input,
-    childName: input.childName.trim(),
-    situation: input.situation.trim(),
-    lesson: input.lesson.trim(),
-    interests: input.interests?.trim(),
+  const input: PicturebookInput = {
+    ...rawInput,
+    childName: rawInput.childName.trim(),
+    situation: rawInput.situation.trim(),
+    lesson: rawInput.lesson.trim(),
+    interests: rawInput.interests?.trim(),
   };
   const prompt = `${PICTUREBOOK_SYSTEM_PROMPT}
 
@@ -731,7 +731,6 @@ imagePrompt는 영어로 씁니다.
     );
     return await rewritePicturebookStartForQuality(draft, input);
   } catch (error) {
-    console.error("Error generating picturebook start:", error);
     throw generationError(
       error,
       "이야기를 만들지 못했어요. 잠시 후 다시 시도해주세요.",
@@ -796,7 +795,6 @@ imagePrompt는 영어로 씁니다.
       selectedChoiceId,
     );
   } catch (error) {
-    console.error("Error generating picturebook ending:", error);
     throw generationError(
       error,
       "결말을 만들지 못했어요. 잠시 후 다시 시도해주세요.",

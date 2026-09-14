@@ -1,0 +1,1006 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { PaymentDomainError as PaymentDomainErrorMock } from "@/lib/server/payment-service";
+
+const {
+  authenticateRequestMock,
+  getOptionalEnvMock,
+  getRequiredEnvMock,
+  trackUserActivityBestEffortMock,
+  getPaymentByOrderIdMock,
+  markPaymentFailedMock,
+  settlePaymentAndCreditMock,
+  checkRateLimitMock,
+  createAdminMock,
+} = vi.hoisted(() => ({
+  authenticateRequestMock: vi.fn(),
+  getOptionalEnvMock: vi.fn(),
+  getRequiredEnvMock: vi.fn(),
+  trackUserActivityBestEffortMock: vi.fn(),
+  getPaymentByOrderIdMock: vi.fn(),
+  markPaymentFailedMock: vi.fn(),
+  settlePaymentAndCreditMock: vi.fn(),
+  checkRateLimitMock: vi.fn(),
+  createAdminMock: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/request-auth", () => ({
+  authenticateRequest: authenticateRequestMock,
+}));
+
+vi.mock("@/lib/env", () => ({
+  getOptionalEnv: getOptionalEnvMock,
+  getRequiredEnv: getRequiredEnvMock,
+}));
+
+vi.mock("@/lib/server/analytics", () => ({
+  trackUserActivityBestEffort: trackUserActivityBestEffortMock,
+}));
+
+vi.mock("@/lib/server/payment-service", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/lib/server/payment-service")>()),
+  getPaymentByOrderId: getPaymentByOrderIdMock,
+  markPaymentFailed: markPaymentFailedMock,
+  settlePaymentAndCredit: settlePaymentAndCreditMock,
+}));
+
+vi.mock("@/lib/server/rate-limit", () => ({
+  checkRateLimit: checkRateLimitMock,
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseAdminClient: createAdminMock,
+}));
+
+async function loadPostHandler() {
+  const routeModule = await import("./route");
+  return routeModule.POST;
+}
+
+describe("POST /api/v1/payments/confirm", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+    checkRateLimitMock.mockReturnValue(true);
+    createAdminMock.mockReturnValue({ from: vi.fn(), rpc: vi.fn() });
+    getOptionalEnvMock.mockImplementation((key: string) => {
+      if (key === "TOSS_PAYMENTS_SECRET_KEY") {
+        return "toss_test_secret";
+      }
+      return undefined;
+    });
+    getRequiredEnvMock.mockImplementation((key: string) => {
+      if (key === "TOSS_PAYMENTS_SECRET_KEY") {
+        return "toss_test_secret";
+      }
+      throw new Error(`unexpected required env key: ${key}`);
+    });
+    trackUserActivityBestEffortMock.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 401 when unauthorized", async () => {
+    authenticateRequestMock.mockResolvedValue(null);
+    const POST = await loadPostHandler();
+
+    const response = await POST({ headers: new Headers() } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("x-request-id")).toMatch(
+      /[A-Za-z0-9._:-]{1,128}/,
+    );
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 401 when authenticateRequest throws", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("auth transport down"));
+    const POST = await loadPostHandler();
+
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
+      code: "AUTH_UNAUTHORIZED",
+    });
+  });
+
+  it("returns 429 when rate limit is exceeded", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    checkRateLimitMock.mockReturnValue(false);
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body).toEqual({
+      error: "Too many payment confirmation requests",
+      code: "PAYMENTS_CONFIRM_RATE_LIMITED",
+    });
+  });
+
+  it("returns 400 when request body is invalid", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi
+        .fn()
+        .mockResolvedValue({ paymentKey: "", orderId: "", amount: 0 }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: "paymentKey, orderId, amount are required",
+      code: "PAYMENTS_CONFIRM_INPUT_INVALID",
+    });
+  });
+
+  it("returns 400 when request body is not valid JSON", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockRejectedValue(new Error("invalid json")),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: "Invalid JSON body",
+      code: "REQUEST_JSON_INVALID",
+    });
+  });
+
+  it("returns 404 when payment record does not exist", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue(null);
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      error: "Payment record not found",
+      code: "PAYMENT_NOT_FOUND",
+    });
+  });
+
+  it("returns 403 when payment belongs to another user", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-2",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({
+      error: "Payment does not belong to current user",
+      code: "PAYMENT_USER_MISMATCH",
+    });
+  });
+
+  it("returns 400 when amount is mismatched", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 1000,
+      bead_quantity: 10,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: "Amount mismatch",
+      code: "PAYMENT_AMOUNT_MISMATCH",
+    });
+  });
+
+  it("returns 409 when payment is cancelled", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "cancelled",
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      error: "Payment is cancelled",
+      code: "PAYMENT_CANCELLED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns already processed success when payment is already completed", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "completed",
+      credited_at: "2026-04-05T00:01:00.000Z",
+      credited_user_id: "user-1",
+      completed_at: "2026-04-05T00:00:00.000Z",
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 20,
+      alreadyProcessed: true,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(body).toEqual(
+      expect.objectContaining({
+        success: true,
+        orderId: "order_1",
+        alreadyProcessed: true,
+        paymentStatus: "DONE",
+      }),
+    );
+  });
+
+  it("marks payment failed when toss confirmation fails", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: vi.fn().mockResolvedValue({
+        message: "confirmation failed",
+        code: "FAILED_PAYMENT_INTERNAL_SYSTEM_PROCESSING",
+      }),
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(markPaymentFailedMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      "order_1",
+    );
+    expect(body).toEqual({
+      error: "confirmation failed",
+      code: "FAILED_PAYMENT_INTERNAL_SYSTEM_PROCESSING",
+    });
+  });
+
+  it("returns 502 and does not mark failed on toss 5xx errors", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "pending",
+    });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: vi.fn().mockResolvedValue({
+        message: "upstream fail",
+        code: "INTERNAL_SERVER_ERROR",
+      }),
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+    expect(body).toEqual({
+      error: "Payment provider temporary failure",
+      code: "INTERNAL_SERVER_ERROR",
+    });
+  });
+
+  it("returns success when toss says already processed and DB is already completed", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock
+      .mockResolvedValueOnce({
+        order_id: "order_1",
+        user_id: "user-1",
+        amount: 5000,
+        bead_quantity: 10,
+        status: "pending",
+      })
+      .mockResolvedValueOnce({
+        order_id: "order_1",
+        user_id: "user-1",
+        amount: 5000,
+        bead_quantity: 10,
+        status: "completed",
+        credited_at: "2026-04-05T00:01:00.000Z",
+        credited_user_id: "user-1",
+        completed_at: "2026-04-05T00:00:00.000Z",
+      });
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ code: "ALREADY_PROCESSED_PAYMENT" }, { status: 400 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "DONE",
+          orderId: "order_1",
+          paymentKey: "pay_1",
+          totalAmount: 5000,
+        }),
+      );
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: true,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(
+      expect.objectContaining({
+        success: true,
+        alreadyProcessed: true,
+      }),
+    );
+  });
+
+  it("settles payment and returns success response", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
+        approvedAt: "2026-04-05T00:00:00.000Z",
+      }),
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        order_id: "order_1",
+      }),
+      "pay_1",
+    );
+    expect(trackUserActivityBestEffortMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      "user-1",
+      "purchase_success",
+      expect.objectContaining({
+        order_id: "order_1",
+        bead_count: 10,
+      }),
+      expect.anything(),
+    );
+    expect(body).toEqual(
+      expect.objectContaining({
+        success: true,
+        orderId: "order_1",
+        beadCount: 10,
+        alreadyProcessed: false,
+        paymentFlowId: "order:order_1",
+        paymentStatus: "DONE",
+      }),
+    );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+      "order:order_1",
+    );
+  });
+
+  it("preserves caller payment flow id header", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
+        approvedAt: "2026-04-05T00:00:00.000Z",
+      }),
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers({
+        "x-hodam-payment-flow-id": "flow_test_1",
+      }),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(
+      expect.objectContaining({
+        paymentFlowId: "flow_test_1",
+      }),
+    );
+    expect(response.headers.get("x-hodam-payment-flow-id")).toBe("flow_test_1");
+  });
+
+  it("returns alreadyProcessed=true for duplicate confirmation", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
+        approvedAt: "2026-04-05T00:00:00.000Z",
+      }),
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: true,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(
+      expect.objectContaining({
+        success: true,
+        orderId: "order_1",
+        alreadyProcessed: true,
+      }),
+    );
+  });
+
+  it("falls back to required env when optional toss secret is missing", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getOptionalEnvMock.mockImplementation(() => undefined);
+    getRequiredEnvMock.mockReturnValue("toss_test_secret_required");
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
+        approvedAt: "2026-04-05T00:00:00.000Z",
+      }),
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(getRequiredEnvMock).toHaveBeenCalledWith("TOSS_PAYMENTS_SECRET_KEY");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.tosspayments.com/v1/payments/confirm",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: expect.stringContaining("Basic "),
+        }),
+      }),
+    );
+  });
+
+  it("uses configured toss api base url for confirm endpoint", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getOptionalEnvMock.mockImplementation((key: string) => {
+      if (key === "TOSS_PAYMENTS_SECRET_KEY") {
+        return "toss_test_secret";
+      }
+      if (key === "TOSS_PAYMENTS_API_BASE_URL") {
+        return "https://sandbox.tosspayments.com";
+      }
+      return undefined;
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
+        approvedAt: "2026-04-05T00:00:00.000Z",
+      }),
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sandbox.tosspayments.com/v1/payments/confirm",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+  });
+
+  it("returns 503 when toss confirm request throws", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+    });
+    fetchMock.mockRejectedValue(new Error("network failed"));
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: "Failed to confirm payment",
+      code: "PAYMENTS_CONFIRM_FAILED",
+    });
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+  });
+
+  it("maps domain conflict errors to 409", async () => {
+    authenticateRequestMock.mockResolvedValue({
+      accessToken: "token-1",
+      userId: "user-1",
+      email: "user@example.com",
+    });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order_1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "pending",
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
+      }),
+    });
+    settlePaymentAndCreditMock.mockRejectedValue(
+      new PaymentDomainErrorMock("PAYMENT_KEY_MISMATCH"),
+    );
+
+    const POST = await loadPostHandler();
+    const response = await POST({
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        paymentKey: "pay_1",
+        orderId: "order_1",
+        amount: 5000,
+      }),
+    } as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      error: "Payment state conflict",
+      code: "PAYMENT_STATE_CONFLICT",
+    });
+  });
+});
+
+describe("confirmation proof and retry boundaries", () => {
+  const input = { paymentKey: "pay_1", orderId: "order_1", amount: 5000 };
+  const payment = {
+    id: "payment-1",
+    user_id: "user-1",
+    order_id: "order_1",
+    amount: 5000,
+    bead_quantity: 10,
+    status: "pending",
+    created_at: "2026-04-05",
+  };
+  const approved = { ...input, totalAmount: 5000, status: "DONE" };
+  const fetchMock = vi.fn();
+  const request = (body: unknown = input) =>
+    ({ headers: new Headers(), json: async () => body }) as never;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+    authenticateRequestMock.mockResolvedValue({
+      userId: "user-1",
+      accessToken: "token",
+    });
+    checkRateLimitMock.mockReturnValue(true);
+    createAdminMock.mockReturnValue({});
+    getOptionalEnvMock.mockImplementation((key: string) =>
+      key === "TOSS_PAYMENTS_SECRET_KEY" ? "test_secret" : undefined,
+    );
+    getPaymentByOrderIdMock.mockResolvedValue(payment);
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 20,
+      alreadyProcessed: false,
+    });
+    fetchMock.mockResolvedValue(Response.json(approved));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    null,
+    [],
+    "invalid",
+    { ...input, paymentKey: 123 },
+    { ...input, amount: "5000" },
+    { ...input, amount: 1.5 },
+    { ...input, orderId: "../order" },
+  ])("rejects malformed input without provider access: %j", async body => {
+    const POST = await loadPostHandler();
+    expect((await POST(request(body))).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects historical client-priced quantities before approving a payment", async () => {
+    getPaymentByOrderIdMock.mockResolvedValue({
+      ...payment,
+      bead_quantity: 5000,
+    });
+    const POST = await loadPostHandler();
+    const response = await POST(request());
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("PAYMENT_PACKAGE_INVALID");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("requires the service role before contacting the payment provider", async () => {
+    createAdminMock.mockImplementation(() => {
+      throw new Error("Missing service role");
+    });
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(503);
+    expect(createAdminMock).toHaveBeenCalledExactlyOnceWith();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([{}, { credited_at: "2026-04-05", credited_user_id: "other-user" }])(
+    "does not claim an old completed order has a verified credit: %j",
+    async fields => {
+      getPaymentByOrderIdMock.mockResolvedValue({
+        ...payment,
+        status: "completed",
+        ...fields,
+      });
+      const POST = await loadPostHandler();
+      const response = await POST(request());
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("PAYMENT_CREDIT_UNVERIFIED");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["status", "orderId", "paymentKey", "totalAmount"])(
+    "rejects mismatched provider %s without crediting or failing the order",
+    async field => {
+      fetchMock.mockResolvedValue(
+        Response.json({ ...approved, [field]: "mismatch" }),
+      );
+      const POST = await loadPostHandler();
+      expect((await POST(request())).status).toBe(409);
+      expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+      expect(markPaymentFailedMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("recovers approval before a database save and keeps the idempotency key stable", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ code: "ALREADY_PROCESSED_PAYMENT" }, { status: 400 }),
+      )
+      .mockResolvedValueOnce(Response.json(approved));
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].headers["Idempotency-Key"]).toBe(
+      "confirm_order_1",
+    );
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "https://api.tosspayments.com/v1/payments/pay_1",
+    );
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      payment,
+      "pay_1",
+    );
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves provider recovery failures retryable", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ code: "ALREADY_PROCESSED_PAYMENT" }, { status: 400 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ code: "TEMPORARY" }, { status: 502 }),
+      );
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(503);
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves an approved payment retryable when finalization fails", async () => {
+    settlePaymentAndCreditMock.mockRejectedValue(new Error("database offline"));
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(503);
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+  });
+});

@@ -42,10 +42,11 @@ export default function usePicturebookImages() {
   }, []);
   useEffect(() => {
     mounted.current = true;
+    const pendingPages = pending.current;
     return () => {
       mounted.current = false;
       epoch.current += 1;
-      pending.current.clear();
+      pendingPages.clear();
     };
   }, []);
   const draw = useCallback((threadId: number, pages: PicturebookPage[]) => {
@@ -76,6 +77,9 @@ export default function usePicturebookImages() {
     );
     queue.current = queue.current
       .then(async () => {
+        // Generate one page at a time so auth changes and quota failures stop
+        // subsequent requests before they can spend credits.
+        /* eslint-disable no-restricted-syntax, no-await-in-loop, no-continue */
         for (const page of requestedPages) {
           if (!isCurrent()) return;
           let failed = false;
@@ -121,6 +125,7 @@ export default function usePicturebookImages() {
             }
           }
         }
+        /* eslint-enable no-restricted-syntax, no-await-in-loop, no-continue */
       })
       .catch(() => {
         /* Each page already records its failure. */

@@ -1,7 +1,26 @@
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
+  crossOrigin: "anonymous",
   poweredByHeader: false,
+  webpack(config, { isServer }) {
+    if (isServer) {
+      const existingIgnoreWarnings = Array.isArray(config.ignoreWarnings)
+        ? config.ignoreWarnings
+        : [];
+
+      config.ignoreWarnings = [
+        ...existingIgnoreWarnings,
+        {
+          module:
+            /@prisma\/instrumentation\/node_modules\/@opentelemetry\/instrumentation/,
+        },
+      ];
+    }
+
+    return config;
+  },
+
   async headers() {
     return [
       {

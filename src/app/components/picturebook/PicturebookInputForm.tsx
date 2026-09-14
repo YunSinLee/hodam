@@ -42,6 +42,20 @@ export default function PicturebookInputForm({
   ) {
     onChange({ ...value, [key]: next });
   }
+  let balanceLabel = "로그인 정보를 확인하고 있어요";
+  if (isAuthReady) {
+    balanceLabel = isSignedIn
+      ? `보유 곶감 ${beadCount === undefined ? "확인 중" : `${beadCount}개`}`
+      : "로그인 후 보유 곶감을 확인할 수 있어요";
+  }
+  let submitLabel = "로그인 정보를 확인하고 있어요…";
+  if (isAuthReady && isLoading) {
+    submitLabel = "그림책을 만들고 있어요…";
+  } else if (isAuthReady) {
+    submitLabel = isSignedIn
+      ? "오늘 밤 그림책 만들기"
+      : "로그인하고 그림책 만들기";
+  }
   return (
     <form
       className="creation-form"
@@ -188,13 +202,7 @@ export default function PicturebookInputForm({
       </section>
       <div className="form-summary">
         <span>8쪽 그림책 1권 · 곶감 {picturebookCost}개</span>
-        <span>
-          {!isAuthReady
-            ? "로그인 정보를 확인하고 있어요"
-            : isSignedIn
-              ? `보유 곶감 ${beadCount === undefined ? "확인 중" : `${beadCount}개`}`
-              : "로그인 후 보유 곶감을 확인할 수 있어요"}
-        </span>
+        <span>{balanceLabel}</span>
       </div>
       <button
         type="submit"
@@ -202,13 +210,7 @@ export default function PicturebookInputForm({
         disabled={!isAuthReady || isLoading || !!invalid}
         aria-describedby={submitHelpId}
       >
-        {!isAuthReady
-          ? "로그인 정보를 확인하고 있어요…"
-          : isLoading
-            ? "그림책을 만들고 있어요…"
-            : isSignedIn
-              ? "오늘 밤 그림책 만들기"
-              : "로그인하고 그림책 만들기"}
+        {submitLabel}
       </button>
       <p
         id={submitHelpId}

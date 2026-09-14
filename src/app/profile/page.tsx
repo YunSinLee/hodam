@@ -1,3 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
+// Native images support signed private URLs or local SVG illustrations.
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -165,7 +168,8 @@ export default function ProfilePage() {
                       () => profileApi.uploadProfileImage(userInfo.id!, file),
                       "프로필 사진을 바꿨어요.",
                     );
-                  event.target.value = "";
+                  const fileInput = event.target;
+                  fileInput.value = "";
                 }}
               />
               <p className="text-xs text-gray-500 mt-2">

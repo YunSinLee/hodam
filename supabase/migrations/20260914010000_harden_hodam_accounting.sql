@@ -54,4 +54,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS thread_picturebook_request_unique
 -- This table already has no anon/authenticated table grants. Add defense in depth.
 ALTER TABLE public.payment_webhook_transmissions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.payment_webhook_transmissions FROM anon, authenticated;
+
+-- Keep the operational smoke check aligned with the new server-only settlement
+-- boundary. Its April version required the authenticated grant revoked above.
+CREATE OR REPLACE FUNCTION public.hodam_security_grants_smoke_check()
+RETURNS TABLE(check_name text, ok boolean, detail text)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $check$
+  WITH functions(signature, client_allowed) AS (
+    VALUES
+      ('public.consume_beads(uuid,integer,text)', true),
+      ('public.consume_daily_quota(uuid,text,integer,integer,jsonb)', true),
+      ('public.credit_beads(uuid,integer)', false),
+      ('public.finalize_payment(text,text,uuid)', false),
+      ('public.get_my_threads()', true),
+      ('public.get_thread_detail(bigint)', true)
+  ), expected AS (
+    SELECT signature, role_name,
+      role_name = 'service_role' OR (role_name = 'authenticated' AND client_allowed) AS allowed
+    FROM functions CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) roles(role_name)
+  )
+  SELECT
+    'function_execute_' || CASE WHEN allowed THEN 'allow_' ELSE 'deny_' END || role_name || '.' || split_part(substr(signature, 8), '(', 1),
+    has_function_privilege(role_name, signature, 'EXECUTE') = allowed,
+    CASE WHEN has_function_privilege(role_name, signature, 'EXECUTE') THEN 'granted' ELSE 'blocked' END
+  FROM expected
+  UNION ALL
+  SELECT
+    'table_write_deny_' || role_name || '.payment_history.' || lower(privilege),
+    NOT has_table_privilege(role_name, 'public.payment_history', privilege),
+    CASE WHEN has_table_privilege(role_name, 'public.payment_history', privilege) THEN 'granted' ELSE 'blocked' END
+  FROM (VALUES ('anon'), ('authenticated')) roles(role_name)
+  CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE')) privileges(privilege);
+$check$;
+REVOKE ALL ON FUNCTION public.hodam_security_grants_smoke_check() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.hodam_security_grants_smoke_check() TO authenticated, service_role;
 COMMIT;

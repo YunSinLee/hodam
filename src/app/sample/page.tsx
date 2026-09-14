@@ -1,3 +1,6 @@
+/* eslint-disable react/jsx-no-bind */
+// Render branches are mutually exclusive; handlers are direct, unmemoized UI actions.
+
 "use client";
 
 import { useState } from "react";

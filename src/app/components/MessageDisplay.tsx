@@ -20,7 +20,6 @@ export default function MessageDisplay({
 }: MessageDisplayProps) {
   const messageId = useId();
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
-  const [_isAPILoading, setIsAPILoadingState] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [speechError, setSpeechError] = useState("");
@@ -83,7 +82,7 @@ export default function MessageDisplay({
           const langCode = language.startsWith("ko") ? "ko" : "en";
 
           // 선호하는 성별에 따라 목소리 필터링
-          const preferredVoices = voices.filter(
+          const [preferredVoice] = voices.filter(
             v =>
               v.lang.includes(langCode) &&
               (voice === "female"
@@ -92,12 +91,12 @@ export default function MessageDisplay({
           );
 
           // 적절한 목소리가 있으면 설정
-          if (preferredVoices.length > 0) {
-            utterance.voice = preferredVoices[0];
+          if (preferredVoice) {
+            utterance.voice = preferredVoice;
           }
         }
-      } catch (e) {
-        console.error("음성 설정 오류:", e);
+      } catch {
+        // Continue with the browser's default voice if voice discovery fails.
       }
 
       // 음성 재생 시작 설정
@@ -136,7 +135,6 @@ export default function MessageDisplay({
     language: string = "ko",
   ) => {
     try {
-      setIsAPILoadingState(true);
       setPlayingIndex(index);
 
       // 기존 오디오 중지
@@ -179,12 +177,7 @@ export default function MessageDisplay({
 
       // 첫 번째 오디오 재생 시작
       playNextAudio();
-
-      setIsAPILoadingState(false);
-    } catch (error: unknown) {
-      console.error("TTS API 오류:", error);
-      alert("음성 생성 중 오류가 발생했습니다.");
-      setIsAPILoadingState(false);
+    } catch {
       setPlayingIndex(null);
 
       // 오류 발생 시 브라우저 기본 TTS로 폴백
@@ -207,24 +200,33 @@ export default function MessageDisplay({
       // Web Audio API를 사용하여 피치 조정 구현
       // 기존 오디오 컨텍스트가 있으면 닫기
       if (audioContextRef.current) {
-        audioContextRef.current.close().catch(console.error);
+        audioContextRef.current.close().catch(() => {
+          // The previous audio context may already have been closed.
+        });
       }
 
       // 새 오디오 컨텍스트 생성
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioContextConstructor) {
+        fallbackToDefaultAudio(audioUrl);
+        return;
+      }
+      audioContextRef.current = new AudioContextConstructor();
 
       const request = new XMLHttpRequest();
 
       request.open("GET", audioUrl, true);
       request.responseType = "arraybuffer";
 
-      request.onload = function () {
+      request.onload = () => {
         if (!audioContextRef.current) return;
 
         audioContextRef.current.decodeAudioData(
           request.response,
-          function (buffer) {
+          buffer => {
             if (!audioContextRef.current) return;
 
             // 이전 소스 노드가 있으면 중지
@@ -232,8 +234,8 @@ export default function MessageDisplay({
               try {
                 sourceNodeRef.current.stop();
                 sourceNodeRef.current.disconnect();
-              } catch (e) {
-                console.error("소스 노드 중지 오류:", e);
+              } catch {
+                // An already stopped source does not prevent the next segment.
               }
             }
 
@@ -276,23 +278,20 @@ export default function MessageDisplay({
               playNextAudio();
             };
           },
-          function (e) {
-            console.error("오디오 디코딩 오류", e);
+          () => {
             // 오류 발생 시 기본 Audio 요소로 폴백
             fallbackToDefaultAudio(audioUrl);
           },
         );
       };
 
-      request.onerror = function () {
-        console.error("오디오 로드 오류");
+      request.onerror = () => {
         // 오류 발생 시 기본 Audio 요소로 폴백
         fallbackToDefaultAudio(audioUrl);
       };
 
       request.send();
-    } catch (e) {
-      console.error("Web Audio API 사용 중 오류:", e);
+    } catch {
       // Web Audio API를 지원하지 않는 브라우저는 기본 방식으로 폴백
       fallbackToDefaultAudio(audioUrl);
     }
@@ -329,18 +328,20 @@ export default function MessageDisplay({
         sourceNodeRef.current.stop();
         sourceNodeRef.current.disconnect();
         sourceNodeRef.current = null;
-      } catch (e) {
-        console.error("Web Audio 정지 오류:", e);
+      } catch {
+        // A source may already have stopped by the time cleanup runs.
       }
     }
 
     // AudioContext 정리
     if (audioContextRef.current) {
       try {
-        audioContextRef.current.close().catch(console.error);
+        audioContextRef.current.close().catch(() => {
+          // A closed context needs no further cleanup.
+        });
         audioContextRef.current = null;
-      } catch (e) {
-        console.error("AudioContext 정리 오류:", e);
+      } catch {
+        // Closing an unavailable context must not interrupt speech cleanup.
       }
     }
 
@@ -384,6 +385,14 @@ export default function MessageDisplay({
   const toggleControls = () => {
     setShowControls(!showControls);
   };
+
+  const occurrences = new Map<string, number>();
+  const messageRows = messages.map(message => {
+    const contentKey = JSON.stringify([message.text, message.text_en]);
+    const occurrence = occurrences.get(contentKey) || 0;
+    occurrences.set(contentKey, occurrence + 1);
+    return { message, key: `${contentKey}:${occurrence}` };
+  });
 
   return (
     <div className="p-4 bg-white rounded-md shadow-sm transition-all">
@@ -455,8 +464,8 @@ export default function MessageDisplay({
       {/* 숨겨진 오디오 요소 */}
       <audio ref={audioRef} style={{ display: "none" }} />
 
-      {messages.map((message, index) => (
-        <div key={index} className="mb-4 last:mb-0">
+      {messageRows.map(({ message, key }, index) => (
+        <div key={key} className="mb-4 last:mb-0">
           <button
             type="button"
             className="relative group w-full text-left"

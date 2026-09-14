@@ -1,3 +1,6 @@
+/* eslint-disable no-nested-ternary */
+// Render branches are mutually exclusive; handlers are direct, unmemoized UI actions.
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";

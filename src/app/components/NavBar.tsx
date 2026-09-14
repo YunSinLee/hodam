@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -116,7 +117,12 @@ export default function NavBar() {
               className="balance-link"
               aria-label={`보유 곶감 ${bead.count ?? "확인 중"}`}
             >
-              <img src="/persimmon_240424.png" alt="" width="24" height="24" />
+              <Image
+                src="/persimmon_240424.png"
+                alt=""
+                width={24}
+                height={24}
+              />
               <span>{bead.count ?? "…"}</span>
             </Link>
           )}

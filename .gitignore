@@ -84,3 +84,6 @@ logs/
 
 # Synthetic schemas used by the isolated migration check.
 !tests/db/*.sql
+
+/.next-dev/
+/reports/local/

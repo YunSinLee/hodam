@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import Image from "next/image";
+
 import type { PicturebookPage as PicturebookPageType } from "@/app/types/openai";
 
 interface PicturebookPageProps {
@@ -27,6 +29,13 @@ export default function PicturebookPage({
     if (imageUrl) setFailedUrl(null);
   }, [imageUrl]);
 
+  let imageStatus = "글부터 함께 읽어보세요";
+  if (isImageLoading) {
+    imageStatus = `${page.pageNumber}쪽 그림을 준비하고 있어요`;
+  } else if (hasImageError) {
+    imageStatus = "그림을 불러오지 못했어요. 글은 계속 읽을 수 있어요.";
+  }
+
   return (
     <article
       aria-label={`${page.pageNumber}쪽`}
@@ -45,9 +54,13 @@ export default function PicturebookPage({
         </div>
 
         {imageUrl && !hasImageError ? (
-          <img
+          <Image
             key={imageAttempt}
             src={imageUrl}
+            width={1024}
+            height={1024}
+            unoptimized
+            loading="eager"
             alt={`${page.pageNumber}쪽 이야기의 그림`}
             onError={() => {
               setFailedUrl(imageUrl);
@@ -57,13 +70,7 @@ export default function PicturebookPage({
           />
         ) : (
           <div className="mb-5 flex min-h-[48px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-orange-200 bg-white/70 p-3 text-center text-sm leading-6 text-orange-700">
-            <p role={hasImageError ? "status" : undefined}>
-              {isImageLoading
-                ? `${page.pageNumber}쪽 그림을 준비하고 있어요`
-                : hasImageError
-                  ? "그림을 불러오지 못했어요. 글은 계속 읽을 수 있어요."
-                  : "글부터 함께 읽어보세요"}
-            </p>
+            <p role={hasImageError ? "status" : undefined}>{imageStatus}</p>
             {hasImageError && imageUrl && !onImageError && !isImageLoading && (
               <button
                 type="button"

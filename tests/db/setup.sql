@@ -21,6 +21,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.payment_history TO authenticated;
 -- covered by payment.test.ts and the existing production finalize implementation.
 CREATE FUNCTION public.credit_beads(uuid, integer) RETURNS integer LANGUAGE sql AS $$ SELECT 0 $$;
 CREATE FUNCTION public.finalize_payment(text, text, uuid) RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;
+CREATE FUNCTION public.get_my_threads() RETURNS SETOF public.thread LANGUAGE sql AS $$ SELECT * FROM public.thread WHERE user_id = auth.uid() $$;
+CREATE FUNCTION public.get_thread_detail(bigint) RETURNS SETOF public.thread LANGUAGE sql AS $$ SELECT * FROM public.thread WHERE id = $1 AND user_id = auth.uid() $$;
+REVOKE ALL ON FUNCTION public.get_my_threads(), public.get_thread_detail(bigint) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_threads(), public.get_thread_detail(bigint) TO authenticated, service_role;
 INSERT INTO public.bead VALUES ('11111111-1111-4111-8111-111111111111', 10), ('22222222-2222-4222-8222-222222222222', 10);
 
 CREATE SCHEMA storage;
@@ -39,3 +43,9 @@ INSERT INTO public.thread(id, user_id, openai_thread_id) VALUES
   (101, '11111111-1111-4111-8111-111111111111', 'picturebook_storage1'),
   (202, '22222222-2222-4222-8222-222222222222', 'picturebook_storage2');
 INSERT INTO storage.objects VALUES ('image','image_thread_id_101_page_1',null), ('image','image_thread_id_202_page_1',null);
+INSERT INTO storage.objects VALUES
+  ('image','11111111-1111-4111-8111-111111111111/thread_101/cover_123.png',null),
+  ('image','22222222-2222-4222-8222-222222222222/thread_202/cover_123.png',null),
+  ('image','11111111-1111-4111-8111-111111111111/thread_202/cover_123.png',null),
+  ('profiles','11111111-1111-4111-8111-111111111111/profile_123.png',null),
+  ('profiles','22222222-2222-4222-8222-222222222222/profile_123.png',null);

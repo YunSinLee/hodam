@@ -7,6 +7,7 @@ import "primereact/resources/primereact.min.css";
 import "primereact/resources/themes/lara-light-amber/theme.css";
 import "../styles/globals.css";
 
+import ChunkErrorRecovery from "./components/ChunkErrorRecovery";
 import FooterWrapper from "./components/FooterWrapper";
 import NavBar from "./components/NavBar";
 
@@ -29,6 +30,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
+        <ChunkErrorRecovery />
         <PrimeReactProvider value={{ ripple: true }}>
           <div className="min-h-screen flex flex-col">
             <a className="skip-link" href="#main-content">

@@ -1,43 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
+import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
-import userApi from "@/app/api/user";
-import { safeReturnPath } from "@/app/utils/navigation";
-import useUserInfo from "@/services/hooks/use-user-info";
+import useSignInPageController from "@/app/sign-in/useSignInPageController";
 
 export default function SignIn() {
-  const [loading, setLoading] = useState<"kakao" | "google" | null>(null);
-  const [error, setError] = useState("");
-  const { userInfo, isAuthReady } = useUserInfo();
-  const router = useRouter();
-  useEffect(() => {
-    if (isAuthReady && userInfo.id)
-      router.replace(
-        safeReturnPath(new URLSearchParams(window.location.search).get("next")),
-      );
-  }, [isAuthReady, userInfo.id, router]);
-  async function signIn(provider: "kakao" | "google") {
-    if (loading) return;
-    setLoading(provider);
-    setError("");
-    const next = safeReturnPath(
-      new URLSearchParams(window.location.search).get("next"),
-    );
-    try {
-      if (provider === "kakao") await userApi.signInWithKakao(next);
-      else await userApi.signInWithGoogle(next);
-    } catch {
-      setError(
-        "로그인을 시작하지 못했어요. 연결을 확인하고 다시 시도해주세요.",
-      );
-    } finally {
-      setLoading(null);
-    }
-  }
+  const { state, handlers } = useSignInPageController();
+
   return (
     <div className="auth-page">
       <p className="eyebrow">우리 아이의 작은 책장</p>
@@ -51,28 +21,51 @@ export default function SignIn() {
         <br />
         로그인하면 작성하던 화면으로 돌아가요.
       </p>
-      {error && (
+      {state.errorMessage && (
         <p className="notice-error" role="alert">
-          {error}
+          {state.errorMessage}
+        </p>
+      )}
+      {state.recoveryHint && (
+        <p className="notice-error" role="status">
+          이전 로그인 시도 안내: {state.recoveryHint}
         </p>
       )}
       <div className="auth-buttons">
         <button
           type="button"
-          onClick={() => signIn("kakao")}
-          disabled={!!loading}
+          onClick={() => handlers.signInWithProvider("kakao")}
+          disabled={state.isAnyLoading || !state.providerAvailability.kakao}
+          aria-describedby={
+            !state.providerAvailability.kakao ? "kakao-unavailable" : undefined
+          }
         >
-          <img src="/kakao_logo.svg" alt="" />
-          {loading === "kakao" ? "카카오로 이동 중…" : "카카오로 시작하기"}
+          <Image src="/kakao_logo.svg" alt="" width={24} height={24} />
+          {state.isKakaoLoading ? "카카오로 이동 중…" : "카카오로 시작하기"}
         </button>
+        {!state.providerAvailability.kakao && (
+          <p id="kakao-unavailable" className="notice-error">
+            지금은 카카오 로그인을 사용할 수 없어요. 잠시 후 다시 시도해주세요.
+          </p>
+        )}
         <button
           type="button"
-          onClick={() => signIn("google")}
-          disabled={!!loading}
+          onClick={() => handlers.signInWithProvider("google")}
+          disabled={state.isAnyLoading || !state.providerAvailability.google}
+          aria-describedby={
+            !state.providerAvailability.google
+              ? "google-unavailable"
+              : undefined
+          }
         >
-          <img src="/google_logo.svg" alt="" />
-          {loading === "google" ? "Google로 이동 중…" : "Google로 시작하기"}
+          <Image src="/google_logo.svg" alt="" width={24} height={24} />
+          {state.isGoogleLoading ? "Google로 이동 중…" : "Google로 시작하기"}
         </button>
+        {!state.providerAvailability.google && (
+          <p id="google-unavailable" className="notice-error">
+            지금은 Google 로그인을 사용할 수 없어요. 잠시 후 다시 시도해주세요.
+          </p>
+        )}
       </div>
       <div className="auth-footnote">
         <p>

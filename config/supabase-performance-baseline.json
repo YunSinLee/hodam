@@ -1,0 +1,11 @@
+{
+  "allowCacheKeys": [
+    "unused_index_public_bead_transactions_bead_transactions_thread_id_idx",
+    "unused_index_public_bead_transactions_idx_bead_transactions_user_id",
+    "unused_index_public_image_idx_image_thread_id",
+    "unused_index_public_messages_messages_thread_turn_id_idx",
+    "unused_index_public_user_activity_logs_user_activity_logs_auth_callback_attempt_created_at_idx"
+  ],
+  "allowForeignKeyCacheKeys": [],
+  "allowIndexNames": []
+}

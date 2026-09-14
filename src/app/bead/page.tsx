@@ -1,3 +1,6 @@
+/* eslint-disable @next/next/no-img-element, no-nested-ternary */
+// Render branches are mutually exclusive; handlers are direct, unmemoized UI actions.
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -12,16 +15,6 @@ import { beadPackages } from "@/app/utils/bead-packages";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 
-declare global {
-  interface Window {
-    TossPayments: (key: string) => {
-      requestPayment: (
-        method: string,
-        options: Record<string, unknown>,
-      ) => Promise<void>;
-    };
-  }
-}
 export default function BeadPage() {
   const { userInfo } = useUserInfo();
   const router = useRouter();
@@ -79,7 +72,14 @@ export default function BeadPage() {
     return () => controller.abort();
   }, [router, configRetry]);
   async function purchase(pkg: (typeof beadPackages)[number]) {
-    if (!userInfo.id || !clientKey || !enabled || !ready || purchasing.current)
+    if (
+      !userInfo.id ||
+      !clientKey ||
+      !enabled ||
+      !ready ||
+      !window.TossPayments ||
+      purchasing.current
+    )
       return;
     const owner = userInfo.id;
     const current = ++operation.current;
@@ -102,7 +102,8 @@ export default function BeadPage() {
         amount: order.amount,
         orderId: order.orderId,
         orderName: `곶감 ${pkg.quantity}개`,
-        customerEmail: userInfo.email,
+        customerName: "호담 사용자",
+        customerEmail: userInfo.email || "",
         successUrl: `${window.location.origin}/payment/success`,
         failUrl: `${window.location.origin}/payment/fail`,
       });

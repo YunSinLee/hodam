@@ -26,9 +26,7 @@ const imageApi = {
         upsert: true,
       });
 
-    if (error) {
-      console.error("Error saving image", error);
-    }
+    if (error) throw error;
     if (!data) {
       throw new Error("No data returned");
     }
@@ -44,10 +42,28 @@ const imageApi = {
       .from("image")
       .createSignedUrl(getImagePath(thread_id, page_number), 3600);
 
-    if (!data) {
-      return null;
-    }
-    return data.signedUrl;
+    if (data?.signedUrl) return data.signedUrl;
+    if (page_number) return null;
+
+    // Earlier releases stored covers under the owner's thread directory.
+    const { data: thread } = await supabase
+      .from("thread")
+      .select("user_id")
+      .eq("id", thread_id)
+      .single();
+    if (!thread?.user_id) return null;
+    const directory = `${thread.user_id}/thread_${thread_id}`;
+    const { data: files } = await supabase.storage
+      .from("image")
+      .list(directory, {
+        sortBy: { column: "created_at", order: "desc" },
+        limit: 1,
+      });
+    if (!files?.[0]) return null;
+    const { data: legacy } = await supabase.storage
+      .from("image")
+      .createSignedUrl(`${directory}/${files[0].name}`, 3600);
+    return legacy?.signedUrl ?? null;
   },
   async getPageImages({
     thread_id,
@@ -78,12 +94,12 @@ const imageApi = {
       }),
     );
 
-    return entries.reduce<Record<number, string>>((imageUrls, entry) => {
-      if (entry) {
-        imageUrls[entry[0]] = entry[1];
-      }
-      return imageUrls;
-    }, {});
+    const imageUrls: Record<number, string> = Object.fromEntries(
+      entries.filter(
+        (entry): entry is readonly [number, string] => entry !== null,
+      ),
+    );
+    return imageUrls;
   },
   async uploadImage(
     base64Data: string,
@@ -104,13 +120,12 @@ const imageApi = {
       });
 
       return imageBlob;
-    } catch (error) {
-      console.error("이미지 업로드 중 오류 발생:", error);
+    } catch {
       return undefined;
     }
 
-    function base64toBlob(base64Data: string, contentType = "image/png") {
-      const byteCharacters = atob(base64Data);
+    function base64toBlob(encodedImage: string, contentType = "image/png") {
+      const byteCharacters = atob(encodedImage);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);

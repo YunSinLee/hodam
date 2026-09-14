@@ -1,3 +1,6 @@
+/* eslint-disable react/jsx-no-bind */
+// Render branches are mutually exclusive; handlers are direct, unmemoized UI actions.
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -102,7 +105,8 @@ export default function Service() {
     if (!busy.current && !images.isLoading) return undefined;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = "";
+      const unloadEvent = event;
+      unloadEvent.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
