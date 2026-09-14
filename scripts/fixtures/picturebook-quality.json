@@ -473,7 +473,7 @@
     "expectedApproved": true
   },
   {
-    "id": "reject-missing-lights-off-state",
+    "id": "accept-lights-off-state-from-earlier-pages",
     "stage": "start",
     "book": {
       "kind": "picturebook",
@@ -547,8 +547,8 @@
         ]
       }
     },
-    "expectedFailures": ["visual_consistency"],
-    "expectedApproved": false
+    "expectedFailures": [],
+    "expectedApproved": true
   },
   {
     "id": "reject-relit-lamp-after-lights-out",
