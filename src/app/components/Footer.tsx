@@ -10,6 +10,8 @@ export default function Footer() {
             <small>오늘을 담은 그림책</small>
           </Link>
           <nav aria-label="서비스 정보">
+            <Link href="/bedtime-stories">잠자리 동화</Link>
+            <Link href="/ai-storybook">AI 동화책 만들기</Link>
             <Link href="/terms">이용약관</Link>
             <Link href="/privacy">개인정보처리방침</Link>
             <a href="mailto:dldbstls7777@naver.com">문의하기</a>

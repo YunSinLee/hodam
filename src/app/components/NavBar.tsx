@@ -8,7 +8,9 @@ import { usePathname, useRouter } from "next/navigation";
 
 import beadApi from "@/app/api/bead";
 import userApi from "@/app/api/user";
+import TrackedLink from "@/app/components/marketing/TrackedLink";
 import { supabase } from "@/app/utils/supabase";
+import { searchSourceForPathname } from "@/lib/client/search-analytics";
 import useBead, {
   defaultState as defaultBead,
 } from "@/services/hooks/use-bead";
@@ -16,7 +18,7 @@ import useUserInfo, { defaultState } from "@/services/hooks/use-user-info";
 
 const navItems = [
   { href: "/service", label: "그림책 만들기" },
-  { href: "/sample", label: "그림책 미리보기" },
+  { href: "/bedtime-stories", label: "잠자리 동화" },
   { href: "/my-story", label: "내 책장" },
 ];
 
@@ -27,6 +29,7 @@ export default function NavBar() {
   const [error, setError] = useState("");
   const menuButton = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
+  const searchSource = searchSourceForPathname(pathname);
   const [returnPath, setReturnPath] = useState(pathname);
   const router = useRouter();
 
@@ -100,15 +103,27 @@ export default function NavBar() {
           <small>오늘을 담은 그림책</small>
         </Link>
         <div className="desktop-nav">
-          {navItems.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={pathname.startsWith(item.href) ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map(item =>
+            item.href === "/service" && searchSource ? (
+              <TrackedLink
+                key={item.href}
+                href={item.href}
+                source={searchSource}
+              >
+                {item.label}
+              </TrackedLink>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={
+                  pathname.startsWith(item.href) ? "page" : undefined
+                }
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
         </div>
         <div className="nav-actions">
           {isAuthReady && userInfo.id && (
@@ -147,15 +162,27 @@ export default function NavBar() {
       </nav>
       {open && (
         <nav id="mobile-nav" className="mobile-nav" aria-label="모바일 메뉴">
-          {navItems.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={pathname.startsWith(item.href) ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map(item =>
+            item.href === "/service" && searchSource ? (
+              <TrackedLink
+                key={item.href}
+                href={item.href}
+                source={searchSource}
+              >
+                {item.label}
+              </TrackedLink>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={
+                  pathname.startsWith(item.href) ? "page" : undefined
+                }
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
           {userInfo.id && (
             <button type="button" onClick={signOut}>
               로그아웃

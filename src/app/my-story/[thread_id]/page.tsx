@@ -22,6 +22,7 @@ import type {
 } from "@/app/types/openai";
 import { parsePicturebookDraft } from "@/app/utils/picturebook";
 import { requireAccessToken } from "@/app/utils/session";
+import { completeSearchGeneration } from "@/lib/client/search-analytics";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
 import useUserInfo from "@/services/hooks/use-user-info";
 
@@ -166,6 +167,22 @@ export default function MyStoryDetail() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [ending, images.isLoading]);
+
+  useEffect(() => {
+    if (
+      loading ||
+      !book ||
+      !thread ||
+      thread.id !== id ||
+      thread.user_id !== userInfo.id
+    )
+      return;
+    completeSearchGeneration(thread.id, {
+      status: book.status,
+      pageCount: book.pages.length,
+      hasAllImages: book.pages.every(page => !!images.urls[page.pageNumber]),
+    });
+  }, [book, thread, images.urls, id, loading, userInfo.id]);
   if (!isAuthReady)
     return (
       <p className="empty-state" role="status">
