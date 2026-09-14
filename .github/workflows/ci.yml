@@ -72,7 +72,7 @@ jobs:
         run: |
           npx next dev -p 3100 &
           APP_PID=$!
-          trap "kill $APP_PID" EXIT
+          trap 'kill "$APP_PID"' EXIT
 
           for i in {1..60}; do
             if curl -s http://localhost:3100/api/v1/threads >/dev/null 2>&1; then
