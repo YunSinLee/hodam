@@ -41,9 +41,29 @@ export async function ensureBeadRow(
 
   const { data: inserted, error: insertError } = await admin
     .from("bead")
-    .insert({ user_id: userId, count: 0 })
+    // Match the fixed welcome balance required by bead_insert_own.
+    .insert({ user_id: userId, count: 10 })
     .select("id, count")
     .single();
+
+  if (insertError?.code === "23505") {
+    // Another tab or request may have initialized (and spent) the balance.
+    // Read its row once; never replace it or grant the welcome balance again.
+    const { data: existing, error: readError } = await admin
+      .from("bead")
+      .select("id, count")
+      .eq("user_id", userId)
+      .single();
+
+    if (readError || !existing) {
+      throw readError || insertError;
+    }
+
+    return {
+      id: String(existing.id),
+      count: Number(existing.count || 0),
+    };
+  }
 
   if (insertError || !inserted) {
     throw insertError || new Error("Failed to initialize bead row");
