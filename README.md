@@ -96,6 +96,7 @@ AI 개발 도구인 Cursor에서 MCP 서버를 사용하려면:
 - [POST_DEPLOY_SMOKE_RUNBOOK.md](./POST_DEPLOY_SMOKE_RUNBOOK.md)
 - [SECURITY_HARDENING_NEXT_STEPS.md](./SECURITY_HARDENING_NEXT_STEPS.md)
 - [검색 유입·공개 동화·사이트 등록 운영](docs/search-discovery.md)
+- [8쪽 그림책 베타·기존 기록 보존·첫 이용 QA](docs/beta-launch.md)
 
 ## 📦 설치
 
