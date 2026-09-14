@@ -417,7 +417,9 @@ npm run start
 
 ## 그림책과 결제 설정
 
-`.env.example`에 필요한 항목을 정리했습니다. OpenAI 키는 서버 환경변수 `OPENAI_API_KEY`로만 설정합니다. 기존 `OPEN_AI_API_KEY`도 호환되지만 공개 빌드 설정에 넣지 않습니다. 글 모델은 `OPENAI_STORY_MODEL`, 그림 모델은 `OPENAI_IMAGE_MODEL`로 설정합니다. 기본 그림 모델은 `gpt-image-2.5-flare`이며 1024×1024, low 품질을 사용합니다.
+`.env.example`에 필요한 항목을 정리했습니다. OpenAI 키는 서버 환경변수 `OPENAI_API_KEY`로만 설정합니다. 기존 `OPEN_AI_API_KEY`도 호환되지만 공개 빌드 설정에 넣지 않습니다. 초안 모델은 `OPENAI_STORY_MODEL`, 독립 검수·부분 교정 모델은 `OPENAI_STORY_REVIEW_MODEL`로 분리합니다. 두 기본값은 검증한 `gpt-5.4-2026-03-05` snapshot이며 서로 별도 요청으로 실행합니다. 검수에 실패한 원고는 저장하지 않고, 지적된 쪽을 한 번 교정한 뒤 전체를 다시 검수합니다. [그림책 품질 운영 가이드](docs/picturebook-quality.md)에 통과 기준과 `npm run qa:picturebook -- --run-live --fixtures` 유료 회귀 평가를 정리했습니다.
+
+그림 모델은 `OPENAI_IMAGE_MODEL`로 설정합니다. 기본은 `gpt-image-2.5-flare`이며 1024×1024, low 품질을 사용합니다. 새 책은 인물·의상·소품의 공통 외형을 저장하고 각 쪽의 그림 요청에 함께 전달합니다.
 
 결제에는 `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_PAYMENTS_SECRET_KEY`, `NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY`가 모두 필요합니다. 누락되면 `/api/routes/payment/config`는 `enabled: false`를 반환하고 충전 버튼은 비활성화됩니다. 이 문서는 운영 키 설정 완료를 의미하지 않습니다. 서비스 역할 키는 생성 저장 실패 시 자동 복구에도 필요하며 서버 환경에만 설정합니다. OAuth 리다이렉트 허용 목록에는 배포 도메인의 `/auth/callback`과 사용 중인 로컬 주소를 등록합니다.
 

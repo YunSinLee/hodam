@@ -1,4 +1,8 @@
-import type { PicturebookDraft, PicturebookInput } from "@/app/types/openai";
+import type {
+  PicturebookDraft,
+  PicturebookInput,
+  PicturebookStoryGuide,
+} from "@/app/types/openai";
 
 export const initialInput: PicturebookInput = {
   childName: "",
@@ -66,12 +70,45 @@ export function validatePicturebookInput(value: unknown): string | null {
   return null;
 }
 
+export function parsePicturebookStoryGuide(
+  value: unknown,
+): PicturebookStoryGuide | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const guide = value as Record<string, unknown>;
+  const hasText = (text: unknown, maxLength: number): text is string =>
+    typeof text === "string" &&
+    text.trim().length > 0 &&
+    text.length <= maxLength;
+  if (
+    !hasText(guide.coreConflict, 600) ||
+    !Array.isArray(guide.characters) ||
+    guide.characters.length < 1 ||
+    guide.characters.length > 6 ||
+    !guide.characters.every(character => hasText(character, 100)) ||
+    !hasText(guide.keyObject, 200) ||
+    !hasText(guide.resolutionGoal, 600) ||
+    !hasText(guide.visualStyle, 1200)
+  )
+    return null;
+  return {
+    coreConflict: guide.coreConflict,
+    characters: guide.characters,
+    keyObject: guide.keyObject,
+    resolutionGoal: guide.resolutionGoal,
+    visualStyle: guide.visualStyle,
+  };
+}
+
 export function parsePicturebookDraft(
   rawText: string | null | undefined,
 ): PicturebookDraft | null {
   if (!rawText) return null;
   try {
     const book = JSON.parse(rawText);
+    const storyGuide =
+      book?.storyGuide === undefined
+        ? undefined
+        : parsePicturebookStoryGuide(book.storyGuide);
     const hasInvalidNotes = [
       book?.safetyNotes,
       book?.qualityNotes,
@@ -95,6 +132,7 @@ export function parsePicturebookDraft(
       !book.lesson.trim() ||
       !["calm", "playful", "brave"].includes(book.tone) ||
       !["3-4", "5-7", "8+"].includes(book.ageBand) ||
+      storyGuide === null ||
       hasInvalidNotes ||
       !Array.isArray(book.pages) ||
       book.pages.length !== (book.status === "complete" ? 8 : 4) ||
@@ -127,7 +165,11 @@ export function parsePicturebookDraft(
       )
     )
       return null;
-    return { ...book, safetyNotes: book.safetyNotes ?? [] } as PicturebookDraft;
+    return {
+      ...book,
+      ...(storyGuide ? { storyGuide } : {}),
+      safetyNotes: book.safetyNotes ?? [],
+    } as PicturebookDraft;
   } catch {
     return null;
   }

@@ -102,6 +102,14 @@ export interface PicturebookChoice {
   options: PicturebookChoiceOption[];
 }
 
+export interface PicturebookStoryGuide {
+  coreConflict: string;
+  characters: string[];
+  keyObject: string;
+  resolutionGoal: string;
+  visualStyle: string;
+}
+
 export interface PicturebookDraft {
   kind: "picturebook";
   status: PicturebookStatus;
@@ -112,6 +120,7 @@ export interface PicturebookDraft {
   lesson: string;
   tone: PicturebookTone;
   interests?: string;
+  storyGuide?: PicturebookStoryGuide;
   pages: PicturebookPage[];
   choice: PicturebookChoice;
   selectedChoiceId?: "A" | "B" | "C";
