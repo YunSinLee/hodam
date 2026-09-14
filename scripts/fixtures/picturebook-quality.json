@@ -653,5 +653,161 @@
     },
     "expectedFailures": ["visual_consistency"],
     "expectedApproved": false
+  },
+  {
+    "id": "accept-established-parent-in-background",
+    "stage": "start",
+    "book": {
+      "title": "초록 가방과 작은 토끼 책",
+      "storyGuide": {
+        "coreConflict": "처음 가는 도서관에서 어떤 책을 골라야 할지 몰라 발걸음이 자꾸 멈추는 갈등",
+        "characters": [
+          "나루, 처음 온 도서관에서 책을 고르는 6살 아이",
+          "부모, 곁에서 조용히 기다려 주는 보호자"
+        ],
+        "keyObject": "작은 토끼 그림책과 초록색 책가방",
+        "resolutionGoal": "여러 책 사이에서 한 권을 천천히 살피고, 나루가 끌리는 책에 손을 뻗는 작은 진전",
+        "visualStyle": "Naru is a 6-year-old child with short dark brown hair, wearing a light yellow T-shirt, navy shorts, and a bright green backpack. The parent is an adult with black hair tied back, wearing a soft beige cardigan and dark blue pants. The key prop is a small rabbit picture book with a pale green cover. Library shelves are wooden, with picture books facing outward."
+      },
+      "choice": {
+        "afterPage": 4,
+        "promptKo": "나루는 이제 어떻게 해볼까요?",
+        "options": [
+          {
+            "id": "A",
+            "labelKo": "토끼 책을 꺼내 펼쳐 봐요",
+            "resolutionHint": "마음이 가는 책을 한 번 더 보면, 나루가 무엇을 좋아하는지 손끝으로 더 또렷하게 느낄 수 있어요."
+          },
+          {
+            "id": "B",
+            "labelKo": "책 두 권을 나란히 놓고 봐요",
+            "resolutionHint": "두 책을 함께 보면 다른 점이 눈에 들어와서, 고르기 어려운 마음이 조금 작아질 수 있어요."
+          },
+          {
+            "id": "C",
+            "labelKo": "엄마에게 이 책 읽어 달라고 말해요",
+            "resolutionHint": "짧게 함께 읽어 보면 책의 느낌을 바로 알 수 있어서, 나루가 고를 한 권에 가까워질 수 있어요."
+          }
+        ]
+      },
+      "pages": [
+        {
+          "pageNumber": 1,
+          "textKo": "처음 온 도서관은 조용히 반짝였어요. 나루는 초록 가방 끈을 꼭 쥐고, 그림책 선반 앞에 멈춰 섰어요.",
+          "imagePrompt": "A quiet library with wooden picture-book shelves, a 6-year-old child with short dark brown hair wearing a light yellow T-shirt, navy shorts, and a bright green backpack stands still in front of the shelves, holding the backpack strap tightly, an adult with black hair tied back in a beige cardigan and dark blue pants waits nearby, soft indoor light, calm scene.",
+          "emotionalBeat": "setup"
+        },
+        {
+          "pageNumber": 2,
+          "textKo": "앞표지가 알록달록했지만, 발끝은 선반 밑에 붙은 듯했어요. 손가락만 가방 끈을 만지작거렸어요. 눈은 이쪽저쪽 바쁘게 오갔어요.",
+          "imagePrompt": "In the same library, Naru stands in front of colorful picture books, feet planted close together, fingers fidgeting with the bright green backpack strap, eyes moving from book to book, the parent remains nearby quietly, wooden shelves and soft light visible.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 3,
+          "textKo": "선반 한쪽에서 작은 토끼 그림이 눈에 들어왔어요. 책 표지는 초록 가방처럼 연한 초록색이었어요.",
+          "imagePrompt": "Naru notices the small rabbit picture book with a pale green cover still on the wooden shelf. The parent defined in the visual guide waits quietly nearby. Naru is looking at the cover without holding or opening the book.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 4,
+          "textKo": "나루는 그 책 앞에서 숨을 한 번 고르게 쉬었어요. 옆에 선 엄마가 작은 목소리로 말했어요. \"천천히 봐도 돼.\"",
+          "imagePrompt": "Naru stands in front of the small rabbit picture book with a pale green cover still on the wooden shelf, pausing and taking a steady breath, the parent beside Naru speaks softly, wooden picture-book shelves around them, quiet library, soft indoor light.",
+          "emotionalBeat": "choice"
+        }
+      ],
+      "safetyNotes": [],
+      "qualityNotes": [],
+      "revisionNotes": [],
+      "kind": "picturebook",
+      "status": "choice-ready",
+      "ageBand": "5-7",
+      "createdAt": "2026-09-14T00:00:00Z",
+      "childName": "나루",
+      "tone": "calm",
+      "situation": "처음 가는 도서관에서 책을 고르기 어려워하다가 작은 토끼 그림책을 발견했어요.",
+      "lesson": "천천히 둘러보고 내가 좋아하는 것을 골라도 괜찮다는 마음",
+      "interests": "토끼, 초록색 책가방"
+    },
+    "expectedApproved": true,
+    "expectedFailures": []
+  },
+  {
+    "id": "reject-action-ahead-of-story",
+    "stage": "start",
+    "book": {
+      "title": "초록 가방과 작은 토끼 책",
+      "storyGuide": {
+        "coreConflict": "처음 가는 도서관에서 어떤 책을 골라야 할지 몰라 발걸음이 자꾸 멈추는 갈등",
+        "characters": [
+          "나루, 처음 온 도서관에서 책을 고르는 6살 아이",
+          "부모, 곁에서 조용히 기다려 주는 보호자"
+        ],
+        "keyObject": "작은 토끼 그림책과 초록색 책가방",
+        "resolutionGoal": "여러 책 사이에서 한 권을 천천히 살피고, 나루가 끌리는 책에 손을 뻗는 작은 진전",
+        "visualStyle": "Naru is a 6-year-old child with short dark brown hair, wearing a light yellow T-shirt, navy shorts, and a bright green backpack. The parent is an adult with black hair tied back, wearing a soft beige cardigan and dark blue pants. The key prop is a small rabbit picture book with a pale green cover. Library shelves are wooden, with picture books facing outward."
+      },
+      "choice": {
+        "afterPage": 4,
+        "promptKo": "나루는 이제 어떻게 해볼까요?",
+        "options": [
+          {
+            "id": "A",
+            "labelKo": "토끼 책을 꺼내 펼쳐 봐요",
+            "resolutionHint": "마음이 가는 책을 한 번 더 보면, 나루가 무엇을 좋아하는지 손끝으로 더 또렷하게 느낄 수 있어요."
+          },
+          {
+            "id": "B",
+            "labelKo": "책 두 권을 나란히 놓고 봐요",
+            "resolutionHint": "두 책을 함께 보면 다른 점이 눈에 들어와서, 고르기 어려운 마음이 조금 작아질 수 있어요."
+          },
+          {
+            "id": "C",
+            "labelKo": "엄마에게 이 책 읽어 달라고 말해요",
+            "resolutionHint": "짧게 함께 읽어 보면 책의 느낌을 바로 알 수 있어서, 나루가 고를 한 권에 가까워질 수 있어요."
+          }
+        ]
+      },
+      "pages": [
+        {
+          "pageNumber": 1,
+          "textKo": "처음 온 도서관은 조용히 반짝였어요. 나루는 초록 가방 끈을 꼭 쥐고, 그림책 선반 앞에 멈춰 섰어요.",
+          "imagePrompt": "A quiet library with wooden picture-book shelves, a 6-year-old child with short dark brown hair wearing a light yellow T-shirt, navy shorts, and a bright green backpack stands still in front of the shelves, holding the backpack strap tightly, an adult with black hair tied back in a beige cardigan and dark blue pants waits nearby, soft indoor light, calm scene.",
+          "emotionalBeat": "setup"
+        },
+        {
+          "pageNumber": 2,
+          "textKo": "앞표지가 알록달록했지만, 발끝은 선반 밑에 붙은 듯했어요. 손가락만 가방 끈을 만지작거렸어요. 눈은 이쪽저쪽 바쁘게 오갔어요.",
+          "imagePrompt": "In the same library, Naru stands in front of colorful picture books, feet planted close together, fingers fidgeting with the bright green backpack strap, eyes moving from book to book, the parent remains nearby quietly, wooden shelves and soft light visible.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 3,
+          "textKo": "선반 한쪽에서 작은 토끼 그림이 눈에 들어왔어요. 책 표지는 초록 가방처럼 연한 초록색이었어요.",
+          "imagePrompt": "Naru notices the small rabbit picture book with a pale green cover still on the wooden shelf. The parent defined in the visual guide waits quietly nearby. Naru is looking at the cover without holding or opening the book.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 4,
+          "textKo": "나루는 그 책 앞에서 숨을 한 번 고르게 쉬었어요. 옆에 선 엄마가 작은 목소리로 말했어요. \"천천히 봐도 돼.\"",
+          "imagePrompt": "Naru stands holding the small rabbit picture book with a pale green cover near the shelf. The parent beside Naru speaks softly. The book is already off the shelf and in Naru's hands.",
+          "emotionalBeat": "choice"
+        }
+      ],
+      "safetyNotes": [],
+      "qualityNotes": [],
+      "revisionNotes": [],
+      "kind": "picturebook",
+      "status": "choice-ready",
+      "ageBand": "5-7",
+      "createdAt": "2026-09-14T00:00:00Z",
+      "childName": "나루",
+      "tone": "calm",
+      "situation": "처음 가는 도서관에서 책을 고르기 어려워하다가 작은 토끼 그림책을 발견했어요.",
+      "lesson": "천천히 둘러보고 내가 좋아하는 것을 골라도 괜찮다는 마음",
+      "interests": "토끼, 초록색 책가방"
+    },
+    "expectedApproved": false,
+    "expectedFailures": ["visual_consistency"]
   }
 ]

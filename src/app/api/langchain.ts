@@ -72,6 +72,24 @@ function generationError(cause: unknown, fallback: string): GenerationError {
   return new GenerationError(fallback, true);
 }
 
+function reportGenerationFailure(error: unknown, stage: "start" | "ending") {
+  if (error instanceof GenerationError) return;
+  let category = "model_or_response";
+  if (error instanceof Error) {
+    if (error.name === "APIConnectionTimeoutError") category = "timeout";
+    else if (error.name === "APIConnectionError") category = "connection";
+    else if (error.name === "SyntaxError") category = "invalid_json";
+    else if (error.message.startsWith("Quality review"))
+      category = "review_contract";
+    else if (error.message.startsWith("Invalid picturebook"))
+      category = "story_contract";
+    else if (error.name === "ZodError") category = "schema";
+  }
+  // Do not log provider messages, prompts, or any child's story.
+  // eslint-disable-next-line no-console
+  console.warn("picturebook_generation_failed", { stage, category });
+}
+
 async function invokeStoryModel(
   prompt: string,
   timeout: number,
@@ -154,6 +172,8 @@ const PICTUREBOOK_IMAGE_CONTINUITY_RULES = `
 const PICTUREBOOK_CHOICE_RULES = `
 선택지 규칙:
 - choice.options 3개는 모두 주인공이 다음 장면에서 직접 해볼 작은 행동이어야 합니다.
+- 각 선택의 resolutionHint에는 그 행동이 storyGuide.coreConflict를 어떻게 한 걸음 바꾸는지 인과를 한 문장으로 적습니다. 분위기만 편안해지는 행동이나 관심 소품을 정리하는 행동은 원래 문제에 직접 도움이 될 때만 사용합니다.
+- 세 번째 선택을 채우려고 무관한 준비 행동을 넣지 않습니다. 무엇을 고르는 갈등이라면 보기·비교하기·도움 요청처럼 선택을 가능하게 하는 서로 다른 행동을 제시합니다. 단순한 가방 정리나 자리 이동으로 화제를 바꾸지 않습니다.
 - labelKo는 행동의 대상이 분명한 짧은 한국어 문장으로 쓰고 반드시 동사를 활용한 "~요" 말투로 끝냅니다.
 - "손을 내밀어요", "작은 별에게 말해요", "인형을 옆에 놓아요"처럼 씁니다. 이 예시의 행동을 그대로 복사하지 말고 현재 장면에 맞는 행동을 만듭니다.
 - "손 내밀기요", "작게 말하기요", "함께 놓아보기요"처럼 명사형에 요만 붙이지 않습니다. "양치를 시작해보기", "말해본다"처럼 제목이나 설명형으로도 쓰지 않습니다.
@@ -719,6 +739,7 @@ async function reviewCandidateForQuality(
 - 필수 사건·상대 인물·물건은 input.situation에 명시된 사실에서만 가져옵니다. input.interests는 활용할 수 있는 소재이지 모두 등장시킬 의무가 아닙니다. input.lesson의 '곁의 따뜻함'을 반드시 부모가 등장해야 한다는 조건으로 바꾸지 않습니다. 토끼 인형이나 이불로 안심하는 것도 가능합니다.
 - 한국어에서 문맥상 분명한 주어 생략, '생각이 들었어요', '마음이 두근거렸어요' 같은 자연스러운 관용 표현은 문법 오류가 아닙니다. 이름·주어를 매 문장 반복하도록 요구하지 않습니다. 서로 어울리지 않는 복수 주어를 하나의 서술어에 묶은 의미 오류와 구분합니다.
 - 배경에서 낮은 목소리나 발소리가 들린다고 묘사할 때 꼭 그 사람을 등장시킬 필요는 없습니다. 실제 대사의 화자나 핵심 행동의 주체를 혼동하여 줄거리를 잘못 이해하게 될 때만 지칭 오류로 봅니다.
+- storyGuide.characters 또는 visual-guide에서 이미 정한 동행 보호자가 앞쪽 그림에서 조용히 곁에 있고, 본문에는 뒤쪽 대사에서 처음 언급되는 것은 허용합니다. 등장 순간이 명시된 인물을 그보다 먼저 그리거나 본문에 없는 핵심 행동을 실행한 경우와 구분합니다. 보호자의 첫 언급 쪽과 첫 그림 등장 쪽이 다르다는 이유만으로 visual_consistency를 실패시키지 않습니다.
 - 갈등이 아직 남아 있다는 사실만으로 emotional_safety를 실패시키지 않습니다. 실제로 해로운 행동을 권하거나 감정을 억누르는 문장이 있는지 판단합니다.
 - ending의 language와 read_aloud는 이번에 생성한 5-8쪽만 판정합니다. 고칠 수 없는 기존 선택지 표기를 결말 원고의 언어 오류로 판정하지 않습니다. 오탈자를 지적할 때는 실제로 달라지는 수정 전후 표현을 대조합니다. 수정 전후가 같거나 단순한 취향 차이면 오류가 아닙니다.
 - 시작 검수의 visual-guide에는 주인공의 머리 모양, 옷 색, 반복해서 등장하는 소품의 색을 구체적으로 고정해야 합니다. 'cozy pajamas'처럼 색이 없는 새 책 가이드는 보완합니다. 가이드가 없는 옛 책의 결말에 이 요구를 소급하지 않습니다.
@@ -952,6 +973,7 @@ storyGuide.visualStyle은 각 인물의 이름·나이대·머리 길이와 색�
     );
     return await enforcePicturebookQuality(draft, "start", call, input);
   } catch (error) {
+    reportGenerationFailure(error, "start");
     throw generationError(
       error,
       "이야기를 만들지 못했어요. 잠시 후 다시 시도해주세요.",
@@ -1012,6 +1034,7 @@ ${PICTUREBOOK_ENDING_RESPONSE_SHAPE}`;
     );
     return await enforcePicturebookQuality(completedDraft, "ending", call);
   } catch (error) {
+    reportGenerationFailure(error, "ending");
     throw generationError(
       error,
       "결말을 만들지 못했어요. 잠시 후 다시 시도해주세요.",
