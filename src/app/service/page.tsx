@@ -26,6 +26,12 @@ import {
   validatePicturebookInput,
 } from "@/app/utils/picturebook";
 import { requireAccessToken } from "@/app/utils/session";
+import {
+  associateSearchGeneration,
+  beginSearchGeneration,
+  completeSearchGeneration,
+  type SearchGenerationAttempt,
+} from "@/lib/client/search-analytics";
 import useBead from "@/services/hooks/use-bead";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
 import useUserInfo from "@/services/hooks/use-user-info";
@@ -45,6 +51,7 @@ export default function Service() {
   const epoch = useRef(0);
   const requestId = useRef<string | null>(null);
   const requestInput = useRef<PicturebookInput | null>(null);
+  const searchAttempt = useRef<SearchGenerationAttempt | null>(null);
   const { userInfo, isAuthReady } = useUserInfo();
   const { bead, setBead } = useBead();
   const images = usePicturebookImages();
@@ -56,6 +63,7 @@ export default function Service() {
     busy.current = false;
     requestId.current = null;
     requestInput.current = null;
+    searchAttempt.current = null;
     setThread(null);
     setBook(null);
     setStage("idle");
@@ -112,6 +120,15 @@ export default function Service() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [stage, images.isLoading]);
 
+  useEffect(() => {
+    if (!book || !thread || thread.user_id !== userInfo.id) return;
+    completeSearchGeneration(thread.id, {
+      status: book.status,
+      pageCount: book.pages.length,
+      hasAllImages: book.pages.every(page => !!images.urls[page.pageNumber]),
+    });
+  }, [book, thread, images.urls, userInfo.id]);
+
   async function createBook() {
     if (busy.current || !isAuthReady) return;
     const invalid = validatePicturebookInput(input);
@@ -144,6 +161,7 @@ export default function Service() {
       setStep("아이의 하루로 첫 4쪽을 쓰고 책장에 보관하고 있어요.");
       requestId.current ||= crypto.randomUUID();
       requestInput.current ||= input;
+      searchAttempt.current = beginSearchGeneration(searchAttempt.current);
       const result = await createPicturebookAction(
         requestInput.current,
         token,
@@ -154,12 +172,15 @@ export default function Service() {
         if (!result.retrySameRequest) {
           requestId.current = null;
           requestInput.current = null;
+          searchAttempt.current = null;
         }
         setError(result.message);
         return;
       }
       requestId.current = null;
       requestInput.current = null;
+      associateSearchGeneration(searchAttempt.current, result.threadId);
+      searchAttempt.current = null;
       setBead({
         ...useBead.getState().bead,
         user_id: userInfo.id,
@@ -234,6 +255,7 @@ export default function Service() {
     busy.current = false;
     requestId.current = null;
     requestInput.current = null;
+    searchAttempt.current = null;
     setStage("idle");
     images.reset();
     setBook(null);
@@ -255,6 +277,7 @@ export default function Service() {
           onChange={value => {
             requestId.current = null;
             requestInput.current = null;
+            searchAttempt.current = null;
             setInput(value);
           }}
           onSubmit={createBook}

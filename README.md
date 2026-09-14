@@ -95,6 +95,7 @@ AI 개발 도구인 Cursor에서 MCP 서버를 사용하려면:
 - [SUPABASE_MANUAL_RUNBOOK.md](./SUPABASE_MANUAL_RUNBOOK.md)
 - [POST_DEPLOY_SMOKE_RUNBOOK.md](./POST_DEPLOY_SMOKE_RUNBOOK.md)
 - [SECURITY_HARDENING_NEXT_STEPS.md](./SECURITY_HARDENING_NEXT_STEPS.md)
+- [검색 유입·공개 동화·사이트 등록 운영](docs/search-discovery.md)
 
 ## 📦 설치
 
@@ -386,7 +387,7 @@ npm run check:payments:webhook-coverage -- --report-file=reports/local/webhook-c
 
 - **Frontend**: Next.js, React, TypeScript
 - **Backend**: Supabase (PostgreSQL)
-- **AI**: OpenAI GPT-4o-mini
+- **AI**: OpenAI (새 그림책 GPT-5.4, 그림 gpt-image-2.5-flare; 환경변수로 설정)
 - **Styling**: Tailwind CSS
 - **Development**: Cursor with MCP
 
@@ -411,9 +412,10 @@ npm run start
 ## API 구성
 
 - 새 8쪽 그림책의 생성·결말·삽화는 `src/app/api/story-actions.ts`의 인증된 서버 액션을 사용합니다. 이전 동화와 `/api/v1/story/*` API도 유지합니다.
+- `/bedtime-stories`와 `/bedtime-stories/[slug]`는 로그인 없이 읽는 창작 동화 3편을, `/ai-storybook`은 제작 방법과 이용 조건을 제공합니다. 공개 원고는 `src/content/public-stories.ts`, 대표 삽화는 `public/stories/*.webp`에 보관하며 열람할 때 AI API를 호출하지 않습니다.
 - 계정·책장·결제 화면은 기존 `/api/v1` 클라이언트와 API 계약을 사용합니다. `/api/routes/payment/confirm`도 같은 v1 승인 핸들러로 연결됩니다.
 - 결제 승인·상태 복구·웹훅은 공급자 확인과 공통 지급 처리를 사용합니다. 웹훅 주소는 `/api/v1/payments/webhook`입니다.
-- 그림과 프로필은 비공개 버킷의 서명 URL로 표시합니다. 이전 동화의 중첩 경로와 새 그림책 경로를 함께 지원하며, 새 프로필은 만료되는 URL 대신 저장소 경로를 보관합니다.
+- 개인 책의 그림과 프로필은 비공개 버킷의 서명 URL로 표시합니다. 이전 동화의 중첩 경로와 새 그림책 경로를 함께 지원하며, 새 프로필은 만료되는 URL 대신 저장소 경로를 보관합니다.
 
 ## 그림책과 결제 설정
 

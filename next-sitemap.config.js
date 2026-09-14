@@ -1,8 +1,8 @@
+const { resolveSiteUrl } = require("./config/site-url");
+
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")
-    ? process.env.NEXT_PUBLIC_SITE_URL
-    : "https://hodam.vercel.app",
+  siteUrl: resolveSiteUrl(process.env.NEXT_PUBLIC_SITE_URL),
   generateRobotsTxt: true,
   sitemapSize: 5000,
   autoLastmod: false,

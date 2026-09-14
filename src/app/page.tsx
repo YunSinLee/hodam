@@ -2,6 +2,15 @@
 // Native images support signed private URLs or local SVG illustrations.
 import Link from "next/link";
 
+import { createPublicMetadata } from "@/lib/seo";
+
+export const metadata = createPublicMetadata({
+  title: "아이의 하루를 담는 AI 잠자리 그림책",
+  description:
+    "아이의 이름과 오늘 있었던 일로 만드는 8쪽 AI 그림책. 무료 잠자리 동화를 먼저 읽고, 우리 아이만의 이야기를 함께 만들어보세요.",
+  path: "/",
+});
+
 export default function Home() {
   return (
     <>
@@ -25,8 +34,8 @@ export default function Home() {
               <Link href="/service" className="button-primary">
                 우리 아이 그림책 만들기 <span aria-hidden="true">↗</span>
               </Link>
-              <Link href="/sample" className="button-secondary">
-                먼저 읽어보기
+              <Link href="/bedtime-stories" className="button-secondary">
+                잠자리 동화 읽어보기
               </Link>
             </div>
             <p className="hero-note">
@@ -181,6 +190,20 @@ export default function Home() {
             데이터가 초기화될 수 있어요.
           </p>
         </details>
+      </section>
+      <section className="home-section">
+        <div className="section-intro">
+          <h2>오늘 밤의 이야기를 만나보세요.</h2>
+          <p>로그인 없이 읽는 동화부터, 아이를 위한 그림책 만들기까지.</p>
+        </div>
+        <div className="hero-actions">
+          <Link href="/bedtime-stories" className="button-primary">
+            잠자리 동화 모음 ↗
+          </Link>
+          <Link href="/ai-storybook" className="button-secondary">
+            AI 동화책 만드는 방법
+          </Link>
+        </div>
       </section>
     </>
   );
