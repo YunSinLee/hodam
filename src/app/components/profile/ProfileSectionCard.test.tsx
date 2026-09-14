@@ -1,42 +1,29 @@
-import { createElement } from "react";
-
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import ProfileSectionCard from "@/app/components/profile/ProfileSectionCard";
 
 describe("ProfileSectionCard", () => {
-  it("renders title and action when action props are provided", () => {
+  it("renders the title and action", () => {
     const html = renderToStaticMarkup(
-      createElement(
-        ProfileSectionCard,
-        {
-          title: "테스트 카드",
-          actionLabel: "전체보기 →",
-          onAction: vi.fn(),
-        },
-        createElement("p", null, "content"),
-      ),
+      <ProfileSectionCard
+        title="테스트 카드"
+        actionLabel="전체보기 →"
+        onAction={vi.fn()}
+      >
+        <p>content</p>
+      </ProfileSectionCard>,
     );
-
-    expect(html).toContain("테스트 카드");
-    expect(html).toContain("전체보기 →");
-    expect(html).toContain("content");
+    ["테스트 카드", "전체보기 →", "content"].forEach(value =>
+      expect(html).toContain(value),
+    );
   });
-
-  it("renders subtitle when no action is provided", () => {
+  it("renders the subtitle without an action", () => {
     const html = renderToStaticMarkup(
-      createElement(
-        ProfileSectionCard,
-        {
-          title: "테스트 카드",
-          subtitle: "subtext",
-        },
-        createElement("p", null, "content"),
-      ),
+      <ProfileSectionCard title="테스트 카드" subtitle="subtext">
+        <p>content</p>
+      </ProfileSectionCard>,
     );
-
-    expect(html).toContain("테스트 카드");
-    expect(html).toContain("subtext");
+    ["테스트 카드", "subtext"].forEach(value => expect(html).toContain(value));
   });
 });

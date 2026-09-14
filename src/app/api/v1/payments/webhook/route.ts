@@ -92,17 +92,13 @@ function parseTransmissionHeaders(
   };
 }
 
-function isDuplicateTransmission(transmissionId: string): boolean {
+function rememberTransmission(transmissionId: string): void {
   const now = Date.now();
   Array.from(processedTransmissionIds.entries()).forEach(([key, savedAt]) => {
     if (now - savedAt > TRANSMISSION_TTL_MS) {
       processedTransmissionIds.delete(key);
     }
   });
-
-  if (processedTransmissionIds.has(transmissionId)) {
-    return true;
-  }
 
   processedTransmissionIds.set(transmissionId, now);
   const overflow = processedTransmissionIds.size - MAX_TRANSMISSION_CACHE_SIZE;
@@ -113,7 +109,6 @@ function isDuplicateTransmission(transmissionId: string): boolean {
         processedTransmissionIds.delete(key);
       });
   }
-  return false;
 }
 
 function parseSignatureEncoding(raw: string | undefined): SignatureEncoding {
@@ -267,6 +262,7 @@ async function fetchTossPaymentByOrderId(orderId: string) {
       headers: {
         Authorization: createTossBasicAuthorization(secretKey),
       },
+      signal: AbortSignal.timeout(15000),
     },
   );
 
@@ -276,11 +272,14 @@ async function fetchTossPaymentByOrderId(orderId: string) {
 
   const payload = (await response.json()) as Record<string, unknown>;
   return {
+    orderId: typeof payload.orderId === "string" ? payload.orderId : undefined,
     paymentKey:
       typeof payload.paymentKey === "string" ? payload.paymentKey : undefined,
-    totalAmount: normalizeNumber(
-      payload.totalAmount || payload.balanceAmount || payload.amount || 0,
-    ),
+    totalAmount:
+      typeof payload.totalAmount === "number" &&
+      Number.isSafeInteger(payload.totalAmount)
+        ? payload.totalAmount
+        : 0,
     status: typeof payload.status === "string" ? payload.status : undefined,
     secret: typeof payload.secret === "string" ? payload.secret : undefined,
   };
@@ -352,22 +351,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (isDuplicateTransmission(transmission.id)) {
-    logInfo("/api/v1/payments/webhook", {
-      requestId,
-      transmissionId: transmission.id,
-      paymentFlowId: transmissionPaymentFlowId,
-      ignored: true,
-      reason: "duplicate_event_cache",
-    });
-    return ok(
-      { received: true, ignored: true, reason: "duplicate_event" },
-      {
-        headers: buildPaymentFlowHeaders("webhook", transmissionPaymentFlowId),
-      },
-    );
-  }
-
   const paymentPayload = extractWebhookPaymentPayload(body);
   const paymentFlowId = resolvePaymentFlowId({
     orderId: paymentPayload?.orderId,
@@ -396,24 +379,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Headers are not proof of delivery identity. Only cache verified settlements,
+  // scoped to their order, so a forged or unrelated notification cannot suppress one.
+  const transmissionCacheKey = JSON.stringify([
+    transmission.id,
+    paymentPayload.orderId,
+  ]);
+  const cachedAt = processedTransmissionIds.get(transmissionCacheKey);
+  if (cachedAt !== undefined && Date.now() - cachedAt < TRANSMISSION_TTL_MS) {
+    return ok(
+      { received: true, ignored: true, reason: "duplicate_event" },
+      { headers: buildPaymentFlowHeaders("webhook", paymentFlowId) },
+    );
+  }
+
   try {
     const admin = createSupabaseAdminClient();
-    const registered = await registerWebhookTransmission(admin, {
-      transmissionId: transmission.id,
-      orderId: paymentPayload.orderId,
-      eventType: paymentPayload.eventType,
-      transmissionTime: transmission.time,
-      retriedCount: transmission.retriedCount,
-    });
-    if (!registered) {
-      return ok(
-        { received: true, ignored: true, reason: "duplicate_event" },
-        {
-          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
-        },
-      );
-    }
-
     const payment = await getPaymentByOrderId(admin, paymentPayload.orderId);
 
     if (!payment) {
@@ -438,46 +419,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const requiresTossLookup =
-      (!paymentPayload.paymentKey && !payment.payment_key) ||
-      paymentPayload.amount <= 0 ||
-      paymentPayload.eventType === "DEPOSIT_CALLBACK";
-
-    const tossPayment = requiresTossLookup
-      ? await fetchTossPaymentByOrderId(paymentPayload.orderId)
-      : null;
-
-    const paymentKeyToUse =
-      paymentPayload.paymentKey ||
-      tossPayment?.paymentKey ||
-      payment.payment_key;
-    if (!paymentKeyToUse) {
-      return ok(
-        {
-          received: true,
-          ignored: true,
-          reason: "payment_key_missing",
-        },
-        {
-          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
-        },
+    // A webhook is only a notification. Always verify the provider's current
+    // payment before crediting; body fields and optional signatures aren't proof.
+    const tossPayment = await fetchTossPaymentByOrderId(paymentPayload.orderId);
+    if (!tossPayment) {
+      return failWithCode(
+        502,
+        "Payment verification unavailable",
+        "WEBHOOK_PROVIDER_UNAVAILABLE",
+        undefined,
+        { headers: buildPaymentFlowHeaders("webhook", paymentFlowId) },
       );
     }
-
-    const amountToCheck =
-      paymentPayload.amount > 0
-        ? paymentPayload.amount
-        : tossPayment?.totalAmount ?? 0;
-    if (Number(payment.amount) !== Number(amountToCheck)) {
+    const paymentKeyToUse = tossPayment.paymentKey;
+    if (!paymentKeyToUse) {
       return ok(
-        {
-          received: true,
-          ignored: true,
-          reason: "amount_mismatch",
-        },
-        {
-          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
-        },
+        { received: true, ignored: true, reason: "payment_key_missing" },
+        { headers: buildPaymentFlowHeaders("webhook", paymentFlowId) },
+      );
+    }
+    if (tossPayment.status !== "DONE") {
+      return ok(
+        { received: true, ignored: true, reason: "status_not_done" },
+        { headers: buildPaymentFlowHeaders("webhook", paymentFlowId) },
+      );
+    }
+    if (
+      tossPayment.orderId !== paymentPayload.orderId ||
+      (paymentPayload.paymentKey &&
+        paymentPayload.paymentKey !== paymentKeyToUse) ||
+      (payment.payment_key && payment.payment_key !== paymentKeyToUse)
+    ) {
+      return ok(
+        { received: true, ignored: true, reason: "payment_state_conflict" },
+        { headers: buildPaymentFlowHeaders("webhook", paymentFlowId) },
+      );
+    }
+    const amountToCheck = tossPayment.totalAmount;
+    if (
+      Number(payment.amount) !== amountToCheck ||
+      (paymentPayload.amount > 0 && paymentPayload.amount !== amountToCheck)
+    ) {
+      return ok(
+        { received: true, ignored: true, reason: "amount_mismatch" },
+        { headers: buildPaymentFlowHeaders("webhook", paymentFlowId) },
       );
     }
 
@@ -503,6 +488,24 @@ export async function POST(request: NextRequest) {
       payment,
       paymentKeyToUse,
     );
+    // Persist deduplication after successful settlement, never before a retryable failure.
+    const registered = await registerWebhookTransmission(admin, {
+      transmissionId: transmission.id,
+      orderId: paymentPayload.orderId,
+      eventType: paymentPayload.eventType,
+      transmissionTime: transmission.time,
+      retriedCount: transmission.retriedCount,
+    });
+    rememberTransmission(transmissionCacheKey);
+    if (!registered) {
+      return ok(
+        { received: true, ignored: true, reason: "duplicate_event" },
+        {
+          headers: buildPaymentFlowHeaders("webhook", paymentFlowId),
+        },
+      );
+    }
+
     await trackUserActivityBestEffort(
       admin,
       payment.user_id,
@@ -553,6 +556,8 @@ export async function POST(request: NextRequest) {
       }
 
       if (
+        error.code === "PAYMENT_PACKAGE_INVALID" ||
+        error.code === "PAYMENT_CREDIT_UNVERIFIED" ||
         error.code === "PAYMENT_KEY_MISMATCH" ||
         error.code === "PAYMENT_INVALID_STATUS_TRANSITION"
       ) {

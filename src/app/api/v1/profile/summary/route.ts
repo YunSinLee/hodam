@@ -179,6 +179,30 @@ export async function GET(request: NextRequest) {
       keywordsByThreadId.set(thread_id, existing);
     });
 
+    const customProfileUrl = userRow?.custom_profile_url as string | undefined;
+    let profileUrl =
+      customProfileUrl || authUser.user_metadata?.avatar_url || "";
+    const legacyPrefix = "/storage/v1/object/public/profiles/";
+    const legacyIndex = customProfileUrl?.indexOf(legacyPrefix) ?? -1;
+    if (customProfileUrl?.startsWith("profiles:") || legacyIndex >= 0) {
+      const rawPath = customProfileUrl!.startsWith("profiles:")
+        ? customProfileUrl!.slice("profiles:".length)
+        : customProfileUrl!
+            .slice(legacyIndex + legacyPrefix.length)
+            .split("?")[0];
+      let path = "";
+      try {
+        path = decodeURIComponent(rawPath);
+      } catch {
+        // Invalid old references fall back to the provider avatar.
+      }
+      const { data: signed } = path
+        ? await userClient.storage.from("profiles").createSignedUrl(path, 3600)
+        : { data: null };
+      profileUrl =
+        signed?.signedUrl || authUser.user_metadata?.avatar_url || "";
+    }
+
     const profile = {
       id: authContext.userId,
       email: authContext.email || "",
@@ -187,8 +211,7 @@ export async function GET(request: NextRequest) {
         authUser.user_metadata?.full_name ||
         authUser.user_metadata?.name ||
         "사용자",
-      profileUrl:
-        userRow?.custom_profile_url || authUser.user_metadata?.avatar_url || "",
+      profileUrl,
       custom_profile_url: userRow?.custom_profile_url || undefined,
       created_at: authUser.created_at,
       totalStories: threads.length,

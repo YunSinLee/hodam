@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PaymentDomainError as PaymentDomainErrorMock } from "@/lib/server/payment-service";
+
 const {
   authenticateRequestMock,
   getOptionalEnvMock,
@@ -22,16 +24,6 @@ const {
   createAdminMock: vi.fn(),
 }));
 
-class PaymentDomainErrorMock extends Error {
-  readonly code: string;
-
-  constructor(code: string) {
-    super(code);
-    this.name = "PaymentDomainError";
-    this.code = code;
-  }
-}
-
 vi.mock("@/lib/auth/request-auth", () => ({
   authenticateRequest: authenticateRequestMock,
 }));
@@ -45,10 +37,10 @@ vi.mock("@/lib/server/analytics", () => ({
   trackUserActivityBestEffort: trackUserActivityBestEffortMock,
 }));
 
-vi.mock("@/lib/server/payment-service", () => ({
+vi.mock("@/lib/server/payment-service", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/lib/server/payment-service")>()),
   getPaymentByOrderId: getPaymentByOrderIdMock,
   markPaymentFailed: markPaymentFailedMock,
-  PaymentDomainError: PaymentDomainErrorMock,
   settlePaymentAndCredit: settlePaymentAndCreditMock,
 }));
 
@@ -69,7 +61,7 @@ describe("POST /api/v1/payments/confirm", () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.stubGlobal("fetch", fetchMock);
     checkRateLimitMock.mockReturnValue(true);
     createAdminMock.mockReturnValue({ from: vi.fn(), rpc: vi.fn() });
@@ -333,6 +325,8 @@ describe("POST /api/v1/payments/confirm", () => {
       amount: 5000,
       bead_quantity: 10,
       status: "completed",
+      credited_at: "2026-04-05T00:01:00.000Z",
+      credited_user_id: "user-1",
       completed_at: "2026-04-05T00:00:00.000Z",
     });
     settlePaymentAndCreditMock.mockResolvedValue({
@@ -466,16 +460,22 @@ describe("POST /api/v1/payments/confirm", () => {
         amount: 5000,
         bead_quantity: 10,
         status: "completed",
+        credited_at: "2026-04-05T00:01:00.000Z",
+        credited_user_id: "user-1",
         completed_at: "2026-04-05T00:00:00.000Z",
       });
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: vi.fn().mockResolvedValue({
-        message: "already processed",
-        code: "ALREADY_PROCESSED_PAYMENT",
-      }),
-    });
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ code: "ALREADY_PROCESSED_PAYMENT" }, { status: 400 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "DONE",
+          orderId: "order_1",
+          paymentKey: "pay_1",
+          totalAmount: 5000,
+        }),
+      );
     settlePaymentAndCreditMock.mockResolvedValue({
       beadCount: 10,
       alreadyProcessed: true,
@@ -517,6 +517,9 @@ describe("POST /api/v1/payments/confirm", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
         approvedAt: "2026-04-05T00:00:00.000Z",
       }),
     });
@@ -585,6 +588,9 @@ describe("POST /api/v1/payments/confirm", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
         approvedAt: "2026-04-05T00:00:00.000Z",
       }),
     });
@@ -631,6 +637,9 @@ describe("POST /api/v1/payments/confirm", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
         approvedAt: "2026-04-05T00:00:00.000Z",
       }),
     });
@@ -678,6 +687,9 @@ describe("POST /api/v1/payments/confirm", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
         approvedAt: "2026-04-05T00:00:00.000Z",
       }),
     });
@@ -734,6 +746,9 @@ describe("POST /api/v1/payments/confirm", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
         approvedAt: "2026-04-05T00:00:00.000Z",
       }),
     });
@@ -761,7 +776,7 @@ describe("POST /api/v1/payments/confirm", () => {
     );
   });
 
-  it("returns 500 when toss confirm request throws", async () => {
+  it("returns 503 when toss confirm request throws", async () => {
     authenticateRequestMock.mockResolvedValue({
       accessToken: "token-1",
       userId: "user-1",
@@ -786,7 +801,7 @@ describe("POST /api/v1/payments/confirm", () => {
     } as never);
     const body = await response.json();
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     expect(body).toEqual({
       error: "Failed to confirm payment",
       code: "PAYMENTS_CONFIRM_FAILED",
@@ -812,6 +827,9 @@ describe("POST /api/v1/payments/confirm", () => {
       status: 200,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
+        paymentKey: "pay_1",
+        totalAmount: 5000,
       }),
     });
     settlePaymentAndCreditMock.mockRejectedValue(
@@ -834,5 +852,155 @@ describe("POST /api/v1/payments/confirm", () => {
       error: "Payment state conflict",
       code: "PAYMENT_STATE_CONFLICT",
     });
+  });
+});
+
+describe("confirmation proof and retry boundaries", () => {
+  const input = { paymentKey: "pay_1", orderId: "order_1", amount: 5000 };
+  const payment = {
+    id: "payment-1",
+    user_id: "user-1",
+    order_id: "order_1",
+    amount: 5000,
+    bead_quantity: 10,
+    status: "pending",
+    created_at: "2026-04-05",
+  };
+  const approved = { ...input, totalAmount: 5000, status: "DONE" };
+  const fetchMock = vi.fn();
+  const request = (body: unknown = input) =>
+    ({ headers: new Headers(), json: async () => body }) as never;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+    authenticateRequestMock.mockResolvedValue({
+      userId: "user-1",
+      accessToken: "token",
+    });
+    checkRateLimitMock.mockReturnValue(true);
+    createAdminMock.mockReturnValue({});
+    getOptionalEnvMock.mockImplementation((key: string) =>
+      key === "TOSS_PAYMENTS_SECRET_KEY" ? "test_secret" : undefined,
+    );
+    getPaymentByOrderIdMock.mockResolvedValue(payment);
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 20,
+      alreadyProcessed: false,
+    });
+    fetchMock.mockResolvedValue(Response.json(approved));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    null,
+    [],
+    "invalid",
+    { ...input, paymentKey: 123 },
+    { ...input, amount: "5000" },
+    { ...input, amount: 1.5 },
+    { ...input, orderId: "../order" },
+  ])("rejects malformed input without provider access: %j", async body => {
+    const POST = await loadPostHandler();
+    expect((await POST(request(body))).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects historical client-priced quantities before approving a payment", async () => {
+    getPaymentByOrderIdMock.mockResolvedValue({
+      ...payment,
+      bead_quantity: 5000,
+    });
+    const POST = await loadPostHandler();
+    const response = await POST(request());
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("PAYMENT_PACKAGE_INVALID");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("requires the service role before contacting the payment provider", async () => {
+    createAdminMock.mockImplementation(() => {
+      throw new Error("Missing service role");
+    });
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(503);
+    expect(createAdminMock).toHaveBeenCalledExactlyOnceWith();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([{}, { credited_at: "2026-04-05", credited_user_id: "other-user" }])(
+    "does not claim an old completed order has a verified credit: %j",
+    async fields => {
+      getPaymentByOrderIdMock.mockResolvedValue({
+        ...payment,
+        status: "completed",
+        ...fields,
+      });
+      const POST = await loadPostHandler();
+      const response = await POST(request());
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("PAYMENT_CREDIT_UNVERIFIED");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["status", "orderId", "paymentKey", "totalAmount"])(
+    "rejects mismatched provider %s without crediting or failing the order",
+    async field => {
+      fetchMock.mockResolvedValue(
+        Response.json({ ...approved, [field]: "mismatch" }),
+      );
+      const POST = await loadPostHandler();
+      expect((await POST(request())).status).toBe(409);
+      expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+      expect(markPaymentFailedMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("recovers approval before a database save and keeps the idempotency key stable", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ code: "ALREADY_PROCESSED_PAYMENT" }, { status: 400 }),
+      )
+      .mockResolvedValueOnce(Response.json(approved));
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].headers["Idempotency-Key"]).toBe(
+      "confirm_order_1",
+    );
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "https://api.tosspayments.com/v1/payments/pay_1",
+    );
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      payment,
+      "pay_1",
+    );
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves provider recovery failures retryable", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ code: "ALREADY_PROCESSED_PAYMENT" }, { status: 400 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ code: "TEMPORARY" }, { status: 502 }),
+      );
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(503);
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves an approved payment retryable when finalization fails", async () => {
+    settlePaymentAndCreditMock.mockRejectedValue(new Error("database offline"));
+    const POST = await loadPostHandler();
+    expect((await POST(request())).status).toBe(503);
+    expect(markPaymentFailedMock).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,7 @@ import {
   readEnvValue,
 } from "./env-loader.mjs";
 
-const tempDirs = [];
+const tempDirs: string[] = [];
 
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hodam-env-loader-"));

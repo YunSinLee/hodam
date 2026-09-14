@@ -1,29 +1,8 @@
-const API_KEY = process.env.API_KEY;
-
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+module.exports = {
   reactStrictMode: true,
-  async redirects() {
-    return [
-      {
-        source: "/contact",
-        destination: "/form",
-        permanent: false,
-      },
-    ];
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/api/movies",
-        destination: `https://api.themoviedb.org/3/movie/popular?api_key=${API_KEY}`,
-      },
-      {
-        source: "/api/movies/:id",
-        destination: `https://api.themoviedb.org/3/movie/:id?api_key=${API_KEY}`,
-      },
-    ];
-  },
+  crossOrigin: "anonymous",
+  poweredByHeader: false,
   webpack(config, { isServer }) {
     if (isServer) {
       const existingIgnoreWarnings = Array.isArray(config.ignoreWarnings)
@@ -41,7 +20,17 @@ const nextConfig = {
 
     return config;
   },
-  crossOrigin: "anonymous",
-};
 
-module.exports = nextConfig;
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        ],
+      },
+    ];
+  },
+};

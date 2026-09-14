@@ -31,11 +31,12 @@ describe("loadProfilePageData", () => {
       getPaymentHistory: vi.fn(async () => [
         {
           id: "p1",
+          user_id: "user-1",
           order_id: "o1",
           payment_key: "k1",
           amount: 1000,
           bead_quantity: 2,
-          status: "completed",
+          status: "completed" as const,
           created_at: "2026-04-01T00:00:00.000Z",
           approved_at: null,
           package_id: "bead_2",
@@ -43,11 +44,12 @@ describe("loadProfilePageData", () => {
         },
         {
           id: "p2",
+          user_id: "user-1",
           order_id: "o2",
           payment_key: "k2",
           amount: 2000,
           bead_quantity: 4,
-          status: "completed",
+          status: "completed" as const,
           created_at: "2026-04-02T00:00:00.000Z",
           approved_at: null,
           package_id: "bead_4",
@@ -55,11 +57,12 @@ describe("loadProfilePageData", () => {
         },
         {
           id: "p3",
+          user_id: "user-1",
           order_id: "o3",
           payment_key: "k3",
           amount: 3000,
           bead_quantity: 6,
-          status: "completed",
+          status: "completed" as const,
           created_at: "2026-04-03T00:00:00.000Z",
           approved_at: null,
           package_id: "bead_6",
@@ -67,11 +70,12 @@ describe("loadProfilePageData", () => {
         },
         {
           id: "p4",
+          user_id: "user-1",
           order_id: "o4",
           payment_key: "k4",
           amount: 4000,
           bead_quantity: 8,
-          status: "completed",
+          status: "completed" as const,
           created_at: "2026-04-04T00:00:00.000Z",
           approved_at: null,
           package_id: "bead_8",
@@ -79,11 +83,12 @@ describe("loadProfilePageData", () => {
         },
         {
           id: "p5",
+          user_id: "user-1",
           order_id: "o5",
           payment_key: "k5",
           amount: 5000,
           bead_quantity: 10,
-          status: "completed",
+          status: "completed" as const,
           created_at: "2026-04-05T00:00:00.000Z",
           approved_at: null,
           package_id: "bead_10",
@@ -91,11 +96,12 @@ describe("loadProfilePageData", () => {
         },
         {
           id: "p6",
+          user_id: "user-1",
           order_id: "o6",
           payment_key: "k6",
           amount: 6000,
           bead_quantity: 12,
-          status: "completed",
+          status: "completed" as const,
           created_at: "2026-04-06T00:00:00.000Z",
           approved_at: null,
           package_id: "bead_12",
@@ -143,7 +149,7 @@ describe("loadProfilePageData", () => {
       bead_quantity: 2,
       amount: 1000,
       created_at: "2026-04-01T00:00:00.000Z",
-      status: "completed",
+      status: "completed" as const,
     });
     expect(result.kpiDaily).toHaveLength(1);
     expect(result.kpiRetentionDaily).toHaveLength(1);
@@ -155,7 +161,13 @@ describe("loadProfilePageData", () => {
     const result = await loadProfilePageData({
       getProfileSummary: vi.fn(async () => ({
         profile: null,
-        stats: null,
+        stats: {
+          totalStories: 0,
+          totalBeadsPurchased: 0,
+          totalBeadsUsed: 0,
+          totalPaymentAmount: 0,
+          joinDate: "",
+        },
         recentStories: [],
       })),
       getPaymentHistory: vi.fn(async () => []),

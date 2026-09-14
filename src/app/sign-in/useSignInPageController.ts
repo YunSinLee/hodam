@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import type { AuthProvidersResponse } from "@/app/api/v1/types";
 import { scheduleSignInLoadingFailsafe } from "@/app/sign-in/sign-in-loading-failsafe";
 import { startOAuthSignInWithMarker } from "@/app/sign-in/sign-in-oauth-flow";
@@ -17,11 +19,12 @@ import { normalizeOAuthProviderAvailability } from "@/lib/auth/oauth-provider-he
 import { clearOAuthProviderMarker } from "@/lib/auth/oauth-provider-marker";
 import { resolveOAuthRedirectUrl } from "@/lib/auth/oauth-redirect";
 import {
-  clearPostLoginRedirectPath,
+  consumePostLoginRedirectPath,
   sanitizePostLoginRedirectPath,
   savePostLoginRedirectPath,
 } from "@/lib/auth/post-login-redirect";
 import { getSignInRecoveryHint } from "@/lib/auth/sign-in-recovery";
+import useUserInfo from "@/services/hooks/use-user-info";
 
 const DEFAULT_PROVIDER_AVAILABILITY: SignInProviderAvailabilityState = {
   kakao: true,
@@ -37,6 +40,8 @@ export default function useSignInPageController(): {
   state: SignInPageState;
   handlers: SignInPageHandlers;
 } {
+  const router = useRouter();
+  const { userInfo, isAuthReady } = useUserInfo();
   const [providerAvailability, setProviderAvailability] = useState(
     DEFAULT_PROVIDER_AVAILABILITY,
   );
@@ -76,10 +81,8 @@ export default function useSignInPageController(): {
 
     const rawNextPath = searchParams.get("next");
     const safeNextPath = sanitizePostLoginRedirectPath(rawNextPath);
-    if (safeNextPath) {
-      savePostLoginRedirectPath(safeNextPath);
-    } else {
-      clearPostLoginRedirectPath();
+    if (rawNextPath !== null || !authError) {
+      savePostLoginRedirectPath(safeNextPath || "/service");
     }
 
     const { warnings, redirectTo } = resolveOAuthRedirectUrl({
@@ -125,6 +128,15 @@ export default function useSignInPageController(): {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (isAuthReady && userInfo.id) {
+      const nextPath = sanitizePostLoginRedirectPath(
+        new URLSearchParams(window.location.search).get("next"),
+      );
+      router.replace(consumePostLoginRedirectPath(nextPath || "/service"));
+    }
+  }, [isAuthReady, userInfo.id, router]);
 
   const signInWithProvider = useCallback(
     async (provider: "kakao" | "google") => {

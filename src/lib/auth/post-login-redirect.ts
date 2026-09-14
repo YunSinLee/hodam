@@ -3,8 +3,11 @@ const MAX_REDIRECT_PATH_LENGTH = 512;
 
 function getSessionStorage(): Storage | null {
   if (typeof window === "undefined") return null;
-  if (!window.sessionStorage) return null;
-  return window.sessionStorage;
+  try {
+    return window.sessionStorage || null;
+  } catch {
+    return null;
+  }
 }
 
 export function sanitizePostLoginRedirectPath(
@@ -18,9 +21,22 @@ export function sanitizePostLoginRedirectPath(
   if (!trimmed.startsWith("/")) return null;
   if (trimmed.startsWith("//")) return null;
   if (trimmed.includes("://")) return null;
-  if (trimmed.includes("\r") || trimmed.includes("\n")) return null;
+  if (trimmed.includes("\\")) return null;
+  if (trimmed.split("").some(char => char.charCodeAt(0) <= 32)) return null;
 
-  return trimmed;
+  try {
+    const url = new URL(trimmed, "https://hodam.local");
+    if (
+      url.origin !== "https://hodam.local" ||
+      url.pathname.startsWith("/auth") ||
+      url.pathname === "/sign-in"
+    ) {
+      return null;
+    }
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
 }
 
 export function savePostLoginRedirectPath(path: string): boolean {
@@ -52,6 +68,12 @@ export function clearPostLoginRedirectPath(): void {
 export function consumePostLoginRedirectPath(
   defaultPath: string = "/",
 ): string {
+  const path = readPostLoginRedirectPath(defaultPath);
+  clearPostLoginRedirectPath();
+  return path;
+}
+
+export function readPostLoginRedirectPath(defaultPath: string = "/"): string {
   const fallbackPath = sanitizePostLoginRedirectPath(defaultPath) || "/";
   const storage = getSessionStorage();
   if (!storage) return fallbackPath;
@@ -59,7 +81,6 @@ export function consumePostLoginRedirectPath(
   let savedPath: string | null = null;
   try {
     savedPath = storage.getItem(POST_LOGIN_REDIRECT_KEY);
-    storage.removeItem(POST_LOGIN_REDIRECT_KEY);
   } catch {
     return fallbackPath;
   }

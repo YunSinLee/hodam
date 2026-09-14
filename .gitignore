@@ -11,7 +11,6 @@
 
 # next.js
 /.next/
-/.next-dev/
 /out/
 
 # production
@@ -70,7 +69,6 @@ next-env.d.ts
 
 # Database dumps
 *.sql
-!supabase/migrations/*.sql
 *.db
 *.sqlite
 *.sqlite3
@@ -79,6 +77,13 @@ next-env.d.ts
 *.log
 logs/
 **/*.log
+.gstack/
 
-# local generated reports
+# Keep reviewed schema migrations in version control.
+!supabase/migrations/*.sql
+
+# Synthetic schemas used by the isolated migration check.
+!tests/db/*.sql
+
+/.next-dev/
 /reports/local/

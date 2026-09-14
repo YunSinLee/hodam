@@ -4,6 +4,7 @@ import {
   clearPostLoginRedirectPath,
   consumePostLoginRedirectPath,
   postLoginRedirectInternal,
+  readPostLoginRedirectPath,
   sanitizePostLoginRedirectPath,
   savePostLoginRedirectPath,
 } from "@/lib/auth/post-login-redirect";
@@ -36,6 +37,9 @@ describe("sanitizePostLoginRedirectPath", () => {
     expect(sanitizePostLoginRedirectPath("/bead?from=home")).toBe(
       "/bead?from=home",
     );
+    expect(sanitizePostLoginRedirectPath("/service?draft=1#preview")).toBe(
+      "/service?draft=1#preview",
+    );
   });
 
   it("rejects unsafe or invalid paths", () => {
@@ -44,6 +48,16 @@ describe("sanitizePostLoginRedirectPath", () => {
     expect(sanitizePostLoginRedirectPath("javascript-alert")).toBeNull();
     expect(sanitizePostLoginRedirectPath("")).toBeNull();
     expect(sanitizePostLoginRedirectPath(null)).toBeNull();
+  });
+
+  it.each([
+    "/\\evil.com/path",
+    "/\tevil.com",
+    "/auth/callback?code=old",
+    "/sign-in?next=/service",
+    "/service/../auth/callback",
+  ])("rejects browser-normalized external paths and login loops: %s", path => {
+    expect(sanitizePostLoginRedirectPath(path)).toBeNull();
   });
 });
 
@@ -69,6 +83,31 @@ describe("post-login redirect storage helpers", () => {
 
     clearPostLoginRedirectPath();
     expect(consumePostLoginRedirectPath("/")).toBe("/");
+  });
+
+  it("keeps the destination available while preparing a login retry", () => {
+    savePostLoginRedirectPath("/service?draft=1#preview");
+
+    expect(readPostLoginRedirectPath("/service")).toBe(
+      "/service?draft=1#preview",
+    );
+    expect(consumePostLoginRedirectPath("/service")).toBe(
+      "/service?draft=1#preview",
+    );
+    expect(readPostLoginRedirectPath("/service")).toBe("/service");
+  });
+
+  it("uses a safe fallback when browser storage access is blocked", () => {
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      get() {
+        throw new Error("Storage disabled");
+      },
+    });
+
+    expect(savePostLoginRedirectPath("/my-story")).toBe(false);
+    expect(consumePostLoginRedirectPath("/service")).toBe("/service");
+    expect(() => clearPostLoginRedirectPath()).not.toThrow();
   });
 
   it("returns fallback when saved path is unsafe", () => {

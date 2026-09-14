@@ -50,6 +50,8 @@ export function loadLocalEnv({
   return { merged, loaded };
 }
 
+/** @param {string} name
+ * @param {{processEnv?: Record<string, string | undefined>, fileEnv?: Record<string, string>, fallback?: string}} [options] */
 export function readEnvValue(name, {
   processEnv = process.env,
   fileEnv = {},

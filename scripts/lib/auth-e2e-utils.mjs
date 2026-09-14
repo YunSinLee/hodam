@@ -19,6 +19,7 @@ function parseBooleanLike(value) {
   return null;
 }
 
+/** @param {Record<string, string | undefined>} [processEnv] */
 export function isCiLikeEnvironment(processEnv = process.env) {
   const ci = parseBooleanLike(processEnv.CI);
   if (ci === true) {
@@ -29,6 +30,7 @@ export function isCiLikeEnvironment(processEnv = process.env) {
   return githubActions === true;
 }
 
+/** @param {{explicitValue?: string, processEnv?: Record<string, string | undefined>}} [options] */
 export function shouldRequireAuthFlow({
   explicitValue = "",
   processEnv = process.env,

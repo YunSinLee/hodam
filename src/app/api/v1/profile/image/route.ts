@@ -1,38 +1,53 @@
 import { NextRequest } from "next/server";
 
-import { authenticateRequest } from "@/lib/auth/request-auth";
+import { randomUUID } from "crypto";
+
+import {
+  authenticateRequest,
+  requireUserClient,
+} from "@/lib/auth/request-auth";
 import { logError } from "@/lib/server/logger";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { createApiRequestContext } from "@/lib/server/request-context";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 const PROFILE_BUCKET = "profiles";
 const PROFILE_IMAGE_PREFIX = "/storage/v1/object/public/profiles/";
 
-function extractFileExtension(file: File): string {
-  const namePart = file.name.split(".").pop()?.trim().toLowerCase();
-  if (namePart) return namePart;
+const PROFILE_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
-  if (file.type === "image/jpeg") return "jpg";
-  if (file.type === "image/png") return "png";
-  if (file.type === "image/webp") return "webp";
-  return "bin";
-}
-
-function getStoragePathFromPublicUrl(publicUrl: string): string | null {
-  const markerIndex = publicUrl.indexOf(PROFILE_IMAGE_PREFIX);
-  if (markerIndex < 0) return null;
-
-  const rawPath = publicUrl.slice(markerIndex + PROFILE_IMAGE_PREFIX.length);
-  const [pathWithoutQuery] = rawPath.split("?");
-  if (!pathWithoutQuery) return null;
-
-  try {
-    return decodeURIComponent(pathWithoutQuery);
-  } catch {
-    return pathWithoutQuery;
+function getOwnStoragePath(reference: string, userId: string): string | null {
+  const markerIndex = reference.indexOf(PROFILE_IMAGE_PREFIX);
+  let rawPath = "";
+  if (reference.startsWith("profiles:")) {
+    rawPath = reference.slice("profiles:".length);
+  } else if (markerIndex >= 0) {
+    [rawPath] = reference
+      .slice(markerIndex + PROFILE_IMAGE_PREFIX.length)
+      .split("?");
   }
+  let path;
+  try {
+    path = decodeURIComponent(rawPath);
+  } catch {
+    return null;
+  }
+  // The users row is user-editable. Never let its value select another user's
+  // object for deletion, even when database policies also restrict access.
+  const flatPrefix = `profile_${userId}_`;
+  const legacyPrefix = `${userId}/profile_`;
+  const ownFlat =
+    path.startsWith(flatPrefix) &&
+    /^[a-z0-9-]+\.(jpg|png|webp|gif)$/.test(path.slice(flatPrefix.length));
+  const ownLegacy =
+    path.startsWith(legacyPrefix) &&
+    /^[0-9]+\.[a-z0-9]+$/.test(path.slice(legacyPrefix.length));
+  return ownFlat || ownLegacy ? path : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -73,7 +88,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!file.type.startsWith("image/")) {
+    const ext = PROFILE_EXTENSIONS[file.type];
+    if (!ext) {
       return failWithCode(
         400,
         "Only image files are allowed",
@@ -93,33 +109,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ext = extractFileExtension(file);
-    const filePath = `${authContext.userId}/profile_${Date.now()}.${ext}`;
-    const admin = createSupabaseAdminClient({
-      fallbackAccessToken: authContext.accessToken,
-    });
+    const filePath = `profile_${authContext.userId}_${randomUUID()}.${ext}`;
+    const userClient = requireUserClient(authContext.accessToken);
 
-    const { error: uploadError } = await admin.storage
+    const { error: uploadError } = await userClient.storage
       .from(PROFILE_BUCKET)
       .upload(filePath, file, {
         contentType: file.type,
         cacheControl: "3600",
-        upsert: true,
+        upsert: false,
       });
 
     if (uploadError) {
       throw uploadError;
     }
 
-    const { data: publicUrlData } = admin.storage
+    const { data: signed, error: signingError } = await userClient.storage
       .from(PROFILE_BUCKET)
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 3600);
 
-    const imageUrl = publicUrlData.publicUrl;
-    const { error: updateError } = await admin
+    if (signingError || !signed?.signedUrl) {
+      throw signingError || new Error("Failed to sign profile image");
+    }
+
+    const imageUrl = signed.signedUrl;
+    const { error: updateError } = await userClient
       .from("users")
       .update({
-        custom_profile_url: imageUrl,
+        custom_profile_url: `profiles:${filePath}`,
         updated_at: new Date().toISOString(),
       })
       .eq("id", authContext.userId);
@@ -172,11 +189,9 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const admin = createSupabaseAdminClient({
-      fallbackAccessToken: authContext.accessToken,
-    });
+    const userClient = requireUserClient(authContext.accessToken);
 
-    const { data: userData, error: userError } = await admin
+    const { data: userData, error: userError } = await userClient
       .from("users")
       .select("custom_profile_url")
       .eq("id", authContext.userId)
@@ -187,7 +202,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const existingUrl = userData?.custom_profile_url as string | null;
-    const { error: updateError } = await admin
+    const { error: updateError } = await userClient
       .from("users")
       .update({
         custom_profile_url: null,
@@ -200,9 +215,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (existingUrl) {
-      const storagePath = getStoragePathFromPublicUrl(existingUrl);
+      const storagePath = getOwnStoragePath(existingUrl, authContext.userId);
       if (storagePath) {
-        await admin.storage.from(PROFILE_BUCKET).remove([storagePath]);
+        await userClient.storage.from(PROFILE_BUCKET).remove([storagePath]);
       }
     }
 

@@ -1,27 +1,17 @@
-import { createElement } from "react";
-
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import LegalPageLayout from "@/app/components/legal/LegalPageLayout";
 
 describe("LegalPageLayout", () => {
-  it("renders title, children, footer, and mobile-first spacing classes", () => {
+  it("renders the title, content, footer and responsive spacing", () => {
     const html = renderToStaticMarkup(
-      createElement(
-        LegalPageLayout,
-        {
-          title: "이용약관",
-          footer: createElement("p", null, "footer"),
-        },
-        createElement("p", null, "body"),
-      ),
+      <LegalPageLayout title="이용약관" footer={<p>footer</p>}>
+        <p>body</p>
+      </LegalPageLayout>,
     );
-
-    expect(html).toContain("이용약관");
-    expect(html).toContain("body");
-    expect(html).toContain("footer");
-    expect(html).toContain("px-4");
-    expect(html).toContain("sm:px-6");
+    ["이용약관", "body", "footer", "px-4", "sm:px-6"].forEach(value =>
+      expect(html).toContain(value),
+    );
   });
 });

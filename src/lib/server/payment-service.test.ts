@@ -320,6 +320,35 @@ describe("payment-service", () => {
     ).rejects.toThrow("Failed to finalize payment");
   });
 
+  it.each([
+    { amount: 2500, bead_quantity: 5000 },
+    { amount: 1, bead_quantity: 5 },
+    { amount: 5000, bead_quantity: 20 },
+    { amount: 0, bead_quantity: 0 },
+    { amount: 2500, bead_quantity: 5.5 },
+  ])(
+    "rejects a noncanonical stored package before crediting: %j",
+    async fields => {
+      const rpc = vi.fn();
+
+      await expect(
+        settlePaymentAndCredit(
+          { rpc } as never,
+          {
+            id: "1",
+            user_id: "user-1",
+            order_id: "legacy-order",
+            status: "pending",
+            created_at: "2026-04-05T00:00:00.000Z",
+            ...fields,
+          },
+          "pay-1",
+        ),
+      ).rejects.toMatchObject({ code: "PAYMENT_PACKAGE_INVALID" });
+      expect(rpc).not.toHaveBeenCalled();
+    },
+  );
+
   it("maps known rpc payment errors to PaymentDomainError", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: null,

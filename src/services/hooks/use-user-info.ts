@@ -1,7 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-
-import { createSafePersistStorage } from "@/lib/client/zustand-storage";
 
 interface UserInfoType {
   profileUrl: string;
@@ -9,43 +6,36 @@ interface UserInfoType {
   email: string | undefined;
 }
 
-interface UserInfoState {
+interface UserInfoStore {
   userInfo: UserInfoType;
+  isAuthReady: boolean;
   hasHydrated: boolean;
-}
-
-interface UserInfoActions {
-  setUserInfo: (userinfo: UserInfoType) => void;
+  setUserInfo: (userInfo: UserInfoType) => void;
   deleteUserInfo: () => void;
-  setHasHydrated: (value: boolean) => void;
+  setAuthReady: (ready: boolean) => void;
+  setHasHydrated: (hydrated: boolean) => void;
 }
 
-export const defaultState = { profileUrl: "", id: undefined, email: undefined };
+export const defaultState: UserInfoType = {
+  profileUrl: "",
+  id: undefined,
+  email: undefined,
+};
 
-const useUserInfo = create<UserInfoState & UserInfoActions>()(
-  persist(
-    set => ({
-      userInfo: defaultState,
-      hasHydrated: false,
-      setUserInfo: (userInfo: UserInfoType) => {
-        set({ userInfo, hasHydrated: true });
-      },
-      deleteUserInfo: () => {
-        set({ userInfo: defaultState, hasHydrated: true });
-      },
-      setHasHydrated: (value: boolean) => {
-        set({ hasHydrated: value });
-      },
-    }),
-    {
-      name: "hodam-user-info", // localStorage 키 이름
-      partialize: state => ({ userInfo: state.userInfo }), // 저장할 상태만 선택
-      storage: createSafePersistStorage(),
-      onRehydrateStorage: () => state => {
-        state?.setHasHydrated(true);
-      },
-    },
-  ),
-);
+// Authentication is resolved from the live Supabase session. Persisted user
+// identities must never make protected pages treat an expired session as valid.
+const useUserInfo = create<UserInfoStore>(set => ({
+  userInfo: defaultState,
+  isAuthReady: false,
+  hasHydrated: false,
+  setUserInfo: userInfo =>
+    set({ userInfo, isAuthReady: true, hasHydrated: true }),
+  deleteUserInfo: () =>
+    set({ userInfo: defaultState, isAuthReady: true, hasHydrated: true }),
+  setAuthReady: ready => set({ isAuthReady: ready, hasHydrated: ready }),
+  // Keep the legacy hydration interface without treating hydration alone as
+  // evidence that the authentication session has been checked.
+  setHasHydrated: hasHydrated => set({ hasHydrated }),
+}));
 
 export default useUserInfo;

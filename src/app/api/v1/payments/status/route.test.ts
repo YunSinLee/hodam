@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PaymentDomainError as PaymentDomainErrorMock } from "@/lib/server/payment-service";
+
 const {
   authenticateRequestMock,
   getOptionalEnvMock,
@@ -18,16 +20,6 @@ const {
   createAdminMock: vi.fn(),
 }));
 
-class PaymentDomainErrorMock extends Error {
-  readonly code: string;
-
-  constructor(code: string) {
-    super(code);
-    this.name = "PaymentDomainError";
-    this.code = code;
-  }
-}
-
 vi.mock("@/lib/auth/request-auth", () => ({
   authenticateRequest: authenticateRequestMock,
 }));
@@ -37,9 +29,9 @@ vi.mock("@/lib/env", () => ({
   getRequiredEnv: getRequiredEnvMock,
 }));
 
-vi.mock("@/lib/server/payment-service", () => ({
+vi.mock("@/lib/server/payment-service", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/lib/server/payment-service")>()),
   getPaymentByOrderId: getPaymentByOrderIdMock,
-  PaymentDomainError: PaymentDomainErrorMock,
   settlePaymentAndCredit: settlePaymentAndCreditMock,
 }));
 
@@ -76,7 +68,7 @@ describe("GET /api/v1/payments/status", () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.stubGlobal("fetch", fetchMock);
     checkRateLimitMock.mockReturnValue(true);
     createAdminMock.mockReturnValue({ from: vi.fn(), rpc: vi.fn() });
@@ -199,6 +191,8 @@ describe("GET /api/v1/payments/status", () => {
       bead_quantity: 10,
       payment_key: "pay_1",
       status: "completed",
+      credited_at: "2026-04-05T00:01:00.000Z",
+      credited_user_id: "user-1",
       created_at: "2026-04-05T00:00:00.000Z",
       completed_at: "2026-04-05T00:01:00.000Z",
     });
@@ -237,6 +231,8 @@ describe("GET /api/v1/payments/status", () => {
       bead_quantity: 10,
       payment_key: "pay_1",
       status: "completed",
+      credited_at: "2026-04-05T00:01:00.000Z",
+      credited_user_id: "user-1",
       created_at: "2026-04-05T00:00:00.000Z",
       completed_at: "2026-04-05T00:01:00.000Z",
     });
@@ -280,6 +276,7 @@ describe("GET /api/v1/payments/status", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "IN_PROGRESS",
+        orderId: "order_1",
         totalAmount: 5000,
       }),
     });
@@ -323,6 +320,8 @@ describe("GET /api/v1/payments/status", () => {
         bead_quantity: 10,
         payment_key: "pay_1",
         status: "completed",
+        credited_at: "2026-04-05T00:01:00.000Z",
+        credited_user_id: "user-1",
         created_at: "2026-04-05T00:00:00.000Z",
         completed_at: "2026-04-05T00:01:00.000Z",
       });
@@ -330,6 +329,7 @@ describe("GET /api/v1/payments/status", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
         paymentKey: "pay_1",
         totalAmount: 5000,
       }),
@@ -380,6 +380,7 @@ describe("GET /api/v1/payments/status", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
         paymentKey: "pay_1",
         totalAmount: 7000,
       }),
@@ -418,6 +419,7 @@ describe("GET /api/v1/payments/status", () => {
       ok: true,
       json: vi.fn().mockResolvedValue({
         status: "DONE",
+        orderId: "order_1",
         paymentKey: "pay_1",
         totalAmount: 5000,
       }),
@@ -435,5 +437,100 @@ describe("GET /api/v1/payments/status", () => {
       error: "Payment state conflict",
       code: "PAYMENT_STATE_CONFLICT",
     });
+  });
+});
+
+describe("status reconciliation proof boundaries", () => {
+  const payment = {
+    id: "payment-1",
+    user_id: "user-1",
+    order_id: "order_1",
+    amount: 5000,
+    bead_quantity: 10,
+    status: "pending",
+    created_at: "2026-04-05",
+  };
+  const approved = {
+    orderId: "order_1",
+    paymentKey: "pay_1",
+    totalAmount: 5000,
+    status: "DONE",
+  };
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+    authenticateRequestMock.mockResolvedValue({
+      userId: "user-1",
+      accessToken: "token",
+    });
+    checkRateLimitMock.mockReturnValue(true);
+    createAdminMock.mockReturnValue({});
+    getOptionalEnvMock.mockImplementation((key: string) =>
+      key === "TOSS_PAYMENTS_SECRET_KEY" ? "test_secret" : undefined,
+    );
+    getPaymentByOrderIdMock.mockResolvedValue(payment);
+    fetchMock.mockResolvedValue(Response.json(approved));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("does not trust a different payment key supplied in the redirect", async () => {
+    const GET = await loadGetHandler();
+    const response = await GET(
+      makeGetRequest({
+        orderId: "order_1",
+        paymentKey: "someone-else-key",
+      }) as never,
+    );
+    expect(response.status).toBe(409);
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ...approved, orderId: "someone-else-order" },
+    { ...approved, paymentKey: undefined },
+    { ...approved, totalAmount: "5000" },
+    { ...approved, status: "IN_PROGRESS" },
+  ])("does not reconcile unverified provider data: %j", async body => {
+    fetchMock.mockResolvedValue(Response.json(body));
+    const GET = await loadGetHandler();
+    const response = await GET(makeGetRequest({ orderId: "order_1" }) as never);
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toBe("pending");
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("does not accept a provider error response that happens to contain DONE", async () => {
+    fetchMock.mockResolvedValue(Response.json(approved, { status: 502 }));
+    const GET = await loadGetHandler();
+    const response = await GET(makeGetRequest({ orderId: "order_1" }) as never);
+    expect((await response.json()).reconciliationState).toBe("error");
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("prevents status fallback from reporting an unverified legacy credit as success", async () => {
+    getPaymentByOrderIdMock.mockResolvedValue({
+      ...payment,
+      status: "completed",
+    });
+    const GET = await loadGetHandler();
+    const response = await GET(makeGetRequest({ orderId: "order_1" }) as never);
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("PAYMENT_CREDIT_UNVERIFIED");
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects historical arbitrary quantities before reconciliation", async () => {
+    getPaymentByOrderIdMock.mockResolvedValue({
+      ...payment,
+      bead_quantity: 5000,
+    });
+    const GET = await loadGetHandler();
+    const response = await GET(makeGetRequest({ orderId: "order_1" }) as never);
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("PAYMENT_PACKAGE_INVALID");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
   });
 });

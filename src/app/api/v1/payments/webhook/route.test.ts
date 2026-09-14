@@ -58,14 +58,69 @@ async function loadPostHandler() {
 describe("POST /api/v1/payments/webhook", () => {
   const fetchMock = vi.fn();
 
+  function mockProvider(
+    orderId: string,
+    paymentKey: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        orderId,
+        paymentKey,
+        totalAmount: 5000,
+        status: "DONE",
+        ...overrides,
+      }),
+    });
+  }
+
+  function webhookRequest(
+    transmissionId: string,
+    data: Record<string, unknown> = {},
+    eventType = "PAYMENT_STATUS_CHANGED",
+  ) {
+    return new Request("http://localhost/api/v1/payments/webhook", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "tosspayments-webhook-transmission-id": transmissionId,
+        "tosspayments-webhook-transmission-time": "2026-09-14T00:00:00.000Z",
+        "tosspayments-webhook-transmission-retried-count": "1",
+      },
+      body: JSON.stringify({
+        eventType,
+        data: {
+          orderId: "order-1",
+          paymentKey: "pay-1",
+          totalAmount: 5000,
+          status: "DONE",
+          ...data,
+        },
+      }),
+    }) as never;
+  }
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.stubGlobal("fetch", fetchMock);
     getOptionalEnvMock.mockReturnValue(null);
     getRequiredEnvMock.mockReturnValue("toss_test_secret");
     registerWebhookTransmissionMock.mockResolvedValue(true);
     trackUserActivityBestEffortMock.mockResolvedValue(undefined);
     createAdminMock.mockReturnValue({ from: vi.fn(), rpc: vi.fn() });
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order-1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "pending",
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+    mockProvider("order-1", "pay-1");
   });
 
   afterEach(() => {
@@ -114,7 +169,7 @@ describe("POST /api/v1/payments/webhook", () => {
     });
   });
 
-  it("returns duplicate response for repeated transmission id", async () => {
+  it("does not let ignored payloads poison a later settlement with the same transmission id", async () => {
     const transmissionHeaders = new Headers({
       "tosspayments-webhook-transmission-id": "transmission-dup-1",
       "tosspayments-webhook-transmission-time": "2026-04-05T00:00:00.000Z",
@@ -138,12 +193,25 @@ describe("POST /api/v1/payments/webhook", () => {
     expect(secondBody).toEqual({
       received: true,
       ignored: true,
-      reason: "duplicate_event",
     });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(registerWebhookTransmissionMock).not.toHaveBeenCalled();
+
+    const validResponse = await POST(webhookRequest("transmission-dup-1"));
+    expect(await validResponse.json()).toMatchObject({ settled: true });
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledOnce();
   });
 
   it("returns duplicate response when transmission is already registered in db", async () => {
     registerWebhookTransmissionMock.mockResolvedValue(false);
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order-db-dup-1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "pending",
+    });
+    mockProvider("order-db-dup-1", "pay-db-dup-1");
 
     const POST = await loadPostHandler();
     const response = await POST({
@@ -170,7 +238,11 @@ describe("POST /api/v1/payments/webhook", () => {
       ignored: true,
       reason: "duplicate_event",
     });
-    expect(getPaymentByOrderIdMock).not.toHaveBeenCalled();
+    expect(getPaymentByOrderIdMock).toHaveBeenCalledOnce();
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledOnce();
+    expect(settlePaymentAndCreditMock.mock.invocationCallOrder[0]).toBeLessThan(
+      registerWebhookTransmissionMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("returns 400 when webhook payload is invalid json", async () => {
@@ -232,6 +304,7 @@ describe("POST /api/v1/payments/webhook", () => {
   });
 
   it("accepts webhook when valid hmac signature is provided", async () => {
+    mockProvider("order-hmac-ok-1", "pay-hmac-ok-1");
     getOptionalEnvMock.mockImplementation((key: string) => {
       if (key === "TOSS_PAYMENTS_WEBHOOK_HMAC_SECRET") {
         return "hmac_secret";
@@ -381,6 +454,7 @@ describe("POST /api/v1/payments/webhook", () => {
   });
 
   it("ignores webhook when amount mismatches payment history", async () => {
+    mockProvider("order-2", "pay-2");
     getPaymentByOrderIdMock.mockResolvedValue({
       order_id: "order-2",
       user_id: "user-1",
@@ -485,7 +559,8 @@ describe("POST /api/v1/payments/webhook", () => {
     expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
   });
 
-  it("uses payment_history payment_key when webhook payload key is missing", async () => {
+  it("verifies the provider key against payment history when webhook payload key is missing", async () => {
+    mockProvider("order-has-key-1", "pay-existing-1");
     getPaymentByOrderIdMock.mockResolvedValue({
       order_id: "order-has-key-1",
       user_id: "user-1",
@@ -527,6 +602,7 @@ describe("POST /api/v1/payments/webhook", () => {
   });
 
   it("maps payment state conflicts to ignored webhook result", async () => {
+    mockProvider("order-conflict-1", "pay-conflict-1");
     getPaymentByOrderIdMock.mockResolvedValue({
       order_id: "order-conflict-1",
       user_id: "user-1",
@@ -575,6 +651,7 @@ describe("POST /api/v1/payments/webhook", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
+        orderId: "order-secret-1",
         paymentKey: "pay-secret-1",
         totalAmount: 5000,
         status: "DONE",
@@ -618,8 +695,12 @@ describe("POST /api/v1/payments/webhook", () => {
       bead_quantity: 10,
     });
     fetchMock.mockResolvedValue({
-      ok: false,
-      json: vi.fn().mockResolvedValue({ message: "not found" }),
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        orderId: "order-no-key-1",
+        totalAmount: 5000,
+        status: "DONE",
+      }),
     });
 
     const POST = await loadPostHandler();
@@ -647,6 +728,226 @@ describe("POST /api/v1/payments/webhook", () => {
     expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["provider is unpaid", { status: "IN_PROGRESS" }, {}, "status_not_done"],
+    [
+      "provider order differs",
+      { orderId: "another-order" },
+      {},
+      "payment_state_conflict",
+    ],
+    [
+      "provider key differs",
+      { paymentKey: "another-key" },
+      {},
+      "payment_state_conflict",
+    ],
+    ["provider amount differs", { totalAmount: 2500 }, {}, "amount_mismatch"],
+    [
+      "provider total is missing",
+      { totalAmount: undefined, balanceAmount: 5000 },
+      {},
+      "amount_mismatch",
+    ],
+    [
+      "provider total is not numeric",
+      { totalAmount: "5000" },
+      {},
+      "amount_mismatch",
+    ],
+    [
+      "notification key differs",
+      {},
+      { paymentKey: "forged-key" },
+      "payment_state_conflict",
+    ],
+    [
+      "notification amount differs",
+      {},
+      { totalAmount: 10000 },
+      "amount_mismatch",
+    ],
+  ] as const)(
+    "never settles a forged DONE notification when %s",
+    async (name, providerOverrides, bodyOverrides, reason) => {
+      mockProvider("order-1", "pay-1", providerOverrides);
+      const POST = await loadPostHandler();
+      const transmissionId = `adversarial-${name}`;
+      const response = await POST(
+        webhookRequest(transmissionId, bodyOverrides),
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        ignored: true,
+        reason,
+      });
+      expect(response.headers.get("x-hodam-payment-flow-id")).toBe(
+        "order:order-1",
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://api.tosspayments.com/v1/payments/orders/order-1",
+        expect.objectContaining({
+          method: "GET",
+          headers: {
+            Authorization: `Basic ${Buffer.from("toss_test_secret:").toString("base64")}`,
+          },
+          signal: expect.any(AbortSignal),
+        }),
+      );
+      expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+      expect(registerWebhookTransmissionMock).not.toHaveBeenCalled();
+
+      // A rejected notification must not consume the provider's delivery id.
+      mockProvider("order-1", "pay-1");
+      const retry = await POST(webhookRequest(transmissionId));
+      expect(await retry.json()).toMatchObject({ settled: true });
+    },
+  );
+
+  it("rejects a verified provider key that conflicts with the stored payment key", async () => {
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order-1",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "pending",
+      payment_key: "stored-other-key",
+    });
+    const POST = await loadPostHandler();
+    const response = await POST(webhookRequest("stored-key-conflict"));
+    expect(await response.json()).toMatchObject({
+      ignored: true,
+      reason: "payment_state_conflict",
+    });
+    expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+    expect(registerWebhookTransmissionMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["http", "transport", "invalid-json"])(
+    "allows the same transmission to retry after provider %s failure",
+    async failure => {
+      if (failure === "transport") {
+        fetchMock.mockRejectedValueOnce(new Error("provider timeout"));
+      } else if (failure === "invalid-json") {
+        fetchMock.mockResolvedValueOnce({
+          ok: true,
+          json: vi.fn().mockRejectedValue(new Error("invalid JSON")),
+        });
+      } else {
+        fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+      }
+      const POST = await loadPostHandler();
+      const transmissionId = `provider-retry-${failure}`;
+      const failed = await POST(webhookRequest(transmissionId));
+      expect(failed.status).toBe(failure === "http" ? 502 : 500);
+      expect(settlePaymentAndCreditMock).not.toHaveBeenCalled();
+      expect(registerWebhookTransmissionMock).not.toHaveBeenCalled();
+
+      const retry = await POST(webhookRequest(transmissionId));
+      expect(await retry.json()).toMatchObject({ settled: true });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(settlePaymentAndCreditMock).toHaveBeenCalledOnce();
+      expect(registerWebhookTransmissionMock).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("allows the same transmission to retry after settlement fails", async () => {
+    settlePaymentAndCreditMock.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+    const POST = await loadPostHandler();
+    const failed = await POST(webhookRequest("settlement-retry"));
+    expect(failed.status).toBe(500);
+    expect(registerWebhookTransmissionMock).not.toHaveBeenCalled();
+
+    const retry = await POST(webhookRequest("settlement-retry"));
+    expect(await retry.json()).toMatchObject({ settled: true });
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledTimes(2);
+    expect(registerWebhookTransmissionMock).toHaveBeenCalledOnce();
+    expect(settlePaymentAndCreditMock.mock.invocationCallOrder[1]).toBeLessThan(
+      registerWebhookTransmissionMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("retries idempotent settlement when transmission registration fails after crediting", async () => {
+    registerWebhookTransmissionMock.mockRejectedValueOnce(
+      new Error("registry unavailable"),
+    );
+    settlePaymentAndCreditMock.mockResolvedValueOnce({
+      beadCount: 10,
+      alreadyProcessed: false,
+    });
+    settlePaymentAndCreditMock.mockResolvedValue({
+      beadCount: 10,
+      alreadyProcessed: true,
+    });
+    const POST = await loadPostHandler();
+    const failed = await POST(webhookRequest("registry-retry"));
+    expect(failed.status).toBe(500);
+
+    const retry = await POST(webhookRequest("registry-retry"));
+    expect(await retry.json()).toEqual({
+      received: true,
+      settled: true,
+      alreadyProcessed: true,
+    });
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledTimes(2);
+    expect(registerWebhookTransmissionMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches successful settlement only for the same transmission and order", async () => {
+    const POST = await loadPostHandler();
+    const first = await POST(webhookRequest("scoped-cache"));
+    expect(await first.json()).toMatchObject({ settled: true });
+    const duplicate = await POST(webhookRequest("scoped-cache"));
+    expect(await duplicate.json()).toEqual({
+      received: true,
+      ignored: true,
+      reason: "duplicate_event",
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledOnce();
+    expect(registerWebhookTransmissionMock).toHaveBeenCalledOnce();
+
+    getPaymentByOrderIdMock.mockResolvedValue({
+      order_id: "order-other",
+      user_id: "user-1",
+      amount: 5000,
+      bead_quantity: 10,
+      status: "pending",
+    });
+    mockProvider("order-other", "pay-other");
+    const otherOrder = await POST(
+      webhookRequest("scoped-cache", {
+        orderId: "order-other",
+        paymentKey: "pay-other",
+      }),
+    );
+    expect(await otherOrder.json()).toMatchObject({ settled: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(settlePaymentAndCreditMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cache an ignored non-final payment notification", async () => {
+    const POST = await loadPostHandler();
+    const ignored = await POST(
+      webhookRequest("non-final-retry", { status: "IN_PROGRESS" }),
+    );
+    expect(await ignored.json()).toEqual({
+      received: true,
+      ignored: true,
+      reason: "status_not_done",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getPaymentByOrderIdMock).not.toHaveBeenCalled();
+    expect(registerWebhookTransmissionMock).not.toHaveBeenCalled();
+
+    const final = await POST(webhookRequest("non-final-retry"));
+    expect(await final.json()).toMatchObject({ settled: true });
+  });
+
   it("uses configured toss api base url for order lookup", async () => {
     getOptionalEnvMock.mockImplementation((key: string) => {
       if (key === "TOSS_PAYMENTS_SECRET_KEY") {
@@ -666,6 +967,7 @@ describe("POST /api/v1/payments/webhook", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
+        orderId: "order-base-url-1",
         paymentKey: "pay-base-url-1",
         totalAmount: 5000,
         status: "DONE",

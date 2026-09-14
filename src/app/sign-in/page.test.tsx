@@ -17,7 +17,7 @@ describe("SignIn page", () => {
     mockUseSignInPageController.mockReset();
   });
 
-  it("renders OAuth warnings and disables provider button when unavailable", () => {
+  it("renders login recovery and disables an unavailable provider", () => {
     mockUseSignInPageController.mockReturnValue({
       state: {
         providerAvailability: {
@@ -46,16 +46,15 @@ describe("SignIn page", () => {
     const html = renderToStaticMarkup(createElement(SignInPage));
 
     expect(html).toContain("카카오 로그인 중 오류가 발생했습니다.");
-    expect(html).toContain("로그인 설정 점검 필요");
-    expect(html).toContain("OAuth provider 점검");
     expect(html).toContain("이전 로그인 시도 안내");
     expect(html).toContain("카카오로 시작하기");
     expect(html).toContain("Google로 시작하기");
-    expect(html).toContain("사용 불가 사유");
+    expect(html).toContain("지금은 카카오 로그인을 사용할 수 없어요");
+    expect(html).toContain('aria-describedby="kakao-unavailable"');
     expect(html).toContain("disabled");
   });
 
-  it("renders callback url notice when config warning is absent", () => {
+  it("renders the picturebook entry points without internal OAuth configuration", () => {
     mockUseSignInPageController.mockReturnValue({
       state: {
         providerAvailability: {
@@ -82,7 +81,9 @@ describe("SignIn page", () => {
 
     const html = renderToStaticMarkup(createElement(SignInPage));
 
-    expect(html).toContain("OAuth callback URL:");
-    expect(html).toContain("http://localhost:3000/auth/callback");
+    expect(html).toContain("우리 아이의 작은 책장");
+    expect(html).toContain('href="/sample"');
+    expect(html).not.toContain("OAuth callback URL:");
+    expect(html).not.toContain("http://localhost:3000/auth/callback");
   });
 });

@@ -1,108 +1,41 @@
 import { createElement } from "react";
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import useMessageDisplayTtsController from "@/app/components/message-display/useMessageDisplayTtsController";
 import MessageDisplay from "@/app/components/MessageDisplay";
 
-vi.mock(
-  "@/app/components/message-display/useMessageDisplayTtsController",
-  () => ({
-    default: vi.fn(),
-  }),
-);
-
-const mockUseMessageDisplayTtsController =
-  useMessageDisplayTtsController as unknown as Mock;
+vi.mock("@/app/utils/session", () => ({ requireAccessToken: vi.fn() }));
 
 describe("MessageDisplay", () => {
-  beforeEach(() => {
-    mockUseMessageDisplayTtsController.mockReset();
-    mockUseMessageDisplayTtsController.mockReturnValue({
-      state: {
-        playingIndex: null,
-        ttsErrorMessage: null,
-        controls: {
-          speed: 1,
-          pitch: 1,
-          showControls: false,
-        },
-      },
-      handlers: {
-        onToggleControls: () => {},
-        onSpeedChange: () => {},
-        onPitchChange: () => {},
-        onSpeak: () => {},
-        onStop: () => {},
-      },
-      audioRef: { current: null },
-    });
-  });
-
-  it("renders message rows with english line when enabled", () => {
+  it("renders accessible sentence controls with English when enabled", () => {
     const html = renderToStaticMarkup(
       createElement(MessageDisplay, {
-        messages: [
-          {
-            text: "옛날 옛적에",
-            text_en: "Once upon a time",
-          },
-        ],
+        messages: [{ text: "옛날 옛적에", text_en: "Once upon a time" }],
         isShowEnglish: true,
+        useGoogleTTS: false,
       }),
     );
 
     expect(html).toContain("옛날 옛적에");
     expect(html).toContain("Once upon a time");
-    expect(html).toContain("TTS 설정 보기");
+    expect(html).toContain("읽어주기 설정 보기");
+    expect(html).toContain('aria-label="1번째 문장 읽어주기"');
+    expect(html).toContain('aria-label="1번째 영어 문장 읽어주기"');
+    expect(html).toContain('aria-pressed="false"');
   });
 
-  it("hides english line when disabled", () => {
+  it("hides English content and its speech control when disabled", () => {
     const html = renderToStaticMarkup(
       createElement(MessageDisplay, {
-        messages: [
-          {
-            text: "호담 이야기",
-            text_en: "Hodam story",
-          },
-        ],
+        messages: [{ text: "호담 이야기", text_en: "Hodam story" }],
         isShowEnglish: false,
+        useGoogleTTS: false,
       }),
     );
 
     expect(html).toContain("호담 이야기");
     expect(html).not.toContain("Hodam story");
-  });
-
-  it("renders tts error banner when present", () => {
-    mockUseMessageDisplayTtsController.mockReturnValue({
-      state: {
-        playingIndex: null,
-        ttsErrorMessage: "오디오를 재생할 수 없습니다.",
-        controls: {
-          speed: 1,
-          pitch: 1,
-          showControls: false,
-        },
-      },
-      handlers: {
-        onToggleControls: () => {},
-        onSpeedChange: () => {},
-        onPitchChange: () => {},
-        onSpeak: () => {},
-        onStop: () => {},
-      },
-      audioRef: { current: null },
-    });
-
-    const html = renderToStaticMarkup(
-      createElement(MessageDisplay, {
-        messages: [{ text: "테스트", text_en: "" }],
-        isShowEnglish: false,
-      }),
-    );
-
-    expect(html).toContain("오디오를 재생할 수 없습니다.");
+    expect(html).not.toContain("영어 문장 읽어주기");
   });
 });

@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 
 import { SupabaseClient } from "@supabase/supabase-js";
 
+import { BEAD_PACKAGES } from "@/lib/payments/packages";
+
 export interface PaymentHistoryRow {
   id: string;
   user_id: string;
@@ -39,6 +41,8 @@ export type PaymentDomainErrorCode =
   | "PAYMENT_USER_MISMATCH"
   | "PAYMENT_KEY_REQUIRED"
   | "PAYMENT_KEY_MISMATCH"
+  | "PAYMENT_PACKAGE_INVALID"
+  | "PAYMENT_CREDIT_UNVERIFIED"
   | "PAYMENT_CANCELLED"
   | "PAYMENT_INVALID_STATUS_TRANSITION";
 
@@ -47,6 +51,8 @@ const KNOWN_PAYMENT_RPC_ERRORS: PaymentDomainErrorCode[] = [
   "PAYMENT_USER_MISMATCH",
   "PAYMENT_KEY_REQUIRED",
   "PAYMENT_KEY_MISMATCH",
+  "PAYMENT_PACKAGE_INVALID",
+  "PAYMENT_CREDIT_UNVERIFIED",
   "PAYMENT_CANCELLED",
   "PAYMENT_INVALID_STATUS_TRANSITION",
 ];
@@ -262,6 +268,11 @@ export async function settlePaymentAndCredit(
   payment: PaymentHistoryRow,
   paymentKey: string,
 ): Promise<{ beadCount: number; alreadyProcessed: boolean }> {
+  // Orders created before server-only accounting may contain client-supplied
+  // quantities. Apply the canonical price table before every settlement path.
+  assertValidPaymentPackage(payment);
+  assertPaymentCreditVerified(payment);
+
   const { data, error } = await admin.rpc("finalize_payment", {
     p_order_id: payment.order_id,
     p_payment_key: paymentKey,
@@ -290,6 +301,29 @@ export async function settlePaymentAndCredit(
     beadCount: Number(row.bead_count || 0),
     alreadyProcessed: Boolean(row.already_processed),
   };
+}
+
+export function assertValidPaymentPackage(
+  payment: Pick<PaymentHistoryRow, "amount" | "bead_quantity">,
+) {
+  if (
+    !BEAD_PACKAGES.some(
+      item =>
+        item.quantity === payment.bead_quantity &&
+        item.price === payment.amount,
+    )
+  ) {
+    throw new PaymentDomainError("PAYMENT_PACKAGE_INVALID");
+  }
+}
+
+export function assertPaymentCreditVerified(payment: PaymentHistoryRow) {
+  if (
+    payment.status === "completed" &&
+    (!payment.credited_at || payment.credited_user_id !== payment.user_id)
+  ) {
+    throw new PaymentDomainError("PAYMENT_CREDIT_UNVERIFIED");
+  }
 }
 
 export async function markPaymentFailed(

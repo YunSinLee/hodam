@@ -1,21 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  authenticateRequestMock,
-  createSupabaseAdminClientMock,
-  checkRateLimitMock,
-} = vi.hoisted(() => ({
-  authenticateRequestMock: vi.fn(),
-  createSupabaseAdminClientMock: vi.fn(),
-  checkRateLimitMock: vi.fn(),
-}));
+const { authenticateRequestMock, requireUserClientMock, checkRateLimitMock } =
+  vi.hoisted(() => ({
+    authenticateRequestMock: vi.fn(),
+    requireUserClientMock: vi.fn(),
+    checkRateLimitMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/auth/request-auth", () => ({
   authenticateRequest: authenticateRequestMock,
-}));
-
-vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseAdminClient: createSupabaseAdminClientMock,
+  requireUserClient: requireUserClientMock,
 }));
 
 vi.mock("@/lib/server/rate-limit", () => ({
@@ -84,22 +78,23 @@ describe("/api/v1/profile/image", () => {
     createAuthedContext();
 
     const uploadMock = vi.fn().mockResolvedValue({ error: null });
-    const getPublicUrlMock = vi.fn().mockReturnValue({
-      data: { publicUrl: "https://cdn.example.com/p.png" },
+    const createSignedUrlMock = vi.fn().mockResolvedValue({
+      data: { signedUrl: "https://cdn.example.com/signed/p.png" },
+      error: null,
     });
     const updateEqMock = vi.fn().mockResolvedValue({ error: null });
     const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
 
     const storageFromMock = vi.fn().mockReturnValue({
       upload: uploadMock,
-      getPublicUrl: getPublicUrlMock,
+      createSignedUrl: createSignedUrlMock,
       remove: vi.fn(),
     });
     const fromMock = vi.fn().mockReturnValue({
       update: updateMock,
     });
 
-    createSupabaseAdminClientMock.mockReturnValue({
+    requireUserClientMock.mockReturnValue({
       storage: { from: storageFromMock },
       from: fromMock,
     });
@@ -107,7 +102,7 @@ describe("/api/v1/profile/image", () => {
     const formData = new FormData();
     formData.append(
       "file",
-      new File(["avatar-data"], "avatar.png", { type: "image/png" }),
+      new File(["avatar-data"], "avatar.svg", { type: "image/png" }),
     );
 
     const response = await POST(
@@ -120,12 +115,19 @@ describe("/api/v1/profile/image", () => {
 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.imageUrl).toBe("https://cdn.example.com/p.png");
-    expect(createSupabaseAdminClientMock).toHaveBeenCalledWith({
-      fallbackAccessToken: "token-1",
-    });
+    expect(body.imageUrl).toBe("https://cdn.example.com/signed/p.png");
+    expect(requireUserClientMock).toHaveBeenCalledWith("token-1");
     expect(storageFromMock).toHaveBeenCalledWith("profiles");
     expect(uploadMock).toHaveBeenCalledTimes(1);
+    const path = uploadMock.mock.calls[0][0];
+    expect(path).toMatch(/^profile_user-1_[0-9a-f-]+\.png$/);
+    expect(uploadMock.mock.calls[0][2]).toMatchObject({ upsert: false });
+    expect(createSignedUrlMock).toHaveBeenCalledWith(path, 3600);
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        custom_profile_url: `profiles:${path}`,
+      }),
+    );
     expect(fromMock).toHaveBeenCalledWith("users");
     expect(updateEqMock).toHaveBeenCalledWith("id", "user-1");
   });
@@ -149,30 +151,33 @@ describe("/api/v1/profile/image", () => {
     });
   });
 
-  it("returns 400 when non-image file is uploaded", async () => {
-    const { POST } = await loadHandlers();
-    createAuthedContext();
+  it.each(["text/plain", "image/svg+xml"])(
+    "returns 400 for unsupported content type %s",
+    async contentType => {
+      const { POST } = await loadHandlers();
+      createAuthedContext();
 
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new File(["not-image"], "notes.txt", { type: "text/plain" }),
-    );
+      const formData = new FormData();
+      formData.append(
+        "file",
+        new File(["not-image"], "notes.txt", { type: contentType }),
+      );
 
-    const response = await POST(
-      new Request("http://localhost/api/v1/profile/image", {
-        method: "POST",
-        body: formData,
-      }) as never,
-    );
-    const body = await response.json();
+      const response = await POST(
+        new Request("http://localhost/api/v1/profile/image", {
+          method: "POST",
+          body: formData,
+        }) as never,
+      );
+      const body = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(body).toEqual({
-      error: "Only image files are allowed",
-      code: "PROFILE_IMAGE_CONTENT_TYPE_INVALID",
-    });
-  });
+      expect(response.status).toBe(400);
+      expect(body).toEqual({
+        error: "Only image files are allowed",
+        code: "PROFILE_IMAGE_CONTENT_TYPE_INVALID",
+      });
+    },
+  );
 
   it("returns 400 when image file is missing", async () => {
     const { POST } = await loadHandlers();
@@ -222,46 +227,54 @@ describe("/api/v1/profile/image", () => {
     });
   });
 
-  it("returns 500 when storage upload fails", async () => {
-    const { POST } = await loadHandlers();
-    createAuthedContext();
+  it.each(["upload", "signing"])(
+    "does not save an unreadable profile after %s fails",
+    async failureStage => {
+      const { POST } = await loadHandlers();
+      createAuthedContext();
 
-    const storageFromMock = vi.fn().mockReturnValue({
-      upload: vi
-        .fn()
-        .mockResolvedValue({ error: { message: "upload failed" } }),
-      getPublicUrl: vi.fn(),
-      remove: vi.fn(),
-    });
-    const fromMock = vi.fn().mockReturnValue({
-      update: vi.fn(),
-    });
+      const storageFromMock = vi.fn().mockReturnValue({
+        upload: vi.fn().mockResolvedValue({
+          error:
+            failureStage === "upload" ? { message: "upload failed" } : null,
+        }),
+        createSignedUrl: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: "signing failed" },
+        }),
+        remove: vi.fn(),
+      });
+      const fromMock = vi.fn().mockReturnValue({
+        update: vi.fn(),
+      });
 
-    createSupabaseAdminClientMock.mockReturnValue({
-      storage: { from: storageFromMock },
-      from: fromMock,
-    });
+      requireUserClientMock.mockReturnValue({
+        storage: { from: storageFromMock },
+        from: fromMock,
+      });
 
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new File(["avatar-data"], "avatar.png", { type: "image/png" }),
-    );
+      const formData = new FormData();
+      formData.append(
+        "file",
+        new File(["avatar-data"], "avatar.png", { type: "image/png" }),
+      );
 
-    const response = await POST(
-      new Request("http://localhost/api/v1/profile/image", {
-        method: "POST",
-        body: formData,
-      }) as never,
-    );
-    const body = await response.json();
+      const response = await POST(
+        new Request("http://localhost/api/v1/profile/image", {
+          method: "POST",
+          body: formData,
+        }) as never,
+      );
+      const body = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(body).toEqual({
-      error: "Failed to upload profile image",
-      code: "PROFILE_IMAGE_UPLOAD_FAILED",
-    });
-  });
+      expect(response.status).toBe(500);
+      expect(body).toEqual({
+        error: "Failed to upload profile image",
+        code: "PROFILE_IMAGE_UPLOAD_FAILED",
+      });
+      expect(fromMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns 401 when unauthorized on delete", async () => {
     const { DELETE } = await loadHandlers();
@@ -284,64 +297,82 @@ describe("/api/v1/profile/image", () => {
     });
   });
 
-  it("removes profile image reference and deletes object", async () => {
-    const { DELETE } = await loadHandlers();
-    createAuthedContext();
+  it.each([
+    [
+      "https://example.supabase.co/storage/v1/object/public/profiles/user-1/profile_123.png",
+      "user-1/profile_123.png",
+    ],
+    ["profiles:profile_user-1_abcd-1234.png", "profile_user-1_abcd-1234.png"],
+    ["profiles:profile_user-2_abcd-1234.png", null],
+    [
+      "https://example.supabase.co/storage/v1/object/public/profiles/user-2/profile_123.png",
+      null,
+    ],
+    ["profiles:profile_user-1_../../user-2/profile_123.png", null],
+  ])(
+    "removes the reference and deletes only an owned object: %s",
+    async (reference, expectedPath) => {
+      const { DELETE } = await loadHandlers();
+      createAuthedContext();
 
-    const removeMock = vi.fn().mockResolvedValue({ data: null, error: null });
-    const singleMock = vi.fn().mockResolvedValue({
-      data: {
-        custom_profile_url:
-          "https://example.supabase.co/storage/v1/object/public/profiles/user-1/profile_123.png",
-      },
-      error: null,
-    });
-    const selectEqMock = vi.fn().mockReturnValue({
-      single: singleMock,
-    });
-    const selectMock = vi.fn().mockReturnValue({
-      eq: selectEqMock,
-    });
-    const updateEqMock = vi.fn().mockResolvedValue({ error: null });
-    const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
+      const removeMock = vi.fn().mockResolvedValue({ data: null, error: null });
+      const singleMock = vi.fn().mockResolvedValue({
+        data: {
+          custom_profile_url: reference,
+        },
+        error: null,
+      });
+      const selectEqMock = vi.fn().mockReturnValue({
+        single: singleMock,
+      });
+      const selectMock = vi.fn().mockReturnValue({
+        eq: selectEqMock,
+      });
+      const updateEqMock = vi.fn().mockResolvedValue({ error: null });
+      const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
 
-    const storageFromMock = vi.fn().mockReturnValue({
-      upload: vi.fn(),
-      getPublicUrl: vi.fn(),
-      remove: removeMock,
-    });
+      const storageFromMock = vi.fn().mockReturnValue({
+        upload: vi.fn(),
+        getPublicUrl: vi.fn(),
+        remove: removeMock,
+      });
 
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === "users") {
+      const fromMock = vi.fn().mockImplementation((table: string) => {
+        if (table === "users") {
+          return {
+            select: selectMock,
+            update: updateMock,
+          };
+        }
+
         return {
-          select: selectMock,
-          update: updateMock,
+          select: vi.fn(),
+          update: vi.fn(),
         };
+      });
+
+      requireUserClientMock.mockReturnValue({
+        storage: { from: storageFromMock },
+        from: fromMock,
+      });
+
+      const response = await DELETE(
+        new Request("http://localhost/api/v1/profile/image", {
+          method: "DELETE",
+        }) as never,
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.success).toBe(true);
+      expect(updateEqMock).toHaveBeenCalledWith("id", "user-1");
+      if (expectedPath) {
+        expect(removeMock).toHaveBeenCalledWith([expectedPath]);
+      } else {
+        expect(removeMock).not.toHaveBeenCalled();
       }
-
-      return {
-        select: vi.fn(),
-        update: vi.fn(),
-      };
-    });
-
-    createSupabaseAdminClientMock.mockReturnValue({
-      storage: { from: storageFromMock },
-      from: fromMock,
-    });
-
-    const response = await DELETE(
-      new Request("http://localhost/api/v1/profile/image", {
-        method: "DELETE",
-      }) as never,
-    );
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.success).toBe(true);
-    expect(updateEqMock).toHaveBeenCalledWith("id", "user-1");
-    expect(removeMock).toHaveBeenCalledWith(["user-1/profile_123.png"]);
-  });
+    },
+  );
 
   it("returns 429 when delete rate limit is exceeded", async () => {
     const { DELETE } = await loadHandlers();
@@ -383,7 +414,7 @@ describe("/api/v1/profile/image", () => {
       update: updateMock,
     });
 
-    createSupabaseAdminClientMock.mockReturnValue({
+    requireUserClientMock.mockReturnValue({
       storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) },
       from: fromMock,
     });

@@ -13,6 +13,8 @@ import {
 } from "@/lib/payments/toss-api";
 import { logError, logInfo } from "@/lib/server/logger";
 import {
+  assertValidPaymentPackage,
+  assertPaymentCreditVerified,
   getPaymentByOrderId,
   PaymentDomainError,
   settlePaymentAndCredit,
@@ -29,22 +31,10 @@ type ReconciliationState =
   | "error";
 
 interface TossOrderLookup {
+  orderId?: string;
   paymentKey?: string;
   totalAmount: number;
   status?: string;
-}
-
-function normalizeNumber(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
 }
 
 async function parseJsonSafe(
@@ -75,20 +65,22 @@ async function fetchTossPaymentByOrderId(
       headers: {
         Authorization: createTossBasicAuthorization(secretKey),
       },
+      signal: AbortSignal.timeout(15_000),
     },
   );
 
+  if (!response.ok) return null;
   const payload = await parseJsonSafe(response);
   if (!payload) {
     return null;
   }
 
   return {
+    orderId: typeof payload.orderId === "string" ? payload.orderId : undefined,
     paymentKey:
       typeof payload.paymentKey === "string" ? payload.paymentKey : undefined,
-    totalAmount: normalizeNumber(
-      payload.totalAmount || payload.balanceAmount || payload.amount || 0,
-    ),
+    totalAmount:
+      typeof payload.totalAmount === "number" ? payload.totalAmount : NaN,
     status: typeof payload.status === "string" ? payload.status : undefined,
   };
 }
@@ -179,9 +171,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const admin = createSupabaseAdminClient({
-      fallbackAccessToken: authContext.accessToken,
-    });
+    const admin = createSupabaseAdminClient();
     let payment = await getPaymentByOrderId(admin, orderId);
 
     if (!payment) {
@@ -220,16 +210,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    assertValidPaymentPackage(payment);
+    assertPaymentCreditVerified(payment);
+    if (
+      paymentKeyParam &&
+      payment.payment_key &&
+      paymentKeyParam !== payment.payment_key
+    ) {
+      throw new PaymentDomainError("PAYMENT_KEY_MISMATCH");
+    }
+
     let providerStatus: string | undefined;
     let reconciliationState: ReconciliationState = "not_attempted";
     let beadCount: number | undefined;
     let alreadyProcessed: boolean | undefined;
 
-    if (payment.status === "pending") {
+    if (payment.status === "pending" || payment.status === "failed") {
       const tossPayment = await fetchTossPaymentByOrderId(orderId).catch(
         () => null,
       );
       if (!tossPayment) {
+        reconciliationState = "error";
+      } else if (tossPayment.orderId !== orderId) {
         reconciliationState = "error";
       } else if (tossPayment.status !== "DONE") {
         providerStatus = tossPayment.status;
@@ -238,8 +240,13 @@ export async function GET(request: NextRequest) {
         providerStatus = tossPayment.status;
         reconciliationState = "amount_mismatch";
       } else {
-        const paymentKeyToUse =
-          paymentKeyParam || payment.payment_key || tossPayment.paymentKey;
+        const paymentKeyToUse = tossPayment.paymentKey;
+        if (
+          (paymentKeyParam && paymentKeyParam !== paymentKeyToUse) ||
+          (payment.payment_key && payment.payment_key !== paymentKeyToUse)
+        ) {
+          throw new PaymentDomainError("PAYMENT_KEY_MISMATCH");
+        }
 
         providerStatus = tossPayment.status;
         if (paymentKeyToUse) {
@@ -254,6 +261,8 @@ export async function GET(request: NextRequest) {
 
           const refreshed = await getPaymentByOrderId(admin, orderId);
           if (refreshed) {
+            assertValidPaymentPackage(refreshed);
+            assertPaymentCreditVerified(refreshed);
             payment = refreshed;
           }
         } else {
@@ -291,6 +300,19 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof PaymentDomainError) {
+      if (
+        error.code === "PAYMENT_PACKAGE_INVALID" ||
+        error.code === "PAYMENT_CREDIT_UNVERIFIED"
+      ) {
+        return failWithCode(
+          409,
+          "Payment requires manual verification",
+          error.code,
+          undefined,
+          { headers: buildPaymentFlowHeaders("status", paymentFlowId) },
+        );
+      }
+
       if (error.code === "PAYMENT_NOT_FOUND") {
         return failWithCode(
           404,

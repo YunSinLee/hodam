@@ -58,8 +58,14 @@ import {
   clearOAuthProviderMarker,
   readRecentOAuthProviderMarker,
 } from "@/lib/auth/oauth-provider-marker";
-import { consumePostLoginRedirectPath } from "@/lib/auth/post-login-redirect";
+import {
+  consumePostLoginRedirectPath,
+  readPostLoginRedirectPath,
+  sanitizePostLoginRedirectPath,
+  savePostLoginRedirectPath,
+} from "@/lib/auth/post-login-redirect";
 import { toSessionUserInfo } from "@/lib/auth/session-state";
+import { buildSignInRedirectPath } from "@/lib/auth/sign-in-redirect";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 export default function useAuthCallbackController() {
@@ -67,7 +73,7 @@ export default function useAuthCallbackController() {
   const { setUserInfo } = useUserInfo();
   const handledRef = useRef(false);
   const completedRef = useRef(false);
-  const redirectTargetRef = useRef<string>("/");
+  const redirectTargetRef = useRef<string>("/service");
   const [status, setStatus] = useState<AuthCallbackStatus>("loading");
   const [message, setMessage] = useState("로그인 처리 중...");
   const [recoveryCode, setRecoveryCode] =
@@ -103,6 +109,17 @@ export default function useAuthCallbackController() {
     let redirectFallbackCleanup: (() => void) | null = null;
     let disposed = false;
     const callbackUrl = new URL(window.location.href);
+    // Accept callbacks launched before this release as well as destinations
+    // saved by the current sign-in flow.
+    const rawNextPath = callbackUrl.searchParams.get("next");
+    if (rawNextPath !== null) {
+      savePostLoginRedirectPath(
+        sanitizePostLoginRedirectPath(rawNextPath) || "/service",
+      );
+    }
+    redirectTargetRef.current = readPostLoginRedirectPath(
+      sanitizePostLoginRedirectPath(rawNextPath) || "/service",
+    );
     const emitMetric = createAuthCallbackMetricEmitter(callbackUrl);
     const callbackMarker = readRecentOAuthProviderMarker();
     const callbackProvider = callbackMarker?.provider || null;
@@ -217,9 +234,11 @@ export default function useAuthCallbackController() {
       setUserInfo(sessionUserInfo);
       statusRef.current = "success";
       setStatus("success");
-      setMessage("로그인 성공! 메인 페이지로 이동합니다...");
+      setMessage("로그인 성공! 작성하던 화면으로 돌아갑니다...");
       setAutoRecoveryNotice(null);
-      const redirectTarget = consumePostLoginRedirectPath("/");
+      const redirectTarget = consumePostLoginRedirectPath(
+        redirectTargetRef.current,
+      );
       redirectTargetRef.current = redirectTarget;
       emitAndSyncMetric("callback_success", {
         redirectTarget,
@@ -604,10 +623,18 @@ export default function useAuthCallbackController() {
 
   const handlers: AuthCallbackPageHandlers = {
     onManualRecoveryClick: () =>
-      router.push(`/sign-in?auth_error=${encodeURIComponent("timeout")}`),
+      router.push(
+        buildSignInRedirectPath(
+          readPostLoginRedirectPath(redirectTargetRef.current),
+          "timeout",
+        ),
+      ),
     onRetryClick: (nextRecoveryCode: SignInRecoveryCode) =>
       router.push(
-        `/sign-in?auth_error=${encodeURIComponent(nextRecoveryCode)}`,
+        buildSignInRedirectPath(
+          readPostLoginRedirectPath(redirectTargetRef.current),
+          nextRecoveryCode,
+        ),
       ),
     onSuccessClick: () => router.replace(redirectTargetRef.current),
     onRefreshDebugEvents: () => refreshDebugEventsRef.current(),

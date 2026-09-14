@@ -1,13 +1,13 @@
-# 호담 (HODAM) - AI 동화 생성 서비스
+# 호담 (HODAM) — 오늘을 담은 잠자리 그림책
 
-AI 기술로 만드는 개인 맞춤형 동화 서비스입니다.
+아이의 하루를 입력하고 첫 4쪽을 읽은 뒤, 행동을 선택하면 결말 4쪽이 이어지는 개인 맞춤형 그림책 서비스입니다. `/sample`에서는 로그인 없이 읽기 흐름을 체험할 수 있습니다.
 
 ## 🚀 시작하기
 
 ### Node 버전
 
-- 최소: `>=20`
-- 권장: `22` (`.nvmrc` 참고)
+- Node.js `22` 최신 패치 (`.nvmrc` 기준, `22.13` 이상)
+- 패키지 관리자는 npm이며 `package-lock.json`을 기준으로 `npm ci`를 사용합니다.
 
 ### 환경 설정
 
@@ -29,10 +29,21 @@ npm run check:env:strict
 
 ### Cursor MCP 설정 (선택사항)
 
-AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
+AI 개발 도구인 Cursor에서 MCP 서버를 사용하려면:
+
+#### Supabase MCP 설정
 
 1. Supabase 대시보드에서 Personal Access Token 생성
-2. `.cursor/mcp.json` 파일 생성:
+2. `.cursor/mcp.json` 파일에 Supabase 설정 추가
+
+#### Figma MCP 설정
+
+1. Figma에서 Personal Access Token 생성:
+   - Figma 설정 → Account → Personal Access Tokens
+   - 새 토큰 생성 및 복사
+2. `.cursor/mcp.json` 파일에 Figma 설정 추가
+
+**전체 설정 예시:**
 
 ```json
 {
@@ -42,6 +53,13 @@ AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
       "args": ["-y", "@supabase/mcp-server-supabase@latest", "--access-token"],
       "env": {
         "SUPABASE_ACCESS_TOKEN": "your_personal_access_token"
+      }
+    },
+    "figma": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-figma"],
+      "env": {
+        "FIGMA_ACCESS_TOKEN": "your_figma_access_token"
       }
     }
   }
@@ -81,7 +99,7 @@ AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
 ## 📦 설치
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -94,10 +112,10 @@ npm run dev
 - `npm run build`
 - `npm run check:threads:local` (로컬 계약 검증)
 - GitHub Actions `Security Check` 워크플로우는 수동 실행/주간 실행으로 `npm run check:supabase:security`를 수행합니다.
-- CI/Security Check 모두 `npm run check:supabase:security:strict`를 기본 실행합니다.
+- CI/Security Check 모두 필요한 Supabase 연결 설정이 있을 때 `npm run check:supabase:security:strict`를 실행합니다.
 - 저장소 변수 `HODAM_SUPABASE_SECURITY_IGNORE_LINTS`로 strict 무시 목록을 설정할 수 있습니다.
-- 기본 fallback 무시 목록은 `auth_leaked_password_protection,vulnerable_postgres_version` 입니다.
-- 위 fallback은 임시 조치이므로 Supabase 플랜/DB 패치 이후 제거해야 합니다.
+- 기본 fallback 무시 목록은 `auth_leaked_password_protection,vulnerable_postgres_version,missing_service_role_key,missing_management_credentials`입니다.
+- 위 fallback은 임시 조치입니다. 플랜·DB 패치·운영 자격증명 설정 이후 해당 예외를 제거합니다. 특히 회계 마이그레이션 이후 실제 서버 역할 키 준비 여부는 배포 게이트에서 별도로 확인합니다.
 - `Security Check`의 GitHub failed-runs 진단 결과는 Step Summary와 `github-failed-runs-main-report` artifact로 저장됩니다.
 - `Security Check` / `E2E Auth` / `E2E Payments`는 required secret이 없으면 기본적으로 `skip`(성공 종료)됩니다.
 - 저장소 변수 `HODAM_ENFORCE_SECRET_CHECKS=1`을 설정하면 required secret 누락 시 즉시 `fail` 처리됩니다.
@@ -113,7 +131,7 @@ npm run dev
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `HODAM_TEST_ACCESS_TOKEN` (직접 토큰 주입) 또는 `HODAM_TEST_USER_EMAIL` + `HODAM_TEST_USER_PASSWORD` (워크플로우가 토큰 자동 발급)
 - (선택) 로컬 fallback 계정 env: `HODAM_TEST_DEFAULT_USER_EMAIL` + `HODAM_TEST_DEFAULT_USER_PASSWORD`
-- (선택) `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (9월 회계 마이그레이션 이후 인증 결제 검증에 필수)
 - 위 secret 조합이 없으면 `E2E Payments` job은 자동으로 skip 됩니다.
 - GitHub failed-runs 진단:
 - `npm run check:github:failed-runs -- --limit=20 --branch=main --max-age-hours=240`
@@ -154,7 +172,8 @@ npm run check:post-upgrade -- --runtime-origin=https://your-domain.com --post-db
 # 의존성 취약점 점검
 npm run check:audit:prod
 npm run check:audit:all
-# 결제 위젯을 사용하려면 NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY 설정 필요
+# 결제 활성화에는 SUPABASE_SERVICE_ROLE_KEY, TOSS_PAYMENTS_SECRET_KEY,
+# NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY가 모두 필요
 
 # OAuth 설정/프로바이더 진단
 npm run check:oauth
@@ -374,3 +393,39 @@ npm run check:payments:webhook-coverage -- --report-file=reports/local/webhook-c
 ## 📄 라이선스
 
 이 프로젝트는 MIT 라이선스 하에 있습니다.
+
+## 개발 및 검증
+
+Node.js 22 최신 패치와 npm을 사용합니다. `.nvmrc`로 버전을 맞춘 뒤 `npm ci`로 설치합니다. CI의 lint는 경고도 실패로 처리하며, `npm test`는 기존 `src`·`scripts` 테스트와 `tests`의 그림책 QA 테스트를 함께 실행합니다.
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run start
+```
+
+로컬 PostgreSQL의 `initdb`, `pg_ctl`, `psql`이 있다면 `npm run test:db`로 권한 마이그레이션을 격리된 임시 DB에서 검증할 수 있습니다. 운영 Supabase에는 연결하지 않습니다.
+
+## API 구성
+
+- 새 8쪽 그림책의 생성·결말·삽화는 `src/app/api/story-actions.ts`의 인증된 서버 액션을 사용합니다. 이전 동화와 `/api/v1/story/*` API도 유지합니다.
+- 계정·책장·결제 화면은 기존 `/api/v1` 클라이언트와 API 계약을 사용합니다. `/api/routes/payment/confirm`도 같은 v1 승인 핸들러로 연결됩니다.
+- 결제 승인·상태 복구·웹훅은 공급자 확인과 공통 지급 처리를 사용합니다. 웹훅 주소는 `/api/v1/payments/webhook`입니다.
+- 그림과 프로필은 비공개 버킷의 서명 URL로 표시합니다. 이전 동화의 중첩 경로와 새 그림책 경로를 함께 지원하며, 새 프로필은 만료되는 URL 대신 저장소 경로를 보관합니다.
+
+## 그림책과 결제 설정
+
+`.env.example`에 필요한 항목을 정리했습니다. OpenAI 키는 서버 환경변수 `OPENAI_API_KEY`로만 설정합니다. 기존 `OPEN_AI_API_KEY`도 호환되지만 공개 빌드 설정에 넣지 않습니다. 글 모델은 `OPENAI_STORY_MODEL`, 그림 모델은 `OPENAI_IMAGE_MODEL`로 설정합니다. 기본 그림 모델은 `gpt-image-2.5-flare`이며 1024×1024, low 품질을 사용합니다.
+
+결제에는 `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_PAYMENTS_SECRET_KEY`, `NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY`가 모두 필요합니다. 누락되면 `/api/routes/payment/config`는 `enabled: false`를 반환하고 충전 버튼은 비활성화됩니다. 이 문서는 운영 키 설정 완료를 의미하지 않습니다. 서비스 역할 키는 생성 저장 실패 시 자동 복구에도 필요하며 서버 환경에만 설정합니다. OAuth 리다이렉트 허용 목록에는 배포 도메인의 `/auth/callback`과 사용 중인 로컬 주소를 등록합니다.
+
+4월 마이그레이션 이력이 반영된 기존 DB에 호환 서버를 배포한 뒤, 같은 릴리스에서 아래 두 마이그레이션을 순서대로 적용합니다. `npm run build`나 Vercel 배포는 SQL을 자동 적용하지 않습니다.
+
+1. `20260914010000_harden_hodam_accounting.sql`: 회계 권한과 생성 요청 중복을 제어하고 운영 권한 스모크 검사도 갱신합니다. 기존 그림책 요청 ID 중복이 있으면 적용이 중단되므로 먼저 확인합니다.
+2. `20260914020000_private_picturebook_storage.sql`: `image`·`profiles`를 비공개로 설정하고 새 경로와 기존 사용자별 경로에 소유권 정책을 적용합니다.
+
+적용 전 서버 키와 DB 이력, 복구 가능한 백업을 확인하고 적용 후 권한 검사·기존 책 삽화·프로필·결제를 확인합니다. 적용 후에는 공개 object URL과 이전 브라우저 결제에 의존하는 버전으로 코드만 되돌릴 수 없습니다. 호환 버전을 유지하는 복구 절차는 [배포 체크리스트](DEPLOYMENT_CHECKLIST.md)를 따릅니다.
+
+[서비스 개선 기록](docs/2026-09-14-service-review.md)과 [2차 QA 기록](docs/2026-09-14-qa-followup.md)은 통합 전 검증 이력입니다. 당시 신규 AI 생성 성공 검증은 API 이용 한도로 완료하지 못했으므로, 실제 배포 완료 여부와 공급자 검증 결과는 해당 릴리스의 배포 기록에서 확인합니다.

@@ -17,7 +17,7 @@ function createSession(params: {
         avatar_url: params.avatarUrl,
       },
     },
-  } as Session;
+  } as unknown as Session;
 }
 
 describe("resolveNavBarSessionState", () => {

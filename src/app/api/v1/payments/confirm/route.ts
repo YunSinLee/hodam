@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { validPaymentInput } from "@/app/utils/bead-packages";
 import { authenticateRequest } from "@/lib/auth/request-auth";
 import { getOptionalEnv, getRequiredEnv } from "@/lib/env";
 import {
@@ -14,6 +15,8 @@ import {
 import { trackUserActivityBestEffort } from "@/lib/server/analytics";
 import { logError, logInfo } from "@/lib/server/logger";
 import {
+  assertValidPaymentPackage,
+  assertPaymentCreditVerified,
   getPaymentByOrderId,
   markPaymentFailed,
   PaymentDomainError,
@@ -22,12 +25,6 @@ import {
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { createApiRequestContext } from "@/lib/server/request-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-
-interface ConfirmPaymentRequestBody {
-  paymentKey: string;
-  orderId: string;
-  amount: number;
-}
 
 function isAlreadyProcessedPaymentError(code: string | undefined): boolean {
   if (!code) return false;
@@ -96,9 +93,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: ConfirmPaymentRequestBody;
+  let body: unknown;
   try {
-    body = (await request.json()) as ConfirmPaymentRequestBody;
+    body = await request.json();
   } catch (error) {
     return failWithCode(
       400,
@@ -111,31 +108,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const paymentKey = (body.paymentKey || "").trim();
-  const orderId = (body.orderId || "").trim();
-  const amount = Number(body.amount);
+  if (!validPaymentInput(body)) {
+    return failWithCode(
+      400,
+      "paymentKey, orderId, amount are required",
+      "PAYMENTS_CONFIRM_INPUT_INVALID",
+      undefined,
+      { headers: buildPaymentFlowHeaders("confirm", requestPaymentFlowId) },
+    );
+  }
+
+  const { paymentKey, orderId, amount } = body;
   const paymentFlowId = resolvePaymentFlowId({
     orderId,
     candidate: incomingPaymentFlowId,
     fallbackSeed: requestId,
   });
 
-  if (!paymentKey || !orderId || !Number.isFinite(amount) || amount <= 0) {
-    return failWithCode(
-      400,
-      "paymentKey, orderId, amount are required",
-      "PAYMENTS_CONFIRM_INPUT_INVALID",
-      undefined,
-      {
-        headers: buildPaymentFlowHeaders("confirm", paymentFlowId),
-      },
-    );
-  }
-
   try {
-    const admin = createSupabaseAdminClient({
-      fallbackAccessToken: authContext.accessToken,
-    });
+    const admin = createSupabaseAdminClient();
     const payment = await getPaymentByOrderId(admin, orderId);
 
     if (!payment) {
@@ -172,6 +163,12 @@ export async function POST(request: NextRequest) {
           headers: buildPaymentFlowHeaders("confirm", paymentFlowId),
         },
       );
+    }
+
+    assertValidPaymentPackage(payment);
+    assertPaymentCreditVerified(payment);
+    if (payment.payment_key && payment.payment_key !== paymentKey) {
+      throw new PaymentDomainError("PAYMENT_KEY_MISMATCH");
     }
 
     if (payment.status === "cancelled") {
@@ -234,20 +231,22 @@ export async function POST(request: NextRequest) {
       getOptionalEnv("TOSS_PAYMENTS_SECRET_KEY") ||
       getRequiredEnv("TOSS_PAYMENTS_SECRET_KEY");
 
-    const tossResponse = await fetch(buildTossApiUrl("/payments/confirm"), {
+    let tossResponse = await fetch(buildTossApiUrl("/payments/confirm"), {
       method: "POST",
       headers: {
         Authorization: createTossBasicAuthorization(secretKey),
         "Content-Type": "application/json",
+        "Idempotency-Key": `confirm_${orderId}`,
       },
       body: JSON.stringify({
         paymentKey,
         orderId,
         amount,
       }),
+      signal: AbortSignal.timeout(20_000),
     });
 
-    const tossPayload = await parseJsonSafe(tossResponse);
+    let tossPayload = await parseJsonSafe(tossResponse);
     const tossCode =
       typeof tossPayload?.code === "string" ? tossPayload.code : undefined;
     const tossMessage =
@@ -255,53 +254,35 @@ export async function POST(request: NextRequest) {
         ? tossPayload.message
         : undefined;
 
-    if (!tossResponse.ok) {
-      if (isAlreadyProcessedPaymentError(tossCode)) {
-        const refreshed = await getPaymentByOrderId(admin, orderId);
-        if (refreshed?.status === "completed") {
-          const settled = await settlePaymentAndCredit(
-            admin,
-            refreshed,
-            paymentKey,
-          );
-
-          logInfo("/api/v1/payments/confirm", {
-            requestId,
-            userId: authContext.userId,
-            orderId,
-            paymentFlowId,
-            outcome: "provider_already_processed",
-            alreadyProcessed: true,
-          });
-
-          return okWithRequestId(
-            {
-              success: true,
-              orderId,
-              paymentKey,
-              amount,
-              beadCount: settled.beadCount,
-              alreadyProcessed: true,
-              paymentFlowId,
-              paymentStatus: "DONE",
-              approvedAt: refreshed.completed_at || null,
-            },
-            {
-              headers: buildPaymentFlowHeaders("confirm", paymentFlowId),
-            },
-          );
-        }
+    if (!tossResponse.ok && isAlreadyProcessedPaymentError(tossCode)) {
+      // Approval may have succeeded before the response or local credit write.
+      // Read the actual provider state instead of failing the retryable order.
+      tossResponse = await fetch(
+        buildTossApiUrl(`/payments/${encodeURIComponent(paymentKey)}`),
+        {
+          method: "GET",
+          headers: { Authorization: createTossBasicAuthorization(secretKey) },
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      tossPayload = await parseJsonSafe(tossResponse);
+      if (!tossResponse.ok) {
+        return failWithCode(
+          503,
+          "Payment approval recovery is temporarily unavailable",
+          "PAYMENTS_PROVIDER_TEMP_FAILURE",
+          undefined,
+          { headers: buildPaymentFlowHeaders("confirm", paymentFlowId) },
+        );
       }
-
+    } else if (!tossResponse.ok) {
       if (tossResponse.status >= 500) {
         return failWithCode(
           502,
           "Payment provider temporary failure",
           "PAYMENTS_PROVIDER_TEMP_FAILURE",
           tossCode ? { code: tossCode } : undefined,
-          {
-            headers: buildPaymentFlowHeaders("confirm", paymentFlowId),
-          },
+          { headers: buildPaymentFlowHeaders("confirm", paymentFlowId) },
         );
       }
 
@@ -311,9 +292,22 @@ export async function POST(request: NextRequest) {
         tossMessage || "Payment confirmation failed",
         "PAYMENTS_CONFIRM_FAILED",
         tossCode ? { code: tossCode } : undefined,
-        {
-          headers: buildPaymentFlowHeaders("confirm", paymentFlowId),
-        },
+        { headers: buildPaymentFlowHeaders("confirm", paymentFlowId) },
+      );
+    }
+
+    if (
+      tossPayload?.status !== "DONE" ||
+      tossPayload.orderId !== orderId ||
+      tossPayload.paymentKey !== paymentKey ||
+      tossPayload.totalAmount !== amount
+    ) {
+      return failWithCode(
+        409,
+        "Provider payment does not match the order",
+        "PAYMENT_PROVIDER_MISMATCH",
+        undefined,
+        { headers: buildPaymentFlowHeaders("confirm", paymentFlowId) },
       );
     }
 
@@ -359,6 +353,19 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof PaymentDomainError) {
+      if (
+        error.code === "PAYMENT_PACKAGE_INVALID" ||
+        error.code === "PAYMENT_CREDIT_UNVERIFIED"
+      ) {
+        return failWithCode(
+          409,
+          "Payment requires manual verification",
+          error.code,
+          undefined,
+          { headers: buildPaymentFlowHeaders("confirm", paymentFlowId) },
+        );
+      }
+
       if (error.code === "PAYMENT_NOT_FOUND") {
         return failWithCode(
           404,
@@ -429,7 +436,7 @@ export async function POST(request: NextRequest) {
       paymentFlowId,
     });
     return failWithCode(
-      500,
+      503,
       "Failed to confirm payment",
       "PAYMENTS_CONFIRM_FAILED",
       undefined,

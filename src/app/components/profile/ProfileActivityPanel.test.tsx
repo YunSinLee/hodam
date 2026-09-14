@@ -83,7 +83,10 @@ describe("ProfileActivityPanel", () => {
           created_at: "2026-04-07T00:00:00.000Z",
           able_english: true,
           has_image: false,
-          keywords: [{ keyword: "숲속" }, { keyword: "토끼" }],
+          keywords: [
+            { id: 1, thread_id: 1, keyword: "숲속" },
+            { id: 1, thread_id: 1, keyword: "토끼" },
+          ],
         },
       ],
       paymentHistory: [

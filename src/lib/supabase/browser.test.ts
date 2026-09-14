@@ -29,7 +29,7 @@ describe("supabase browser client", () => {
     createClientMock.mockReturnValue({ auth: {} } as never);
   });
 
-  it("creates browser client with explicit auth options", async () => {
+  it("enables callback session detection alongside persistent PKCE recovery", async () => {
     const { getBrowserSupabaseClient } = await loadModule();
     getBrowserSupabaseClient();
 
@@ -39,7 +39,7 @@ describe("supabase browser client", () => {
       expect.objectContaining({
         auth: expect.objectContaining({
           flowType: "pkce",
-          detectSessionInUrl: false,
+          detectSessionInUrl: true,
           persistSession: true,
           autoRefreshToken: true,
         }),
