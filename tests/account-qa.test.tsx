@@ -126,16 +126,19 @@ describe("authenticated account QA", () => {
     render(<MyStory />);
     await screen.findByRole("heading", { name: "작은 용기" });
     expect(screen.queryByRole("heading", { name: "빈 기록" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "예전 동화" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "예전 동화" })).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: /예전 동화 보관함/ })
+        .getAttribute("href"),
+    ).toBe("/my-story/archive");
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "complete" },
     });
     expect(screen.queryByRole("heading", { name: "예전 동화" })).toBeNull();
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "empty" },
-    });
-    expect(screen.getByRole("heading", { name: "빈 기록" })).toBeTruthy();
-    expect(screen.getByText("내용이 없는 기록")).toBeTruthy();
+    expect(
+      screen.queryByRole("option", { name: "내용 확인이 필요한 기록" }),
+    ).toBeNull();
     expect(screen.queryByText("저장된 동화")).toBeNull();
   });
   it("does not show a previous account's delayed shelf response", async () => {
