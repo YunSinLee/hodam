@@ -66,7 +66,7 @@ export default function PicturebookPage({
               setFailedUrl(imageUrl);
               onImageError?.(page.pageNumber);
             }}
-            className="mb-5 aspect-square w-full rounded-lg object-cover shadow-sm"
+            className="mb-5 aspect-square h-auto w-full rounded-lg object-cover shadow-sm"
           />
         ) : (
           <div className="mb-5 flex min-h-[48px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-orange-200 bg-white/70 p-3 text-center text-sm leading-6 text-orange-700">
