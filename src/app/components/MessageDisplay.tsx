@@ -479,8 +479,8 @@ export default function MessageDisplay({
             }
           >
             <span
-              className={`py-2 px-3 border-l-4 border-orange-500 text-gray-800 transition-all 
-                ${playingIndex === index ? "bg-orange-50" : "hover:bg-orange-50/50"} 
+              className={`py-2 px-3 border-l-4 border-orange-500 text-gray-800 transition-all
+                ${playingIndex === index ? "bg-orange-50" : "hover:bg-orange-50/50"}
                 cursor-pointer rounded-r flex items-center`}
             >
               {/* 아이콘 표시 공간 고정 */}
@@ -532,8 +532,8 @@ export default function MessageDisplay({
               }
             >
               <span
-                className={`py-2 px-3 border-l-4 border-blue-400 text-gray-600 italic transition-all 
-                  ${playingIndex === index + 1000 ? "bg-blue-50" : "hover:bg-blue-50/50"} 
+                className={`py-2 px-3 border-l-4 border-blue-400 text-gray-600 italic transition-all
+                  ${playingIndex === index + 1000 ? "bg-blue-50" : "hover:bg-blue-50/50"}
                   cursor-pointer rounded-r flex items-center`}
               >
                 {/* 아이콘 표시 공간 고정 (영어) */}
