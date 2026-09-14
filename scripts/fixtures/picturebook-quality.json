@@ -291,7 +291,7 @@
         ],
         "keyObject": "흰 토끼 인형, 창문 밖 작은 별, 침대 이불",
         "resolutionGoal": "토끼의 부드러운 감촉을 느끼며 창문 밖 별에게 인사하고, 어두운 방에서 이불을 덮고 눕는다.",
-        "visualStyle": "A six-year-old child named Byeol with a short straight black bob wears pale yellow long-sleeved pajamas on every page. The same small white rabbit plush has long floppy ears and a round pink nose. All scenes stay in one bedroom with a blue blanket, a coat rack, and light cream curtains. The small star is a real distant star outside the window, not another child or a star-shaped toy. Soft gouache and colored pencil texture."
+        "visualStyle": "A six-year-old child named Byeol with a short straight black bob wears pale yellow long-sleeved pajamas on every page. The same small white rabbit plush has long floppy ears and a round pink nose. All scenes stay in one bedroom with a blue blanket, a coat rack, and light cream curtains. The small star is a real distant star outside the window, not another child or a star-shaped toy. Soft gouache and colored pencil texture. Room lights and lamps remain off on every page; only faint natural light enters through the window."
       },
       "pages": [
         {
@@ -471,5 +471,187 @@
     },
     "expectedFailures": [],
     "expectedApproved": true
+  },
+  {
+    "id": "reject-missing-lights-off-state",
+    "stage": "start",
+    "book": {
+      "kind": "picturebook",
+      "status": "choice-ready",
+      "safetyNotes": [],
+      "qualityNotes": [],
+      "revisionNotes": [],
+      "createdAt": "2026-09-14T00:00:00.000Z",
+      "title": "토끼야, 작은 별아, 잘 자",
+      "childName": "별이",
+      "ageBand": "5-7",
+      "situation": "불을 끄면 무섭다며 혼자 잠들기 어려워해요.",
+      "lesson": "곁에 있는 따뜻함을 느끼며 천천히 안심하는 마음",
+      "tone": "calm",
+      "interests": "토끼 인형, 작은 별",
+      "storyGuide": {
+        "coreConflict": "불을 끈 침실의 그림자가 무서워 잠들기 어려운 별이.",
+        "characters": [
+          "별이: 여섯 살 아이",
+          "토끼: 별이가 안고 있는 흰 토끼 인형"
+        ],
+        "keyObject": "흰 토끼 인형, 창문 밖 작은 별, 침대 이불",
+        "resolutionGoal": "토끼의 부드러운 감촉을 느끼며 창문 밖 별에게 인사하고, 어두운 방에서 이불을 덮고 눕는다.",
+        "visualStyle": "A six-year-old child named Byeol with a short straight black bob wears pale yellow long-sleeved pajamas on every page. The same small white rabbit plush has long floppy ears and a round pink nose. All scenes stay in one bedroom with a blue blanket, a coat rack, and light cream curtains. The small star is a real distant star outside the window, not another child or a star-shaped toy. Soft gouache and colored pencil texture."
+      },
+      "pages": [
+        {
+          "pageNumber": 1,
+          "textKo": "불이 꺼지자 별이는 침대에서 몸을 웅크렸어요. 품에 안은 토끼 인형의 긴 귀가 볼에 닿았어요.",
+          "imagePrompt": "In the dim bedroom after the light goes out, Byeol curls up on the bed holding the rabbit plush against the chest; one long plush ear touches the cheek. The blue blanket rests around the legs. Room lights and lamps remain off, faint natural light only.",
+          "emotionalBeat": "setup"
+        },
+        {
+          "pageNumber": 2,
+          "textKo": "옷걸이 그림자가 커다란 나무처럼 보였어요. 별이는 토끼의 귀를 매만지며 잠깐 눈을 감았어요.",
+          "imagePrompt": "On the same bed, Byeol closes the eyes and gently rubs one ear of the rabbit plush. A coat rack casts an ordinary tree-like shadow on the wall; no monster is present.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 3,
+          "textKo": "눈을 뜨니 커튼 틈으로 작은 별 하나가 보였어요. 토끼의 둥근 코에도 희미한 별빛이 내려앉았어요.",
+          "imagePrompt": "Byeol opens the eyes and looks at a small distant star through a gap in the cream curtains. Faint starlight falls on the rabbit plush round nose while the child keeps the plush close. Room lights and lamps remain off, faint natural light only.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 4,
+          "textKo": "별이는 토끼를 품에 둔 채 창가를 바라보았어요. 이불 밖에 나온 손끝이 가만히 꼼지락거렸어요.",
+          "imagePrompt": "Byeol sits still looking toward the window, with the rabbit plush resting in the lap. Fingers just outside the blue blanket curl slightly without reaching outward yet. Room lights and lamps remain off, faint natural light only.",
+          "emotionalBeat": "choice"
+        }
+      ],
+      "choice": {
+        "afterPage": 4,
+        "promptKo": "별이는 어떻게 조금 편안해질 수 있을까요?",
+        "options": [
+          {
+            "id": "A",
+            "labelKo": "창가의 작은 별에게 손을 내밀어요",
+            "resolutionHint": "토끼를 안은 채 별에게 손을 내밀어 인사하고, 커튼에 놀라 멈췄다가 다시 작게 손을 내민다."
+          },
+          {
+            "id": "B",
+            "labelKo": "토끼에게 무서운 마음을 말해요",
+            "resolutionHint": "토끼에게 무엇이 무서운지 작은 목소리로 말하고 부드러운 귀에 볼을 기댄다."
+          },
+          {
+            "id": "C",
+            "labelKo": "이불을 턱까지 끌어올려요",
+            "resolutionHint": "이불을 턱까지 덮고 익숙한 토끼와 별빛을 바라보며 천천히 숨을 고른다."
+          }
+        ]
+      }
+    },
+    "expectedFailures": ["visual_consistency"],
+    "expectedApproved": false
+  },
+  {
+    "id": "reject-relit-lamp-after-lights-out",
+    "stage": "ending",
+    "book": {
+      "kind": "picturebook",
+      "status": "complete",
+      "safetyNotes": [],
+      "qualityNotes": [],
+      "revisionNotes": [],
+      "selectedChoiceId": "A",
+      "createdAt": "2026-09-14T00:00:00.000Z",
+      "completedAt": "2026-09-14T00:01:00.000Z",
+      "title": "토끼야, 작은 별아, 잘 자",
+      "childName": "별이",
+      "ageBand": "5-7",
+      "situation": "불을 끄면 무섭다며 혼자 잠들기 어려워해요.",
+      "lesson": "곁에 있는 따뜻함을 느끼며 천천히 안심하는 마음",
+      "tone": "calm",
+      "interests": "토끼 인형, 작은 별",
+      "storyGuide": {
+        "coreConflict": "불을 끈 침실의 그림자가 무서워 잠들기 어려운 별이.",
+        "characters": [
+          "별이: 여섯 살 아이",
+          "토끼: 별이가 안고 있는 흰 토끼 인형"
+        ],
+        "keyObject": "흰 토끼 인형, 창문 밖 작은 별, 침대 이불",
+        "resolutionGoal": "토끼의 부드러운 감촉을 느끼며 창문 밖 별에게 인사하고, 어두운 방에서 이불을 덮고 눕는다.",
+        "visualStyle": "A six-year-old child named Byeol with a short straight black bob wears pale yellow long-sleeved pajamas on every page. The same small white rabbit plush has long floppy ears and a round pink nose. All scenes stay in one bedroom with a blue blanket, a coat rack, and light cream curtains. The small star is a real distant star outside the window, not another child or a star-shaped toy. Soft gouache and colored pencil texture. Room lights and lamps remain off on every page; only faint natural light enters through the window."
+      },
+      "pages": [
+        {
+          "pageNumber": 1,
+          "textKo": "불이 꺼지자 별이는 침대에서 몸을 웅크렸어요. 품에 안은 토끼 인형의 긴 귀가 볼에 닿았어요.",
+          "imagePrompt": "In the dim bedroom after the light goes out, Byeol curls up on the bed holding the rabbit plush against the chest; one long plush ear touches the cheek. The blue blanket rests around the legs.",
+          "emotionalBeat": "setup"
+        },
+        {
+          "pageNumber": 2,
+          "textKo": "옷걸이 그림자가 커다란 나무처럼 보였어요. 별이는 토끼의 귀를 매만지며 잠깐 눈을 감았어요.",
+          "imagePrompt": "On the same bed, Byeol closes the eyes and gently rubs one ear of the rabbit plush. A coat rack casts an ordinary tree-like shadow on the wall; no monster is present.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 3,
+          "textKo": "눈을 뜨니 커튼 틈으로 작은 별 하나가 보였어요. 토끼의 둥근 코에도 희미한 별빛이 내려앉았어요.",
+          "imagePrompt": "Byeol opens the eyes and looks at a small distant star through a gap in the cream curtains. Faint starlight falls on the rabbit plush round nose while the child keeps the plush close.",
+          "emotionalBeat": "tension"
+        },
+        {
+          "pageNumber": 4,
+          "textKo": "별이는 토끼를 품에 둔 채 창가를 바라보았어요. 이불 밖에 나온 손끝이 가만히 꼼지락거렸어요.",
+          "imagePrompt": "Byeol sits still looking toward the window, with the rabbit plush resting in the lap. Fingers just outside the blue blanket curl slightly without reaching outward yet.",
+          "emotionalBeat": "choice"
+        },
+        {
+          "pageNumber": 5,
+          "textKo": "별이는 작은 별을 향해 천천히 손을 내밀었어요. “안녕, 작은 별.” 창문 너머로 별빛이 반짝였어요.",
+          "imagePrompt": "Byeol slowly extends one hand toward the window in a quiet greeting, with lips gently parted. The other arm supports the rabbit plush; a small distant star shines outside the glass.",
+          "emotionalBeat": "resolution"
+        },
+        {
+          "pageNumber": 6,
+          "textKo": "커튼이 살랑 흔들리자 별이는 손을 멈췄어요. 토끼의 귀에 볼을 대고 잠깐 숨을 골랐어요.",
+          "imagePrompt": "A light draft stirs the cream curtain. Byeol pauses with the reaching hand lowered and rests one cheek against the soft ear of the rabbit plush, breathing quietly. A switched-on bedside lamp brightly illuminates the child and the room.",
+          "emotionalBeat": "resolution"
+        },
+        {
+          "pageNumber": 7,
+          "textKo": "별이는 토끼를 안은 채 다시 손을 살짝 내밀었어요. 이번에는 손을 거두지 않고 별을 보며 작게 웃었어요.",
+          "imagePrompt": "Byeol reaches one hand a little toward the distant star again and keeps it there with a small smile. The other arm cradles the rabbit plush on the same bed.",
+          "emotionalBeat": "resolution"
+        },
+        {
+          "pageNumber": 8,
+          "textKo": "별이는 토끼를 안고 이불을 끌어올렸어요. “토끼야, 작은 별아, 잘 자.” 눈꺼풀이 천천히 내려왔어요.",
+          "imagePrompt": "Byeol lies down under the blue blanket, holding the rabbit plush close as the eyelids slowly close. The same distant star is visible beyond the cream curtains.",
+          "emotionalBeat": "calm-close"
+        }
+      ],
+      "choice": {
+        "afterPage": 4,
+        "promptKo": "별이는 어떻게 조금 편안해질 수 있을까요?",
+        "options": [
+          {
+            "id": "A",
+            "labelKo": "창가의 작은 별에게 손을 내밀어요",
+            "resolutionHint": "토끼를 안은 채 별에게 손을 내밀어 인사하고, 커튼에 놀라 멈췄다가 다시 작게 손을 내민다."
+          },
+          {
+            "id": "B",
+            "labelKo": "토끼에게 무서운 마음을 말해요",
+            "resolutionHint": "토끼에게 무엇이 무서운지 작은 목소리로 말하고 부드러운 귀에 볼을 기댄다."
+          },
+          {
+            "id": "C",
+            "labelKo": "이불을 턱까지 끌어올려요",
+            "resolutionHint": "이불을 턱까지 덮고 익숙한 토끼와 별빛을 바라보며 천천히 숨을 고른다."
+          }
+        ]
+      }
+    },
+    "expectedFailures": ["visual_consistency"],
+    "expectedApproved": false
   }
 ]
