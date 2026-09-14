@@ -194,8 +194,11 @@ export default function MyStoryDetail() {
     book?.pages.filter(page => !images.urls[page.pageNumber]) || [];
   return (
     <div className="page-shell">
-      <Link className="text-link inline-block mb-6" href="/my-story">
-        ← 내 책장
+      <Link
+        className="text-link inline-block mb-6"
+        href={thread && !book ? "/my-story/archive" : "/my-story"}
+      >
+        {thread && !book ? "← 예전 동화 보관함" : "← 내 책장"}
       </Link>
       {loading ||
       (thread && (thread.id !== id || thread.user_id !== userInfo.id)) ? (
@@ -261,7 +264,10 @@ export default function MyStoryDetail() {
             </>
           ) : thread && messages.length > 0 ? (
             <>
-              <h1 className="text-2xl mb-5">저장된 동화</h1>
+              <h1 className="text-2xl mb-3">예전에 만든 동화</h1>
+              <p className="text-gray-600 mb-6">
+                이전에 저장한 글과 그림을 그대로 보관하고 있어요.
+              </p>
               {thread.able_english && (
                 <label className="flex gap-2 mb-5">
                   <input

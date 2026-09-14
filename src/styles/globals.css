@@ -644,6 +644,19 @@ p {
   gap: 20px;
   align-items: center;
 }
+.library-archive-link {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
 .library-tools {
   display: flex;
   gap: 12px;
