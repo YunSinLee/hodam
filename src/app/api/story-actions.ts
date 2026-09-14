@@ -445,6 +445,12 @@ export async function drawPicturebookPageAction(
           pageNumber,
           textKo: page.textKo,
           imagePrompt: page.imagePrompt,
+          previousPages: book.pages
+            .filter(previous => previous.pageNumber < pageNumber)
+            .map(previous => ({
+              pageNumber: previous.pageNumber,
+              textKo: previous.textKo.slice(0, 900),
+            })),
         },
         accessToken,
       );

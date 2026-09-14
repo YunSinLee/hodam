@@ -406,12 +406,74 @@ describe("private saved page images", () => {
           pageNumber: 1,
           textKo: saved.pages[0].textKo,
           imagePrompt: saved.pages[0].imagePrompt,
+          previousPages: [],
         },
         "token",
       );
     },
   );
 
+  it("passes only earlier saved page text, excluding the current scene and future events", async () => {
+    const saved = book("complete");
+    saved.pages[0].textKo = "엄마가 스탠드를 껐어요. 방 안이 고요해졌어요.";
+    saved.pages[1].textKo = "아이는 이불을 끌어당겼어요. 토끼 인형을 안았어요.";
+    saved.pages[2].textKo = "토끼 귀가 뺨에 닿았어요. 아이가 눈을 감았어요.";
+    saved.pages[3].textKo =
+      "아침이 밝아 엄마가 커튼을 열었어요. 햇살이 들어왔어요.";
+    saved.pages[0].imagePrompt =
+      "An earlier image prompt must not be sent as prior event evidence.";
+    query({ raw_text: JSON.stringify(saved) });
+    query({ id: 42 });
+    mocks.signedUrl
+      .mockResolvedValueOnce({ data: null, error: { code: "NoSuchKey" } })
+      .mockResolvedValueOnce({
+        data: { signedUrl: "https://storage.test/generated" },
+        error: null,
+      });
+    expect(await drawPicturebookPageAction(42, 3, "token")).toMatchObject({
+      ok: true,
+    });
+
+    const request = mocks.image.mock.calls[0][0];
+    expect(request.previousPages).toEqual([
+      { pageNumber: 1, textKo: saved.pages[0].textKo },
+      { pageNumber: 2, textKo: saved.pages[1].textKo },
+    ]);
+    expect(request.textKo).toBe(saved.pages[2].textKo);
+    expect(request.imagePrompt).toBe(saved.pages[2].imagePrompt);
+    expect(JSON.stringify(request)).not.toContain(saved.pages[3].textKo);
+    expect(JSON.stringify(request.previousPages)).not.toContain(
+      saved.pages[0].imagePrompt,
+    );
+    expect(mocks.image).toHaveBeenCalledTimes(1);
+  });
+  it("bounds earlier saved text to 900 characters per page when drawing the final page", async () => {
+    const saved = book("complete");
+    saved.pages.slice(0, 7).forEach(page => {
+      page.textKo = `${page.pageNumber}쪽 ${"가".repeat(1100)}`;
+    });
+    query({ raw_text: JSON.stringify(saved) });
+    query({ id: 42 });
+    mocks.signedUrl
+      .mockResolvedValueOnce({ data: null, error: { code: "NoSuchKey" } })
+      .mockResolvedValueOnce({
+        data: { signedUrl: "https://storage.test/generated" },
+        error: null,
+      });
+    expect(await drawPicturebookPageAction(42, 8, "token")).toMatchObject({
+      ok: true,
+    });
+
+    const request = mocks.image.mock.calls[0][0];
+    expect(request.previousPages).toEqual(
+      saved.pages.slice(0, 7).map(page => ({
+        pageNumber: page.pageNumber,
+        textKo: page.textKo.slice(0, 900),
+      })),
+    );
+    expect(request.previousPages).toHaveLength(7);
+    expect(request.textKo).toBe(saved.pages[7].textKo);
+  });
   it("reuses a saved image and repairs its book marker without a paid request", async () => {
     query({ raw_text: JSON.stringify(book()) });
     query({ id: 42 });

@@ -994,6 +994,132 @@ describe("illustration continuity", () => {
       expect(mocks.image.mock.calls[0][0].prompt).toContain(ageBand);
     },
   );
+  it("passes earlier lights-off events alongside the current scene to image generation", async () => {
+    const previousPages = [
+      {
+        pageNumber: 1,
+        textKo: "엄마가 스탠드를 껐어요. 불빛이 조용히 사라졌어요.",
+      },
+      {
+        pageNumber: 2,
+        textKo: "민준이가 인형을 꼭 안았어요. 이불 끝이 손에 닿았어요.",
+      },
+    ];
+    const currentText = "토끼의 긴 귀를 뺨에 대었어요. 작게 숨을 내쉬었어요.";
+    await generatePicturebookPageImage(
+      {
+        ...imageInput,
+        pageNumber: 3,
+        textKo: currentText,
+        imagePrompt: "The child rests with a rabbit plush under a blanket.",
+        visualStyle: storyGuide.visualStyle,
+        previousPages,
+      },
+      "token",
+    );
+
+    const prompt = mocks.image.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain(JSON.stringify(previousPages));
+    expect(prompt).toContain(currentText);
+    expect(prompt).toContain(storyGuide.visualStyle);
+    expect(prompt).toMatch(
+      /(?:only|current).*(?:page|scene)|(?:page|scene).*(?:only|current)/i,
+    );
+    expect(prompt).toContain("lights-off scenes must have no lit lamps");
+  });
+  it.each([
+    ["null", null],
+    ["object", {}],
+    [
+      "more than seven pages",
+      Array.from({ length: 8 }, (_, index) => ({
+        pageNumber: index + 1,
+        textKo: "이전 장면이에요.",
+      })),
+    ],
+    ["non-page item", [null]],
+    ["zero page number", [{ pageNumber: 0, textKo: "이전 장면이에요." }]],
+    [
+      "fractional page number",
+      [{ pageNumber: 1.5, textKo: "이전 장면이에요." }],
+    ],
+    ["string page number", [{ pageNumber: "1", textKo: "이전 장면이에요." }]],
+    ["current page", [{ pageNumber: 3, textKo: "현재 장면이에요." }]],
+    ["future page", [{ pageNumber: 4, textKo: "미래 장면이에요." }]],
+    [
+      "duplicate page numbers",
+      [
+        { pageNumber: 1, textKo: "첫 장면이에요." },
+        { pageNumber: 1, textKo: "겹친 장면이에요." },
+      ],
+    ],
+    ["blank text", [{ pageNumber: 1, textKo: " " }]],
+    ["missing text", [{ pageNumber: 1 }]],
+    ["oversized text", [{ pageNumber: 1, textKo: "가".repeat(901) }]],
+  ])("rejects invalid previous page context: %s", async (_, previousPages) => {
+    await expect(
+      generatePicturebookPageImage(
+        {
+          ...imageInput,
+          pageNumber: 3,
+          previousPages,
+        } as Parameters<typeof generatePicturebookPageImage>[0],
+        "token",
+      ),
+    ).rejects.toThrow("그림 요청을 확인해주세요");
+    expect(mocks.image).not.toHaveBeenCalled();
+  });
+  it("preserves the current scene, canonical appearance and image guardrails with seven maximum-length earlier pages", async () => {
+    const previousPages = Array.from({ length: 7 }, (_, index) => ({
+      pageNumber: index + 1,
+      textKo: `${index + 1}쪽-시작${"가".repeat(890)}이전본문끝`,
+    }));
+    const textKo = "현재본문끝".padStart(900, "나");
+    const imagePrompt = "SCENE_END".padStart(1200, "s");
+    const visualStyle = "GUIDE_END".padStart(1200, "v");
+    expect(previousPages.every(page => page.textKo.length === 900)).toBe(true);
+    await generatePicturebookPageImage(
+      {
+        ...imageInput,
+        title: "제".repeat(200),
+        childName: "이".repeat(20),
+        pageNumber: 8,
+        previousPages,
+        textKo,
+        imagePrompt,
+        visualStyle,
+      },
+      "token",
+    );
+
+    const prompt = mocks.image.mock.calls[0][0].prompt as string;
+    expect(prompt.length).toBeLessThanOrEqual(12000);
+    expect(prompt).toContain(JSON.stringify(previousPages));
+    expect(prompt).toContain(textKo);
+    expect(prompt).toContain(imagePrompt);
+    expect(prompt).toContain(visualStyle);
+    expect(prompt).toContain("No text, captions, speech bubbles, or letters");
+    expect(prompt).toContain("square illustration");
+  });
+  it("rejects context whose escaped JSON exceeds the prompt budget before calling the image provider", async () => {
+    const previousPages = Array.from({ length: 7 }, (_, index) => ({
+      pageNumber: index + 1,
+      textKo: "가" + "\n".repeat(899),
+    }));
+    expect(previousPages.every(page => page.textKo.length === 900)).toBe(true);
+    expect(JSON.stringify(previousPages).length).toBeGreaterThan(12000);
+    await expect(
+      generatePicturebookPageImage(
+        {
+          ...imageInput,
+          pageNumber: 8,
+          previousPages,
+        },
+        "token",
+      ),
+    ).rejects.toThrow("그림 요청을 확인해주세요");
+    expect(mocks.image).not.toHaveBeenCalled();
+  });
   it("rejects an oversized canonical appearance before calling the provider", async () => {
     await expect(
       generatePicturebookPageImage(
