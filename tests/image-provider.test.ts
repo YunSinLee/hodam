@@ -34,6 +34,7 @@ it("uses the supported image API contract with explicit quality and no retired r
       size: "1024x1024",
       n: 1,
     }),
+    { timeout: 45000 },
   );
   expect(mocks.image.mock.calls[0][0]).not.toHaveProperty("response_format");
 });

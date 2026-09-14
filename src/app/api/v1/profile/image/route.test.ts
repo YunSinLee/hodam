@@ -1,21 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  authenticateRequestMock,
-  createSupabaseAdminClientMock,
-  checkRateLimitMock,
-} = vi.hoisted(() => ({
-  authenticateRequestMock: vi.fn(),
-  createSupabaseAdminClientMock: vi.fn(),
-  checkRateLimitMock: vi.fn(),
-}));
+const { authenticateRequestMock, requireUserClientMock, checkRateLimitMock } =
+  vi.hoisted(() => ({
+    authenticateRequestMock: vi.fn(),
+    requireUserClientMock: vi.fn(),
+    checkRateLimitMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/auth/request-auth", () => ({
   authenticateRequest: authenticateRequestMock,
-}));
-
-vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseAdminClient: createSupabaseAdminClientMock,
+  requireUserClient: requireUserClientMock,
 }));
 
 vi.mock("@/lib/server/rate-limit", () => ({
@@ -100,7 +94,7 @@ describe("/api/v1/profile/image", () => {
       update: updateMock,
     });
 
-    createSupabaseAdminClientMock.mockReturnValue({
+    requireUserClientMock.mockReturnValue({
       storage: { from: storageFromMock },
       from: fromMock,
     });
@@ -122,9 +116,7 @@ describe("/api/v1/profile/image", () => {
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.imageUrl).toBe("https://cdn.example.com/signed/p.png");
-    expect(createSupabaseAdminClientMock).toHaveBeenCalledWith({
-      fallbackAccessToken: "token-1",
-    });
+    expect(requireUserClientMock).toHaveBeenCalledWith("token-1");
     expect(storageFromMock).toHaveBeenCalledWith("profiles");
     expect(uploadMock).toHaveBeenCalledTimes(1);
     const path = uploadMock.mock.calls[0][0];
@@ -256,7 +248,7 @@ describe("/api/v1/profile/image", () => {
         update: vi.fn(),
       });
 
-      createSupabaseAdminClientMock.mockReturnValue({
+      requireUserClientMock.mockReturnValue({
         storage: { from: storageFromMock },
         from: fromMock,
       });
@@ -359,7 +351,7 @@ describe("/api/v1/profile/image", () => {
         };
       });
 
-      createSupabaseAdminClientMock.mockReturnValue({
+      requireUserClientMock.mockReturnValue({
         storage: { from: storageFromMock },
         from: fromMock,
       });
@@ -422,7 +414,7 @@ describe("/api/v1/profile/image", () => {
       update: updateMock,
     });
 
-    createSupabaseAdminClientMock.mockReturnValue({
+    requireUserClientMock.mockReturnValue({
       storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) },
       from: fromMock,
     });

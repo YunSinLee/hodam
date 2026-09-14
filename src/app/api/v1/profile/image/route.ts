@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 
 import { randomUUID } from "crypto";
 
-import { authenticateRequest } from "@/lib/auth/request-auth";
+import {
+  authenticateRequest,
+  requireUserClient,
+} from "@/lib/auth/request-auth";
 import { logError } from "@/lib/server/logger";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { createApiRequestContext } from "@/lib/server/request-context";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 const PROFILE_BUCKET = "profiles";
@@ -36,7 +38,7 @@ function getOwnStoragePath(reference: string, userId: string): string | null {
     return null;
   }
   // The users row is user-editable. Never let its value select another user's
-  // object for deletion by the service-role client.
+  // object for deletion, even when database policies also restrict access.
   const flatPrefix = `profile_${userId}_`;
   const legacyPrefix = `${userId}/profile_`;
   const ownFlat =
@@ -108,11 +110,9 @@ export async function POST(request: NextRequest) {
     }
 
     const filePath = `profile_${authContext.userId}_${randomUUID()}.${ext}`;
-    const admin = createSupabaseAdminClient({
-      fallbackAccessToken: authContext.accessToken,
-    });
+    const userClient = requireUserClient(authContext.accessToken);
 
-    const { error: uploadError } = await admin.storage
+    const { error: uploadError } = await userClient.storage
       .from(PROFILE_BUCKET)
       .upload(filePath, file, {
         contentType: file.type,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       throw uploadError;
     }
 
-    const { data: signed, error: signingError } = await admin.storage
+    const { data: signed, error: signingError } = await userClient.storage
       .from(PROFILE_BUCKET)
       .createSignedUrl(filePath, 3600);
 
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     const imageUrl = signed.signedUrl;
-    const { error: updateError } = await admin
+    const { error: updateError } = await userClient
       .from("users")
       .update({
         custom_profile_url: `profiles:${filePath}`,
@@ -189,11 +189,9 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const admin = createSupabaseAdminClient({
-      fallbackAccessToken: authContext.accessToken,
-    });
+    const userClient = requireUserClient(authContext.accessToken);
 
-    const { data: userData, error: userError } = await admin
+    const { data: userData, error: userError } = await userClient
       .from("users")
       .select("custom_profile_url")
       .eq("id", authContext.userId)
@@ -204,7 +202,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const existingUrl = userData?.custom_profile_url as string | null;
-    const { error: updateError } = await admin
+    const { error: updateError } = await userClient
       .from("users")
       .update({
         custom_profile_url: null,
@@ -219,7 +217,7 @@ export async function DELETE(request: NextRequest) {
     if (existingUrl) {
       const storagePath = getOwnStoragePath(existingUrl, authContext.userId);
       if (storagePath) {
-        await admin.storage.from(PROFILE_BUCKET).remove([storagePath]);
+        await userClient.storage.from(PROFILE_BUCKET).remove([storagePath]);
       }
     }
 

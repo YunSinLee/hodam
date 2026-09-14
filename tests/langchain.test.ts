@@ -70,6 +70,8 @@ describe("bounded story model output", () => {
     expect(result.choice.options[0].labelKo).toBe("양치를 해봐요");
     expect(result.choice.options[0].resolutionHint).toContain("칫솔");
     expect(mocks.chat).toHaveBeenCalledTimes(2);
+    // Leave time for auth and persistence under the hosting plan's 60s ceiling.
+    expect(mocks.chat.mock.calls.map(call => call[1].timeout)).toEqual([35000, 15000]);
   });
   it.each([
     [

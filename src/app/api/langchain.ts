@@ -22,7 +22,7 @@ const OPEN_AI_API_KEY =
 
 const openaiClient = new OpenAI({
   apiKey: OPEN_AI_API_KEY || "not-configured",
-  timeout: 60000,
+  timeout: 45000,
   maxRetries: 0,
 });
 
@@ -62,21 +62,24 @@ function generationError(cause: unknown, fallback: string): GenerationError {
   return new GenerationError(fallback, true);
 }
 
-async function invokeStoryModel(prompt: string) {
+async function invokeStoryModel(prompt: string, timeout = 35000) {
   if (!OPEN_AI_API_KEY)
     throw new GenerationError(
       "이야기 생성 서비스에 연결할 수 없어요. 운영팀에 문의해주세요.",
       false,
     );
-  const response = await openaiClient.chat.completions.create({
-    model: process.env.OPENAI_STORY_MODEL || "gpt-4o-mini",
-    temperature: 0.75,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: PICTUREBOOK_SYSTEM_PROMPT },
-      { role: "user", content: prompt },
-    ],
-  });
+  const response = await openaiClient.chat.completions.create(
+    {
+      model: process.env.OPENAI_STORY_MODEL || "gpt-4o-mini",
+      temperature: 0.75,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: PICTUREBOOK_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+    },
+    { timeout },
+  );
   const content = response.choices[0]?.message.content;
   if (!content) throw new Error("이야기 응답이 비어 있어요.");
   if (response.choices[0]?.finish_reason !== "stop")
@@ -563,7 +566,7 @@ choice.options의 labelKo는 모두 다음 장면에서 해볼 작은 행동이�
 qualityNotes와 revisionNotes에는 내부 검수 메모를 짧게 넣어도 됩니다.`;
 
   try {
-    const response = await invokeStoryModel(prompt);
+    const response = await invokeStoryModel(prompt, 15000);
     const rewritten = normalizePicturebookStart(
       parsePicturebookStartResponse(String(response.content)),
       input,
@@ -633,7 +636,7 @@ pages는 pageNumber 5, 6, 7, 8의 정확히 4개입니다.
 qualityNotes와 revisionNotes에는 내부 검수 메모를 짧게 넣어도 됩니다.`;
 
   try {
-    const response = await invokeStoryModel(prompt);
+    const response = await invokeStoryModel(prompt, 15000);
     const rewritten = normalizePicturebookEnding(
       parsePicturebookEndingResponse(String(response.content)),
       baseDraft,
@@ -853,14 +856,17 @@ Korean scene: ${textKo}. Scene prompt: ${imagePrompt}.
 Warm gouache and colored pencil texture, cozy light, child-safe composition.
 No text, captions, speech bubbles, or letters. Consistent main child character, square illustration.`;
   try {
-    const response = await openaiClient.images.generate({
-      prompt: prompt.slice(0, 4000),
-      model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-2.5-flare",
-      n: 1,
-      quality: "low",
-      output_format: "png",
-      size: "1024x1024",
-    });
+    const response = await openaiClient.images.generate(
+      {
+        prompt: prompt.slice(0, 4000),
+        model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-2.5-flare",
+        n: 1,
+        quality: "low",
+        output_format: "png",
+        size: "1024x1024",
+      },
+      { timeout: 45000 },
+    );
     return toSerializableImageResponse(response);
   } catch (error) {
     throw generationError(
