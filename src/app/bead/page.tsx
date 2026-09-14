@@ -1,356 +1,225 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Script from "next/script";
 
 import beadApi from "@/app/api/bead";
-import { supabase } from "@/app/utils/supabase";
+import GuideForSign from "@/app/components/GuideForSign";
+import { beadPackages } from "@/app/utils/bead-packages";
 import useBead from "@/services/hooks/use-bead";
 import useUserInfo from "@/services/hooks/use-user-info";
 
-// 토스페이먼츠 SDK 타입 정의
 declare global {
   interface Window {
-    TossPayments: any;
+    TossPayments: (key: string) => {
+      requestPayment: (
+        method: string,
+        options: Record<string, unknown>,
+      ) => Promise<void>;
+    };
   }
 }
-
-function BeadPage() {
-  const { bead, setBead } = useBead();
-  const { userInfo, setUserInfo } = useUserInfo();
+export default function BeadPage() {
+  const { userInfo } = useUserInfo();
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [processedPayments, setProcessedPayments] = useState<Set<string>>(
-    new Set(),
-  );
-
-  // 토스페이먼츠 클라이언트 키 (환경변수에서 가져오기)
-  const clientKey =
-    process.env.NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY ||
-    "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq";
-
+  const { bead } = useBead();
+  const [enabled, setEnabled] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [configStatus, setConfigStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [configRetry, setConfigRetry] = useState(0);
+  const operation = useRef(0);
+  const purchasing = useRef(false);
+  const clientKey = process.env.NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY;
   useEffect(() => {
-    // 토스페이먼츠 SDK 로드
-    const script = document.createElement("script");
-    script.src = "https://js.tosspayments.com/v1/payment";
-    script.async = true;
-    document.head.appendChild(script);
-
+    operation.current += 1;
+    purchasing.current = false;
+    setLoading(null);
+    setError("");
     return () => {
-      document.head.removeChild(script);
+      operation.current += 1;
     };
-  }, []);
-
+  }, [userInfo.id]);
   useEffect(() => {
-    // 결제 성공/실패 처리
-    const paymentKey = searchParams.get("paymentKey");
-    const orderId = searchParams.get("orderId");
-    const amount = searchParams.get("amount");
-
-    if (paymentKey && orderId && amount) {
-      // 이미 처리된 결제인지 확인
-      const paymentId = `${paymentKey}_${orderId}`;
-      if (processedPayments.has(paymentId)) {
-        console.log("이미 처리된 결제입니다:", paymentId);
-        return;
-      }
-
-      // 처리 중인 결제로 표시
-      setProcessedPayments(prev => new Set(prev).add(paymentId));
-
-      handlePaymentSuccess(paymentKey, orderId, parseInt(amount, 10));
+    const params = new URLSearchParams(window.location.search);
+    if (
+      params.has("paymentKey") &&
+      params.has("orderId") &&
+      params.has("amount")
+    ) {
+      router.replace(`/payment/success?${params.toString()}`);
+      return undefined;
     }
-  }, [searchParams, userInfo.id]);
-
-  const handlePaymentSuccess = async (
-    paymentKey: string,
-    orderId: string,
-    amount: number,
-  ) => {
-    const paymentId = `${paymentKey}_${orderId}`;
-    console.log("결제 성공 처리 시작:", {
-      paymentKey,
-      orderId,
-      amount,
-      userId: userInfo.id,
-      paymentId,
-    });
-
-    // 이미 로딩 중이면 중복 처리 방지
-    if (isLoading) {
-      console.log("이미 결제 처리 중입니다.");
-      return;
+    if (params.get("failed") === "true") {
+      router.replace("/payment/fail");
+      return undefined;
     }
-
-    let currentUserId = userInfo.id;
-
-    // userInfo.id가 없으면 세션 복원을 기다림
-    if (!currentUserId) {
-      console.log("userInfo.id가 없음, 세션 복원 시도 중...");
-
-      // 즉시 세션 확인
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user?.id) {
-        console.log("세션 즉시 복원됨:", session.user.id);
-        const userData = {
-          profileUrl: session.user.user_metadata?.avatar_url || "",
-          id: session.user.id,
-          email: session.user.email,
-        };
-        setUserInfo(userData);
-        currentUserId = session.user.id;
-      } else {
-        // 세션이 없으면 짧은 대기 후 재시도
-        console.log("세션 없음, 잠시 대기 후 재시도...");
-
-        for (let i = 0; i < 5; i++) {
-          await new Promise<void>(resolve => {
-            setTimeout(() => resolve(), 200);
-          });
-
-          const {
-            data: { session: retrySession },
-          } = await supabase.auth.getSession();
-
-          if (retrySession?.user?.id) {
-            console.log(
-              `세션 복원됨 (${i + 1}번째 시도):`,
-              retrySession.user.id,
-            );
-            const userData = {
-              profileUrl: retrySession.user.user_metadata?.avatar_url || "",
-              id: retrySession.user.id,
-              email: retrySession.user.email,
-            };
-            setUserInfo(userData);
-            currentUserId = retrySession.user.id;
-            break;
-          }
-
-          console.log(`세션 복원 재시도 중... (${i + 1}/5)`);
-        }
-      }
-
-      // 여전히 세션이 없으면 에러
-      if (!currentUserId) {
-        console.error("세션 복원 실패");
-        alert("로그인 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
-        return;
-      }
-    }
-
-    setIsLoading(true);
-    try {
-      console.log("결제 완료 처리 시작, userId:", currentUserId);
-      const updatedBead = await beadApi.completeBeadPurchase(
-        paymentKey,
-        orderId,
-        amount,
-        currentUserId,
-      );
-      setBead(updatedBead);
-
-      alert("곶감 충전이 완료되었습니다! 🎉");
-
-      // URL 파라미터 제거
-      router.replace("/bead");
-    } catch (error: any) {
-      console.error("결제 완료 처리 오류:", error);
-
-      // 이미 처리된 결제인 경우 조용히 처리
-      if (
-        error?.message?.includes("이미 처리된") ||
-        error?.code === "ALREADY_PROCESSED_PAYMENT"
-      ) {
-        console.log("이미 처리된 결제입니다. URL 파라미터를 제거합니다.");
-        router.replace("/bead");
-        return;
-      }
-
-      alert("결제 처리 중 오류가 발생했습니다. 고객센터로 문의해주세요.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePurchase = async (packageInfo: any) => {
-    if (!userInfo.id || !userInfo.email) {
-      alert("로그인이 필요합니다.");
-      return;
-    }
-
-    setIsLoading(true);
-    setSelectedPackage(packageInfo);
-
-    try {
-      // 결제 요청 생성
-      const { orderId, amount } = await beadApi.purchaseBeads(
-        userInfo.id,
-        userInfo.email,
-        userInfo.email.split("@")[0], // 이메일에서 사용자명 추출
-        packageInfo.quantity,
-        packageInfo.price,
-      );
-
-      // 토스페이먼츠 결제 위젯 초기화
-      const tossPayments = window.TossPayments(clientKey);
-
-      // 결제 요청
-      await tossPayments.requestPayment("카드", {
-        amount,
-        orderId,
-        orderName: `곶감 ${packageInfo.quantity}개`,
-        customerName: userInfo.email.split("@")[0],
-        customerEmail: userInfo.email,
-        successUrl: `${window.location.protocol}//${window.location.host}/bead`,
-        failUrl: `${window.location.protocol}//${window.location.host}/bead?failed=true`,
+    const controller = new AbortController();
+    setConfigStatus("loading");
+    setEnabled(false);
+    fetch("/api/routes/payment/config", { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error("Configuration unavailable");
+        return response.json();
+      })
+      .then(result => {
+        if (controller.signal.aborted) return;
+        setEnabled(result.enabled === true);
+        setConfigStatus("ready");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setConfigStatus("error");
       });
-    } catch (error) {
-      console.error("결제 요청 오류:", error);
-      alert("결제 요청 중 오류가 발생했습니다.");
+    return () => controller.abort();
+  }, [router, configRetry]);
+  async function purchase(pkg: (typeof beadPackages)[number]) {
+    if (!userInfo.id || !clientKey || !enabled || !ready || purchasing.current)
+      return;
+    const owner = userInfo.id;
+    const current = ++operation.current;
+    const isCurrent = () =>
+      current === operation.current &&
+      useUserInfo.getState().userInfo.id === owner;
+    purchasing.current = true;
+    setLoading(pkg.id);
+    setError("");
+    try {
+      const order = await beadApi.purchaseBeads(
+        userInfo.id,
+        userInfo.email || "",
+        "호담 사용자",
+        pkg.quantity,
+        pkg.price,
+      );
+      if (!isCurrent()) return;
+      await window.TossPayments(clientKey).requestPayment("카드", {
+        amount: order.amount,
+        orderId: order.orderId,
+        orderName: `곶감 ${pkg.quantity}개`,
+        customerEmail: userInfo.email,
+        successUrl: `${window.location.origin}/payment/success`,
+        failUrl: `${window.location.origin}/payment/fail`,
+      });
+    } catch (cause) {
+      if (!isCurrent()) return;
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "결제가 중단됐어요. 다시 시도해주세요.",
+      );
     } finally {
-      setIsLoading(false);
-      setSelectedPackage(null);
+      if (isCurrent()) {
+        purchasing.current = false;
+        setLoading(null);
+      }
     }
-  };
-
-  const packages = beadApi.getBeadPackages();
-
-  if (!userInfo.id) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
-            로그인이 필요합니다
-          </h2>
-          <p className="text-gray-600">곶감 충전을 위해 먼저 로그인해주세요.</p>
-        </div>
-      </div>
-    );
   }
-
+  if (!userInfo.id) return <GuideForSign />;
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* 헤더 */}
-      <div className="text-center mb-8">
-        <div className="flex justify-center mb-4">
-          <img src="/persimmon_240424.png" alt="곶감" className="w-20 h-20" />
-        </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">곶감 충전</h1>
-        <p className="text-gray-600">AI 동화 생성에 필요한 곶감을 충전하세요</p>
+    <div className="page-shell">
+      {enabled && clientKey && (
+        <Script
+          src="https://js.tosspayments.com/v1/payment"
+          onReady={() => setReady(true)}
+          onError={() =>
+            setError(
+              "결제창을 불러오지 못했어요. 새로고침 후 다시 시도해주세요.",
+            )
+          }
+        />
+      )}
+      <div className="page-heading">
+        <p className="eyebrow">이야기 한 권을 위한 곶감</p>
+        <h1>나의 곶감</h1>
+        <p>
+          8쪽 그림책 한 권에 1개. 결말 선택과 그림에는 추가 곶감이 들지 않아요.
+        </p>
       </div>
-
-      {/* 현재 곶감 수량 */}
-      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 mb-8 text-center">
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <img src="/persimmon_240424.png" alt="곶감" className="w-8 h-8" />
-          <span className="text-2xl font-bold text-orange-700">
-            {bead?.count || 0}개
-          </span>
-        </div>
-        <p className="text-orange-600">보유 중인 곶감</p>
+      <div className="notice-info mb-8 flex items-center gap-4">
+        <img src="/persimmon_240424.png" alt="" width="40" height="40" />
+        <p>
+          보유 곶감{" "}
+          <strong className="text-2xl ml-2">
+            {bead.count === undefined ? "확인 중" : `${bead.count}개`}
+          </strong>
+        </p>
       </div>
-
-      {/* 곶감 패키지 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {packages.map(pkg => (
+      {error && (
+        <p role="alert" className="notice-error mb-5">
+          {error}
+        </p>
+      )}
+      {configStatus === "loading" && (
+        <p className="notice-info mb-6" role="status">
+          충전 가능 여부를 확인하고 있어요.
+        </p>
+      )}
+      {configStatus === "error" && (
+        <div className="notice-error mb-6" role="alert">
+          충전 가능 여부를 확인하지 못했어요. 연결을 확인하고 다시 시도해주세요.
+          <button
+            type="button"
+            className="text-link block mt-3"
+            onClick={() => setConfigRetry(value => value + 1)}
+          >
+            다시 확인하기
+          </button>
+        </div>
+      )}
+      {configStatus === "ready" && !enabled && (
+        <p className="notice-info mb-6">
+          곶감 충전은 준비 중이에요. 보유한 곶감으로 그림책을 만들 수 있어요.
+        </p>
+      )}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {beadPackages.map(pkg => (
           <div
             key={pkg.id}
-            className={`relative bg-white rounded-2xl border-2 p-6 text-center transition-all duration-300 hover:shadow-lg ${
-              pkg.popular
-                ? "border-orange-400 shadow-lg transform scale-105"
-                : "border-gray-200 hover:border-orange-300"
-            }`}
+            className="border border-[#dfdfd2] rounded-lg p-5 bg-white"
           >
-            {pkg.popular && (
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                  인기
-                </span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-center mb-4">
-              <img
-                src="/persimmon_240424.png"
-                alt="곶감"
-                className="w-12 h-12 mr-2"
-              />
-              <span className="text-2xl font-bold text-gray-800">
-                ×{pkg.quantity}
-              </span>
-            </div>
-
-            <div className="mb-4">
-              <div className="text-sm text-gray-500 line-through mb-1">
-                {pkg.originalPrice.toLocaleString()}원
-              </div>
-              <div className="text-2xl font-bold text-orange-600 mb-1">
-                {pkg.price.toLocaleString()}원
-              </div>
-              <div className="text-sm text-green-600 font-medium">
-                {pkg.discount}% 할인
-              </div>
-            </div>
-
-            <p className="text-sm text-gray-500 mb-4">{pkg.description}</p>
-
+            <h2 className="text-lg mb-4">곶감 {pkg.quantity}개</h2>
+            <p className="text-2xl mb-1">{pkg.price.toLocaleString()}원</p>
+            <p className="text-sm text-gray-600 mb-5">
+              그림책 {pkg.quantity}권
+            </p>
             <button
-              onClick={() => handlePurchase(pkg)}
-              disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-xl font-medium transition-all duration-300 ${
-                isLoading && selectedPackage?.id === pkg.id
-                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                  : pkg.popular
-                    ? "bg-orange-500 hover:bg-orange-600 text-white shadow-lg hover:shadow-xl"
-                    : "bg-gray-100 hover:bg-orange-100 text-gray-800 hover:text-orange-700"
-              }`}
+              className="button-primary w-full"
+              type="button"
+              disabled={!enabled || !ready || !!loading}
+              onClick={() => purchase(pkg)}
             >
-              {isLoading && selectedPackage?.id === pkg.id ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2" />
-                  결제 중...
-                </div>
-              ) : (
-                "구매하기"
-              )}
+              {loading === pkg.id
+                ? "처리 중…"
+                : configStatus === "loading"
+                  ? "확인 중…"
+                  : enabled
+                    ? ready
+                      ? "충전하기"
+                      : "결제창 준비 중…"
+                    : configStatus === "error"
+                      ? "확인 필요"
+                      : "준비 중"}
             </button>
           </div>
         ))}
       </div>
-
-      {/* 결제 내역 링크 */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">결제 내역</h2>
-        <p className="text-gray-600 mb-4">곶감 구매 내역을 확인하세요</p>
-        <button
-          onClick={() => router.push("/payment-history")}
-          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
-        >
-          결제 내역 보기
-        </button>
-      </div>
-
-      {/* 안내사항 */}
-      <div className="mt-8 p-6 bg-blue-50 rounded-2xl">
-        <h3 className="font-bold text-blue-800 mb-3">💡 곶감 사용 안내</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• 동화 생성: 1개</li>
-          <li>• 영어 번역 추가: +1개</li>
-          <li>• 이미지 생성 추가: +1개</li>
-          <li>• 곶감은 환불되지 않으니 신중하게 구매해주세요</li>
-          <li>• 결제 관련 문의: dldbstls7777@naver.com</li>
-        </ul>
+      <div className="flex gap-5 flex-wrap">
+        <Link className="text-link" href="/payment-history">
+          결제 내역 보기 →
+        </Link>
+        <Link className="text-link" href="/service">
+          그림책 만들기 →
+        </Link>
+        <a className="text-link" href="mailto:dldbstls7777@naver.com">
+          결제 문의
+        </a>
       </div>
     </div>
   );
 }
-
-export default BeadPage;

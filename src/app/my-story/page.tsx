@@ -1,242 +1,243 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
 
 import threadApi from "@/app/api/thread";
+import GuideForSign from "@/app/components/GuideForSign";
 import type { ThreadWithUser } from "@/app/types/openai";
 import { formatTime } from "@/app/utils";
+import { parsePicturebookDraft } from "@/app/utils/picturebook";
 import useUserInfo from "@/services/hooks/use-user-info";
 
+const pageSize = 24;
+
 export default function MyStory() {
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [threads, setThreads] = useState<ThreadWithUser[]>([]);
   const { userInfo } = useUserInfo();
-  const [isPageLoaded, setIsPageLoaded] = useState(false);
-
-  async function fetchAllThreads() {
-    setIsLoading(true);
-    const threads = await threadApi.fetchAllThreads();
-    setThreads(threads);
-    setIsLoading(false);
-  }
-
-  async function fetchThreadsByUserId() {
-    if (!userInfo.id) return;
-    setIsLoading(true);
-    const threads = await threadApi.fetchThreadsByUserId({
-      user_id: userInfo.id,
-    });
-    setThreads(threads);
-    setIsLoading(false);
-  }
-
+  const [threads, setThreads] = useState<ThreadWithUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [loadedOwner, setLoadedOwner] = useState<string>();
+  const nextBook = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
-    fetchAllThreads();
-    // 페이지 로드 애니메이션을 위한 타이머
-    const timer = setTimeout(() => {
-      setIsPageLoaded(true);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
+    if (visibleCount > pageSize) nextBook.current?.focus();
+  }, [visibleCount]);
   useEffect(() => {
-    fetchThreadsByUserId();
-  }, [userInfo.id]);
-
+    setThreads([]);
+    setQuery("");
+    setFilter("all");
+    setVisibleCount(pageSize);
+    setLoadedOwner(undefined);
+    if (!userInfo.id) return undefined;
+    let active = true;
+    setLoading(true);
+    setError("");
+    setThreads([]);
+    threadApi
+      .fetchThreadsByUserId({ user_id: userInfo.id })
+      .then(data => {
+        if (active) {
+          setThreads(data);
+          setLoadedOwner(userInfo.id);
+        }
+      })
+      .catch(() => {
+        if (active)
+          setError(
+            "책장을 불러오지 못했어요. 연결을 확인하고 다시 시도해주세요.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userInfo.id, retry]);
+  const books = useMemo(
+    () =>
+      threads
+        .map(thread => {
+          const book = parsePicturebookDraft(thread.raw_text);
+          return {
+            thread,
+            book,
+            status:
+              book?.status || (thread.messages?.length ? "legacy" : "empty"),
+            title:
+              book?.title ||
+              thread.keywords?.map(keyword => keyword.keyword).join(", ") ||
+              "제목 없는 이야기",
+          };
+        })
+        .filter(
+          ({ book, title, status }) =>
+            (!query.trim() ||
+              `${title} ${book?.childName || ""} ${book?.situation || ""}`
+                .toLowerCase()
+                .includes(query.trim().toLowerCase())) &&
+            (filter === "all" ? status !== "empty" : status === filter),
+        ),
+    [threads, query, filter],
+  );
+  if (!userInfo.id) return <GuideForSign />;
   return (
-    <div
-      className={`max-w-screen-lg mx-auto px-4 py-8 min-h-screen transition-opacity duration-500 ${isPageLoaded ? "opacity-100" : "opacity-0"}`}
-    >
-      <div className="mb-8 border-b pb-4">
-        <h1 className="text-3xl font-bold text-orange-600 mb-2 relative">
-          내 동화
-          <span className="absolute bottom-0 left-0 w-1/3 h-1 bg-orange-400 rounded-full transform translate-y-2" />
-        </h1>
-        <p className="text-gray-600">내가 만든 동화 목록을 확인해보세요</p>
+    <div className="page-shell">
+      <div className="library-header">
+        <div className="page-heading mb-0">
+          <p className="eyebrow">함께 읽은 시간이 쌓이는 곳</p>
+          <h1>내 책장</h1>
+          <p>오늘 만든 이야기부터, 다시 읽고 싶은 이야기까지.</p>
+        </div>
+        <Link href="/service" className="button-primary">
+          새 그림책 만들기 ↗
+        </Link>
       </div>
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-lg shadow-md p-5 border border-gray-100 animate-pulse"
-              style={{
-                animation: `pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite`,
-                animationDelay: `${index * 0.1}s`,
-              }}
-            >
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
-              <div className="h-3 bg-gray-200 rounded w-1/2 mb-3" />
-              <div className="h-3 bg-gray-200 rounded w-full mb-3" />
-              <div className="flex justify-between mt-5">
-                <div className="h-8 bg-gray-200 rounded w-1/4" />
-                <div className="h-8 bg-gray-200 rounded w-1/4" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : threads.length === 0 ? (
-        <div className="text-center py-16 bg-gradient-to-b from-orange-50 to-white rounded-lg border border-orange-100 shadow-sm transform transition-all duration-300 hover:scale-[1.01] hover:shadow-md">
-          <div className="flex justify-center mb-6">
-            <div className="relative w-32 h-32">
-              <div
-                className="absolute inset-0 bg-orange-100 rounded-full opacity-50 animate-ping"
-                style={{ animationDuration: "3s" }}
-              />
-              <div className="relative flex items-center justify-center w-full h-full bg-orange-50 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-16 w-16 text-orange-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-          <h2 className="text-2xl font-semibold text-gray-700 mb-3">
-            아직 만든 동화가 없어요
-          </h2>
-          <p className="text-gray-600 mb-8 max-w-md mx-auto">
-            새로운 동화를 만들어 호담과 함께 창의적인 이야기를 만들어보세요!
-          </p>
-          <Link
-            href="/service"
-            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-full hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-1"
+      {!loading && loadedOwner === userInfo.id && threads.length > 0 && (
+        <div className="library-tools">
+          <label className="sr-only" htmlFor="book-search">
+            제목, 아이 이름, 상황으로 검색
+          </label>
+          <input
+            id="book-search"
+            type="search"
+            value={query}
+            onChange={event => {
+              setQuery(event.target.value);
+              setVisibleCount(pageSize);
+            }}
+            placeholder="제목, 아이 이름, 상황으로 검색"
+          />
+          <label className="sr-only" htmlFor="book-filter">
+            완성 상태
+          </label>
+          <select
+            id="book-filter"
+            value={filter}
+            onChange={event => {
+              setFilter(event.target.value);
+              setVisibleCount(pageSize);
+            }}
           >
-            <span className="font-medium">새 동화 만들기</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 ml-2"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </Link>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {threads.map((thread: ThreadWithUser, index) => (
-            <Link
-              key={thread.id}
-              href={{
-                pathname: `/my-story/${thread.id}`,
-                query: {
-                  ableEnglish: thread.able_english,
-                },
-              }}
-            >
-              <div
-                className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-5 border border-gray-100 h-full flex flex-col cursor-pointer transform hover:-translate-y-1 hover:border-orange-200"
-                style={{
-                  animation: `fadeInUp 0.5s ease-out forwards`,
-                  animationDelay: `${index * 0.1}s`,
-                }}
-              >
-                <div className="absolute top-0 right-0 w-24 h-24 overflow-hidden">
-                  <div
-                    className={`w-40 transform rotate-45 translate-x-6 -translate-y-10 ${thread.has_image ? "bg-green-100" : "bg-gray-50"} h-6 opacity-50`}
-                  />
-                </div>
-
-                <div className="flex items-center mb-3 relative z-10">
-                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-500 mr-3 shadow-sm">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      {formatTime(thread.created_at, "YYYY년 MM월 DD일")}
-                    </p>
-                    <p className="font-medium">
-                      {thread.user?.display_name || "사용자"}
-                    </p>
-                  </div>
-                </div>
-
-                <h3 className="text-lg font-semibold mb-2 text-gray-800 line-clamp-2 relative z-10">
-                  {thread.keywords
-                    ?.map(keyword => keyword.keyword)
-                    .join(", ") || "제목 없음"}
-                </h3>
-
-                <div className="mt-auto pt-4 border-t border-gray-100">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center flex-wrap gap-2">
-                      <div
-                        className={`px-2 py-1 rounded-full text-xs ${thread.able_english ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}
-                      >
-                        {thread.able_english ? "영어 가능" : "한국어만"}
-                      </div>
-
-                      <div
-                        className={`px-2 py-1 rounded-full text-xs ${thread.has_image ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
-                      >
-                        {thread.has_image ? "이미지 있음" : "이미지 없음"}
-                      </div>
-                    </div>
-
-                    <div className="bg-orange-50 rounded-full p-1 group">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
+            <option value="all">읽을 수 있는 이야기</option>
+            <option value="complete">완성된 그림책</option>
+            <option value="choice-ready">이어 만들 그림책</option>
+            <option value="legacy">예전에 만든 동화</option>
+            <option value="empty">내용 확인이 필요한 기록</option>
+          </select>
         </div>
       )}
-
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+      {loading || (!error && loadedOwner !== userInfo.id) ? (
+        <p className="empty-state" role="status">
+          책장에서 이야기를 꺼내고 있어요.
+        </p>
+      ) : error ? (
+        <div className="notice-error mt-8" role="alert">
+          {error}
+          <button
+            type="button"
+            className="button-secondary mt-4 block"
+            onClick={() => setRetry(value => value + 1)}
+          >
+            다시 불러오기
+          </button>
+        </div>
+      ) : !threads.length ? (
+        <div className="empty-state mt-8">
+          <h2>첫 번째 이야기를 기다리고 있어요.</h2>
+          <p>
+            아이의 하루를 담은 그림책 한 권으로
+            <br />
+            우리만의 책장을 시작해보세요.
+          </p>
+          <Link href="/service" className="button-primary">
+            첫 그림책 만들기
+          </Link>
+          <Link className="text-link block mt-5" href="/sample">
+            예시 그림책 읽기
+          </Link>
+        </div>
+      ) : !books.length ? (
+        <div className="empty-state">
+          <h2>찾는 이야기가 없어요.</h2>
+          <p>검색어나 완성 상태를 바꿔보세요.</p>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setFilter("all");
+            }}
+          >
+            전체 이야기 보기
+          </button>
+        </div>
+      ) : (
+        <>
+          <p role="status" className="text-sm text-gray-600 mb-4">
+            {books.length}
+            {filter === "empty" ? "개 기록" : "권"} · 최근에 만든 순
+            {books.length > pageSize &&
+              ` · ${Math.min(visibleCount, books.length)}${filter === "empty" ? "개" : "권"} 표시 중`}
+          </p>
+          <div className="book-list">
+            {books
+              .slice(0, visibleCount)
+              .map(({ thread, book, title, status }, index) => (
+                <Link
+                  href={`/my-story/${thread.id}`}
+                  key={thread.id}
+                  ref={index === visibleCount - pageSize ? nextBook : undefined}
+                >
+                  <small>
+                    {formatTime(thread.created_at, "YYYY.MM.DD")}
+                    {book ? ` · ${book.childName}의 이야기` : ""}
+                  </small>
+                  <h2>{title}</h2>
+                  {book && <p className="line-clamp-2">{book.situation}</p>}
+                  <footer>
+                    <span>
+                      {book?.status === "choice-ready"
+                        ? "첫 4쪽 · 결말을 골라주세요"
+                        : book
+                          ? "8쪽 · 완성"
+                          : status === "legacy"
+                            ? "저장된 동화"
+                            : thread.raw_text?.trim()
+                              ? "내용 확인 필요"
+                              : "내용이 없는 기록"}
+                    </span>
+                    <span>
+                      {book?.status === "choice-ready"
+                        ? "이어 만들기"
+                        : status === "empty"
+                          ? "상태 확인"
+                          : "읽기"}{" "}
+                      ↗
+                    </span>
+                  </footer>
+                </Link>
+              ))}
+          </div>
+          {visibleCount < books.length && (
+            <div className="text-center mt-8">
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => setVisibleCount(count => count + pageSize)}
+              >
+                이야기 더 보기 · {books.length - visibleCount}
+                {filter === "empty" ? "개" : "권"} 남음
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

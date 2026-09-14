@@ -1,6 +1,14 @@
 # *
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /profile
+Disallow: /my-story
+Disallow: /payment
+Disallow: /bead
+Disallow: /service
+Disallow: /sign-in
 
 # Host
 Host: https://hodam.vercel.app

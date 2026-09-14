@@ -1,64 +1,32 @@
 import type { Bead } from "@/services/hooks/use-bead";
 
+import { beadPackages } from "../utils/bead-packages";
 import { supabase } from "../utils/supabase";
 // eslint-disable-next-line import/order
 import paymentApi, { PaymentRequest } from "./payment";
 
+function requireBead(data: Bead[] | null, context: string) {
+  if (!data || data.length === 0) {
+    throw new Error(`${context}: 곶감 정보를 불러오지 못했습니다.`);
+  }
+
+  return data[0] as Bead;
+}
+
 const beadApi = {
   async initializeBead(user_id: string) {
-    const hasBead = await hasBeadAlready();
-
-    if (!hasBead) {
-      const { data, error } = await supabase
-        .from("bead")
-        .insert({ user_id })
-        .select();
-
-      if (error) {
-        console.error("Error initializing bead", error);
-      }
-
-      return data![0] as Bead;
-    }
+    // StrictMode or two open tabs can initialize simultaneously. An insert-only
+    // upsert preserves an existing balance and avoids a duplicate signup grant.
+    const { error: insertError } = await supabase
+      .from("bead")
+      .upsert({ user_id }, { onConflict: "user_id", ignoreDuplicates: true });
+    if (insertError) throw insertError;
     const { data, error } = await supabase
       .from("bead")
       .select()
       .eq("user_id", user_id);
-
-    if (error) {
-      console.error("Error getting bead", error);
-    }
-
-    return data![0] as Bead;
-
-    async function hasBeadAlready() {
-      const { data, error } = await supabase
-        .from("bead")
-        .select()
-        .eq("user_id", user_id);
-
-      if (error) {
-        console.error("Error getting bead", error);
-      }
-
-      if (data && data.length > 0) {
-        return true;
-      }
-      return false;
-    }
-  },
-
-  async updateBeadCount(user_id: string, count: number) {
-    const { data, error } = await supabase
-      .from("bead")
-      .update({ count })
-      .eq("user_id", user_id)
-      .select();
-
-    if (error) {
-      console.error("Error updating bead count", error);
-    }
-    return data![0] as Bead;
+    if (error) throw error;
+    return requireBead(data as Bead[] | null, "initializeBead");
   },
 
   // 결제를 통한 곶감 충전
@@ -112,7 +80,7 @@ const beadApi = {
       }
 
       // 곶감 지급 처리
-      await paymentApi.processBeadReward(orderId, userId);
+      // Confirmation and reward are now one server-side operation.
 
       // 업데이트된 곶감 정보 반환
       const { data, error } = await supabase
@@ -140,45 +108,7 @@ const beadApi = {
 
   // 곶감 패키지 정보
   getBeadPackages() {
-    return [
-      {
-        id: "bead_5",
-        quantity: 5,
-        price: 2500,
-        originalPrice: 3000,
-        discount: 17,
-        popular: false,
-        description: "기본 패키지",
-      },
-      {
-        id: "bead_10",
-        quantity: 10,
-        price: 5000,
-        originalPrice: 6000,
-        discount: 17,
-        popular: true,
-        description: "인기 패키지",
-      },
-      {
-        id: "bead_20",
-        quantity: 20,
-        price: 10000,
-        originalPrice: 12000,
-        discount: 17,
-        popular: false,
-        description: "알뜰 패키지",
-      },
-      {
-        id: "bead_100",
-        quantity: 100,
-        price: 50000,
-        originalPrice: 60000,
-        discount: 17,
-        popular: false,
-        description: "대용량 패키지",
-      },
-    ];
+    return beadPackages;
   },
 };
-
 export default beadApi;

@@ -102,10 +102,12 @@ const messagesApi = {
   }: {
     thread_ids: number[];
   }): Promise<Record<number, Message[]>> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("messages")
       .select()
       .in("thread_id", thread_ids);
+
+    if (error) throw error;
 
     if (!data) return {};
     const groupedByThreadId: Record<number, Message[]> = data.reduce(

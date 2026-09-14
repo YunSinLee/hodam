@@ -77,3 +77,10 @@ next-env.d.ts
 *.log
 logs/
 **/*.log
+.gstack/
+
+# Keep reviewed schema migrations in version control.
+!supabase/migrations/*.sql
+
+# Synthetic schemas used by the isolated migration check.
+!tests/db/*.sql

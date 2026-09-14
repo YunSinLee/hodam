@@ -12,10 +12,11 @@ import NavBar from "./components/NavBar";
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | 내가 만드는 동화, 호담",
-    default: "호담 | 내가 만드는 동화, 호담",
+    template: "%s | 호담",
+    default: "호담 | 오늘을 담은 잠자리 그림책",
   },
-  description: "호랑이 담배피던 시절에. 내가 만드는 동화. 호담",
+  description:
+    "아이의 하루를 8쪽 잠자리 그림책으로. 함께 이야기를 고르고, 오늘 밤 나란히 읽어요.",
 };
 
 export default function RootLayout({
@@ -27,18 +28,21 @@ export default function RootLayout({
 
   return (
     <html lang="ko">
-      <PrimeReactProvider value={{ ripple: true }}>
-        <body>
+      <body>
+        <PrimeReactProvider value={{ ripple: true }}>
           <div className="min-h-screen flex flex-col">
-            <div className="h-navbar fixed top-0 z-10 w-full border-b-2 border-gray-300 bg-white">
-              <NavBar />
-            </div>
-            <main className="flex-1 pt-20">{children}</main>
+            <a className="skip-link" href="#main-content">
+              본문으로 바로가기
+            </a>
+            <NavBar />
+            <main id="main-content" className="flex-1" tabIndex={-1}>
+              {children}
+            </main>
             <FooterWrapper />
           </div>
-        </body>
-      </PrimeReactProvider>
-      <GoogleAnalytics gaId={gaId} />
+        </PrimeReactProvider>
+        {gaId && <GoogleAnalytics gaId={gaId} />}
+      </body>
     </html>
   );
 }

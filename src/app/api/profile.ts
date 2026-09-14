@@ -7,360 +7,120 @@ export interface UserProfile {
   profileUrl: string;
   custom_profile_url?: string;
   created_at: string;
-  totalStories: number;
-  totalBeadsPurchased: number;
-  totalBeadsUsed: number;
 }
 
-export interface UserStats {
-  totalStories: number;
-  totalBeadsPurchased: number;
-  totalBeadsUsed: number;
-  totalPaymentAmount: number;
-  joinDate: string;
-}
-
-export interface RecentStory {
-  id: number;
-  created_at: string;
-  able_english: boolean;
-  has_image: boolean;
-  keywords: { keyword: string }[];
-}
-
-export interface PaymentHistory {
-  id: string;
-  bead_quantity: number;
-  amount: number;
-  created_at: string;
-  status: string;
+async function ownUser(userId: string) {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || data.user?.id !== userId)
+    throw new Error("로그인 정보를 확인해주세요.");
+  return data.user;
 }
 
 const profileApi = {
-  // 사용자 기본 정보 조회
-  async getUserProfile(userId: string): Promise<UserProfile | null> {
-    try {
-      const { data: user, error: userError } = await supabase.auth.getUser();
-
-      if (userError || !user.user) {
-        throw new Error("사용자 정보를 찾을 수 없습니다.");
-      }
-
-      // users 테이블에서 display_name과 custom_profile_url 조회
-      const { data: initialUserData, error: userDataError } = await supabase
+  async getUserProfile(userId: string): Promise<UserProfile> {
+    const user = await ownUser(userId);
+    const { data, error } = await supabase
+      .from("users")
+      .select("display_name, custom_profile_url")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) throw error;
+    const name =
+      user.user_metadata?.full_name || user.user_metadata?.name || "사용자";
+    if (!data) {
+      const { error: insertError } = await supabase
         .from("users")
-        .select("display_name, custom_profile_url")
-        .eq("id", userId)
-        .single();
-
-      let userData = initialUserData;
-
-      // 사용자가 users 테이블에 없으면 생성
-      if (userDataError?.code === "PGRST116") {
-        console.log("사용자가 users 테이블에 없음, 새로 생성합니다.");
-
-        const defaultDisplayName =
-          user.user.user_metadata?.full_name ||
-          user.user.user_metadata?.name ||
-          `User_${userId.slice(-8)}`;
-
-        const { data: newUserData, error: insertError } = await supabase
-          .from("users")
-          .insert({
-            id: userId,
-            display_name: defaultDisplayName,
-            email: user.user.email,
-          })
-          .select("display_name, custom_profile_url")
-          .single();
-
-        if (insertError) {
-          console.error("사용자 생성 오류:", insertError);
-        } else {
-          userData = newUserData;
-          console.log("사용자 생성 성공:", userData);
-        }
-      } else if (userDataError) {
-        console.error("사용자 데이터 조회 오류:", userDataError);
-      }
-
-      // 기본 사용자 정보
-      const profile: UserProfile = {
-        id: user.user.id,
-        email: user.user.email || "",
-        display_name:
-          userData?.display_name ||
-          user.user.user_metadata?.full_name ||
-          user.user.user_metadata?.name ||
-          "사용자",
-        profileUrl:
-          userData?.custom_profile_url ||
-          user.user.user_metadata?.avatar_url ||
-          "",
-        custom_profile_url: userData?.custom_profile_url,
-        created_at: user.user.created_at,
-        totalStories: 0,
-        totalBeadsPurchased: 0,
-        totalBeadsUsed: 0,
-      };
-
-      return profile;
-    } catch (error) {
-      console.error("프로필 조회 오류:", error);
-      return null;
+        .upsert(
+          { id: userId, display_name: name, email: user.email },
+          { onConflict: "id", ignoreDuplicates: true },
+        );
+      if (insertError) throw insertError;
     }
-  },
-
-  // 닉네임 업데이트
-  async updateDisplayName(
-    userId: string,
-    displayName: string,
-  ): Promise<boolean> {
-    try {
-      console.log("닉네임 업데이트 시도:", { userId, displayName });
-
-      // 먼저 현재 사용자 확인
-      const { data: currentUser, error: userError } =
-        await supabase.auth.getUser();
-      if (userError || !currentUser.user) {
-        console.error("사용자 인증 오류:", userError);
-        return false;
-      }
-
-      console.log("현재 사용자 ID:", currentUser.user.id);
-      console.log("업데이트 대상 ID:", userId);
-
-      // 사용자 ID 일치 확인
-      if (currentUser.user.id !== userId) {
-        console.error("사용자 ID 불일치");
-        return false;
-      }
-
-      const { data, error } = await supabase
-        .from("users")
-        .update({
-          display_name: displayName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId)
-        .select();
-
-      if (error) {
-        console.error("닉네임 업데이트 오류:", error);
-        return false;
-      }
-
-      console.log("닉네임 업데이트 성공:", data);
-      return true;
-    } catch (error) {
-      console.error("닉네임 업데이트 예외:", error);
-      return false;
+    let profileUrl =
+      data?.custom_profile_url || user.user_metadata?.avatar_url || "";
+    if (profileUrl.startsWith("profiles:")) {
+      const { data: image } = await supabase.storage
+        .from("profiles")
+        .createSignedUrl(profileUrl.slice("profiles:".length), 3600);
+      profileUrl = image?.signedUrl || "";
     }
+    return {
+      id: userId,
+      email: user.email || "",
+      display_name: data?.display_name || name,
+      profileUrl,
+      custom_profile_url: data?.custom_profile_url,
+      created_at: user.created_at,
+    };
   },
-
-  // 사용자 통계 정보 조회
-  async getUserStats(userId: string): Promise<UserStats> {
-    try {
-      // 생성한 동화 수 조회
-      const { data: threads, error: threadsError } = await supabase
-        .from("thread")
-        .select("id")
-        .eq("user_id", userId);
-
-      const totalStories = threads?.length || 0;
-
-      // 결제 내역에서 구매한 곶감 수 조회
-      const { data: payments, error: paymentsError } = await supabase
-        .from("payment_history")
-        .select("bead_quantity, amount")
-        .eq("user_id", userId)
-        .eq("status", "completed");
-
-      const totalBeadsPurchased =
-        payments?.reduce(
-          (sum, payment) => sum + (payment.bead_quantity || 0),
-          0,
-        ) || 0;
-      const totalPaymentAmount =
-        payments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
-
-      // 사용자가 생성한 메시지 수 조회 (곶감 사용량 계산용)
-      let totalBeadsUsed = 0;
-      if (threads && threads.length > 0) {
-        const { count: messageCount, error: messageError } = await supabase
-          .from("messages")
-          .select("*", { count: "exact", head: true })
-          .in(
-            "thread_id",
-            threads.map(t => t.id),
-          );
-
-        totalBeadsUsed = messageCount || 0;
-      }
-
-      // 사용자 가입일
-      const { data: user } = await supabase.auth.getUser();
-      const joinDate = user.user?.created_at || "";
-
-      return {
-        totalStories,
-        totalBeadsPurchased,
-        totalBeadsUsed,
-        totalPaymentAmount,
-        joinDate,
-      };
-    } catch (error) {
-      console.error("사용자 통계 조회 오류:", error);
-      return {
-        totalStories: 0,
-        totalBeadsPurchased: 0,
-        totalBeadsUsed: 0,
-        totalPaymentAmount: 0,
-        joinDate: "",
-      };
-    }
+  async updateDisplayName(userId: string, displayName: string) {
+    await ownUser(userId);
+    const name = displayName.trim();
+    if (!name || name.length > 30)
+      throw new Error("이름은 1~30자로 입력해주세요.");
+    const { error } = await supabase
+      .from("users")
+      .update({ display_name: name, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select("id")
+      .single();
+    if (error) throw error;
   },
-
-  // 최근 생성한 동화 목록 조회
-  async getRecentStories(
-    userId: string,
-    limit: number = 5,
-  ): Promise<RecentStory[]> {
-    try {
-      // 먼저 thread 정보를 가져옵니다
-      const { data: threads, error: threadsError } = await supabase
-        .from("thread")
-        .select("id, created_at, able_english, has_image")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-
-      if (threadsError) {
-        console.error("최근 동화 조회 오류:", threadsError);
-        return [];
-      }
-
-      if (!threads || threads.length === 0) {
-        return [];
-      }
-
-      // 각 thread에 대해 keywords를 가져옵니다
-      const threadsWithKeywords = await Promise.all(
-        threads.map(async thread => {
-          const { data: keywords } = await supabase
-            .from("keywords")
-            .select("keyword")
-            .eq("thread_id", thread.id);
-
-          return {
-            ...thread,
-            keywords: keywords || [],
-          };
-        }),
+  async uploadProfileImage(userId: string, file: File) {
+    await ownUser(userId);
+    const extensions: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif",
+    };
+    const extension = extensions[file.type];
+    if (!extension || file.size === 0 || file.size > 5 * 1024 * 1024)
+      throw new Error("5MB 이하의 JPG, PNG, WebP, GIF를 골라주세요.");
+    const path = `profile_${userId}_${crypto.randomUUID()}.${extension}`;
+    const bucket = supabase.storage.from("profiles");
+    const { error } = await bucket.upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) {
+      console.error("Profile upload failed", error);
+      throw new Error(
+        error.message.toLowerCase().includes("bucket not found")
+          ? "사진 저장 기능을 준비 중이에요. 잠시 후 다시 이용해주세요."
+          : "사진을 올리지 못했어요. 연결을 확인하고 다시 시도해주세요.",
       );
-
-      return threadsWithKeywords as RecentStory[];
-    } catch (error) {
-      console.error("최근 동화 조회 오류:", error);
-      return [];
     }
+    const storedPath = `profiles:${path}`;
+    const { error: saveError } = await supabase
+      .from("users")
+      .update({
+        custom_profile_url: storedPath,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+      .select("id")
+      .single();
+    if (saveError) {
+      console.error("Profile image update failed", saveError);
+      throw new Error(
+        "사진 변경 결과를 확인하지 못했어요. 계정 정보를 다시 불러와 확인해주세요.",
+      );
+    }
+    return storedPath;
   },
-
-  // 최근 곶감 사용 내역 조회 (임시로 결제 내역으로 대체)
-  async getRecentBeadUsage(userId: string, limit: number = 10) {
-    try {
-      const { data, error } = await supabase
-        .from("payment_history")
-        .select("id, bead_quantity, amount, created_at, status")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-
-      if (error) {
-        console.error("곶감 사용 내역 조회 오류:", error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error("곶감 사용 내역 조회 오류:", error);
-      return [];
-    }
-  },
-
-  // 프로필 이미지 업로드
-  async uploadProfileImage(
-    userId: string,
-    imageFile: File,
-  ): Promise<string | null> {
-    try {
-      // 파일 확장자 추출
-      const fileExt = imageFile.name.split(".").pop();
-      const fileName = `profile_${userId}_${Date.now()}.${fileExt}`;
-
-      // Supabase Storage에 이미지 업로드
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("profiles")
-        .upload(fileName, imageFile, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("이미지 업로드 오류:", uploadError);
-        return null;
-      }
-
-      // 업로드된 이미지의 공개 URL 생성
-      const { data: urlData } = supabase.storage
-        .from("profiles")
-        .getPublicUrl(fileName);
-
-      const imageUrl = urlData.publicUrl;
-
-      // users 테이블에 custom_profile_url 업데이트
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          custom_profile_url: imageUrl,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
-
-      if (updateError) {
-        console.error("프로필 URL 업데이트 오류:", updateError);
-        return null;
-      }
-
-      return imageUrl;
-    } catch (error) {
-      console.error("프로필 이미지 업로드 오류:", error);
-      return null;
-    }
-  },
-
-  // 프로필 이미지 삭제 (소셜 로그인 이미지로 되돌리기)
-  async removeCustomProfileImage(userId: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from("users")
-        .update({
-          custom_profile_url: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
-
-      if (error) {
-        console.error("커스텀 프로필 이미지 삭제 오류:", error);
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error("커스텀 프로필 이미지 삭제 오류:", error);
-      return false;
-    }
+  async removeCustomProfileImage(userId: string) {
+    await ownUser(userId);
+    const { error } = await supabase
+      .from("users")
+      .update({
+        custom_profile_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+      .select("id")
+      .single();
+    if (error) throw error;
   },
 };
-
 export default profileApi;

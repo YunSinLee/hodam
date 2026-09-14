@@ -1,6 +1,6 @@
-# 호담 (HODAM) - AI 동화 생성 서비스
+# 호담 (HODAM) — 오늘을 담은 잠자리 그림책
 
-AI 기술로 만드는 개인 맞춤형 동화 서비스입니다.
+아이의 하루를 입력하고 첫 4쪽을 읽은 뒤, 행동을 선택하면 결말 4쪽이 이어지는 개인 맞춤형 그림책 서비스입니다. `/sample`에서는 로그인 없이 읽기 흐름을 체험할 수 있습니다.
 
 ## 🚀 시작하기
 
@@ -22,10 +22,21 @@ OPENAI_API_KEY=your_openai_api_key
 
 ### Cursor MCP 설정 (선택사항)
 
-AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
+AI 개발 도구인 Cursor에서 MCP 서버를 사용하려면:
+
+#### Supabase MCP 설정
 
 1. Supabase 대시보드에서 Personal Access Token 생성
-2. `.cursor/mcp.json` 파일 생성:
+2. `.cursor/mcp.json` 파일에 Supabase 설정 추가
+
+#### Figma MCP 설정
+
+1. Figma에서 Personal Access Token 생성:
+   - Figma 설정 → Account → Personal Access Tokens
+   - 새 토큰 생성 및 복사
+2. `.cursor/mcp.json` 파일에 Figma 설정 추가
+
+**전체 설정 예시:**
 
 ```json
 {
@@ -35,6 +46,13 @@ AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
       "args": ["-y", "@supabase/mcp-server-supabase@latest", "--access-token"],
       "env": {
         "SUPABASE_ACCESS_TOKEN": "your_personal_access_token"
+      }
+    },
+    "figma": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-figma"],
+      "env": {
+        "FIGMA_ACCESS_TOKEN": "your_figma_access_token"
       }
     }
   }
@@ -66,7 +84,7 @@ AI 개발 도구인 Cursor에서 Supabase MCP를 사용하려면:
 ## 📦 설치
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -81,3 +99,25 @@ npm run dev
 ## 📄 라이선스
 
 이 프로젝트는 MIT 라이선스 하에 있습니다.
+
+## 개발 및 검증
+
+Node.js 22.13 이상을 권장합니다. npm과 `package-lock.json`을 사용합니다.
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run start
+```
+
+로컬 PostgreSQL의 `initdb`, `pg_ctl`, `psql`이 있다면 `npm run test:db`로 권한 마이그레이션을 격리된 임시 DB에서 검증할 수 있습니다. 운영 Supabase에는 연결하지 않습니다.
+
+## 그림책과 결제 설정
+
+`.env.example`에 필요한 항목을 정리했습니다. OpenAI 키는 서버 환경변수 `OPENAI_API_KEY`로만 설정합니다. 기존 `OPEN_AI_API_KEY`도 호환되지만 공개 빌드 설정에 넣지 않습니다. 글 모델은 `OPENAI_STORY_MODEL`, 그림 모델은 `OPENAI_IMAGE_MODEL`로 설정합니다. 기본 그림 모델은 `gpt-image-2.5-flare`이며 1024×1024, low 품질을 사용합니다.
+
+결제에는 `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_PAYMENTS_SECRET_KEY`, `NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY`가 모두 필요합니다. 누락되면 결제 버튼을 활성화하지 않습니다. 해당 서버 코드와 `supabase/migrations/`의 회계·저장소 마이그레이션 두 개를 함께 반영해야 직접 DB 호출을 통한 임의 지급도 차단됩니다. OAuth 리다이렉트 허용 목록에는 배포 도메인의 `/auth/callback`과 사용 중인 로컬 주소를 등록합니다.
+
+[전체 개선 기록과 운영 반영 항목](docs/2026-09-14-service-review.md)을 먼저 확인하세요. SQL은 자동으로 운영에 적용되지 않습니다.

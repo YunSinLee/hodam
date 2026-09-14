@@ -2,6 +2,14 @@ import { supabase } from "../utils/supabase";
 
 import type { Thread, ThreadWithUser } from "../types/openai";
 
+function requireThread(data: Thread[] | null, context: string) {
+  if (!data || data.length === 0) {
+    throw new Error(`${context}: thread 데이터를 불러오지 못했습니다.`);
+  }
+
+  return data[0] as Thread;
+}
+
 const threadApi = {
   async createThread({
     thread_id,
@@ -26,17 +34,23 @@ const threadApi = {
 
     if (error) {
       console.error("Error saving message", error);
+      throw error;
     }
 
-    return data![0] as Thread;
+    return requireThread(data as Thread[] | null, "createThread");
   },
   async getThreadByID(thread_id: number): Promise<Thread> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("thread")
       .select("*")
       .eq("id", thread_id);
 
-    return data![0] as Thread;
+    if (error) {
+      console.error("Error getting thread", error);
+      throw error;
+    }
+
+    return requireThread(data as Thread[] | null, "getThreadByID");
   },
   async fetchAllThreads(): Promise<ThreadWithUser[]> {
     const { data, error } = await supabase
@@ -65,14 +79,14 @@ const threadApi = {
 
     if (error) {
       console.error("Error fetching threads:", error);
-      return [];
+      throw error;
     }
 
     // 키워드가 있거나 메시지가 있는 thread만 필터링
     const filteredData = data.filter((thread: any) => {
       const hasKeywords = thread.keywords && thread.keywords.length > 0;
       const hasMessages = thread.messages && thread.messages.length > 0;
-      return hasKeywords || hasMessages;
+      return !!thread.raw_text || hasKeywords || hasMessages;
     });
 
     return filteredData as ThreadWithUser[];
@@ -108,14 +122,14 @@ const threadApi = {
 
     if (error) {
       console.error("Error fetching threads:", error);
-      return [];
+      throw error;
     }
 
     // 키워드가 있거나 메시지가 있는 thread만 필터링
     const filteredData = data.filter((thread: any) => {
       const hasKeywords = thread.keywords && thread.keywords.length > 0;
       const hasMessages = thread.messages && thread.messages.length > 0;
-      return hasKeywords || hasMessages;
+      return !!thread.raw_text || hasKeywords || hasMessages;
     });
 
     return filteredData as ThreadWithUser[];
@@ -133,18 +147,25 @@ const threadApi = {
     has_image?: boolean;
     raw_text?: string;
   }) {
+    const updateData: {
+      able_english?: boolean;
+      has_image?: boolean;
+      raw_text?: string;
+    } = {};
+    if (able_english !== undefined) updateData.able_english = able_english;
+    if (has_image !== undefined) updateData.has_image = has_image;
+    if (raw_text !== undefined) updateData.raw_text = raw_text;
+
     const { data, error } = await supabase
       .from("thread")
-      .update({
-        able_english,
-        has_image,
-        raw_text,
-      })
+      .update(updateData)
       .eq("id", thread_id)
-      .eq("user_id", user_id);
+      .eq("user_id", user_id)
+      .select()
+      .single();
 
     if (error) {
-      console.error("Error updating thread", error);
+      throw error;
     }
 
     return data;

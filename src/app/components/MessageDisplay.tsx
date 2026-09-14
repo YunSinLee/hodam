@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+
+import { requireAccessToken } from "@/app/utils/session";
 
 interface MessageDisplayProps {
   messages: {
@@ -16,9 +18,12 @@ export default function MessageDisplay({
   useGoogleTTS = true, // 기본값은 Google TTS API 사용
   voice = "male", // 기본값은 남성 목소리
 }: MessageDisplayProps) {
+  const messageId = useId();
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [_isAPILoading, setIsAPILoadingState] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [speechError, setSpeechError] = useState("");
   const audioUrlsRef = useRef<string[]>([]);
   const currentAudioIndexRef = useRef<number>(0);
 
@@ -36,7 +41,7 @@ export default function MessageDisplay({
     return () => {
       stopSpeaking();
     };
-  }, []);
+  }, [messages]);
 
   // 속도 변경 시 재생 중인 오디오에 적용
   useEffect(() => {
@@ -51,12 +56,18 @@ export default function MessageDisplay({
     index: number,
     language: string = "ko-KR",
   ) => {
-    if ("speechSynthesis" in window) {
+    if (
+      typeof window.speechSynthesis?.speak === "function" &&
+      typeof window.SpeechSynthesisUtterance === "function"
+    ) {
+      utteranceRef.current = null;
+      setSpeechError("");
       // 다른 음성이 재생 중이면 중지
       window.speechSynthesis.cancel();
 
       // 새 음성 생성
       const utterance = new SpeechSynthesisUtterance(text);
+      utteranceRef.current = utterance;
 
       // 언어 설정 (한국어 또는 영어)
       utterance.lang = language;
@@ -94,13 +105,27 @@ export default function MessageDisplay({
 
       // 음성 재생 종료 시 상태 업데이트
       utterance.onend = () => {
+        if (utteranceRef.current !== utterance) return;
+        utteranceRef.current = null;
         setPlayingIndex(null);
+      };
+      utterance.onerror = () => {
+        if (utteranceRef.current !== utterance) return;
+        utteranceRef.current = null;
+        setPlayingIndex(null);
+        setSpeechError("소리를 재생하지 못했어요. 잠시 후 다시 눌러주세요.");
       };
 
       // 음성 재생
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        utteranceRef.current = null;
+        setPlayingIndex(null);
+        setSpeechError("이 기기에서 소리를 재생하지 못했어요.");
+      }
     } else {
-      alert("이 브라우저는 음성 합성을 지원하지 않습니다.");
+      setSpeechError("이 브라우저에서는 읽어주기를 사용할 수 없어요.");
     }
   };
 
@@ -125,6 +150,7 @@ export default function MessageDisplay({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${await requireAccessToken()}`,
         },
         body: JSON.stringify({
           text,
@@ -296,6 +322,7 @@ export default function MessageDisplay({
 
   // 음성 재생 중지
   const stopSpeaking = () => {
+    utteranceRef.current = null;
     // Web Audio API 정지
     if (sourceNodeRef.current) {
       try {
@@ -363,6 +390,8 @@ export default function MessageDisplay({
       {/* 오디오 설정 패널 */}
       <div className="mb-4">
         <button
+          type="button"
+          aria-expanded={showControls}
           onClick={toggleControls}
           className="text-sm text-orange-500 flex items-center mb-2"
         >
@@ -378,14 +407,14 @@ export default function MessageDisplay({
               clipRule="evenodd"
             />
           </svg>
-          TTS 설정 {showControls ? "숨기기" : "보기"}
+          읽어주기 설정 {showControls ? "숨기기" : "보기"}
         </button>
 
         {showControls && (
           <div className="bg-gray-50 p-3 rounded-md text-sm">
             <div className="mb-2">
               <label className="flex items-center justify-between">
-                <span>음성 속도: {speed.toFixed(1)}x</span>
+                <span>읽는 속도: {speed.toFixed(1)}x</span>
                 <input
                   type="range"
                   min="0.5"
@@ -399,7 +428,7 @@ export default function MessageDisplay({
             </div>
             <div>
               <label className="flex items-center justify-between">
-                <span>음성 피치: {pitch.toFixed(1)}</span>
+                <span>목소리 높이: {pitch.toFixed(1)}</span>
                 <input
                   type="range"
                   min="0.5"
@@ -415,20 +444,32 @@ export default function MessageDisplay({
         )}
       </div>
 
+      {speechError && (
+        <p className="notice-info mb-4" role="status">
+          {speechError}
+        </p>
+      )}
+      <p className="text-sm text-gray-600 mb-4">
+        문장을 누르면 읽어줘요. 한 번 더 누르면 멈춰요.
+      </p>
       {/* 숨겨진 오디오 요소 */}
       <audio ref={audioRef} style={{ display: "none" }} />
 
       {messages.map((message, index) => (
         <div key={index} className="mb-4 last:mb-0">
-          <div
-            className="relative group"
+          <button
+            type="button"
+            className="relative group w-full text-left"
+            aria-label={`${index + 1}번째 문장 ${playingIndex === index ? "읽어주기 멈추기" : "읽어주기"}`}
+            aria-pressed={playingIndex === index}
+            aria-describedby={`${messageId}-ko-${index}`}
             onClick={() =>
               playingIndex === index
                 ? stopSpeaking()
                 : speakText(message.text, index, "ko-KR")
             }
           >
-            <p
+            <span
               className={`py-2 px-3 border-l-4 border-orange-500 text-gray-800 transition-all 
                 ${playingIndex === index ? "bg-orange-50" : "hover:bg-orange-50/50"} 
                 cursor-pointer rounded-r flex items-center`}
@@ -462,20 +503,26 @@ export default function MessageDisplay({
               </span>
 
               {/* 문장 내용 */}
-              <span className="inline-block">{message.text}</span>
-            </p>
-          </div>
+              <span id={`${messageId}-ko-${index}`} className="inline-block">
+                {message.text}
+              </span>
+            </span>
+          </button>
 
           {isShowEnglish && message.text_en && (
-            <div
-              className="relative group mt-1"
+            <button
+              type="button"
+              className="relative group mt-1 w-full text-left"
+              aria-label={`${index + 1}번째 영어 문장 ${playingIndex === index + 1000 ? "읽어주기 멈추기" : "읽어주기"}`}
+              aria-pressed={playingIndex === index + 1000}
+              aria-describedby={`${messageId}-en-${index}`}
               onClick={() =>
                 playingIndex === index + 1000
                   ? stopSpeaking()
                   : speakText(message.text_en, index + 1000, "en-US")
               }
             >
-              <p
+              <span
                 className={`py-2 px-3 border-l-4 border-blue-400 text-gray-600 italic transition-all 
                   ${playingIndex === index + 1000 ? "bg-blue-50" : "hover:bg-blue-50/50"} 
                   cursor-pointer rounded-r flex items-center`}
@@ -509,9 +556,11 @@ export default function MessageDisplay({
                 </span>
 
                 {/* 문장 내용 (영어) */}
-                <span className="inline-block">{message.text_en}</span>
-              </p>
-            </div>
+                <span id={`${messageId}-en-${index}`} className="inline-block">
+                  {message.text_en}
+                </span>
+              </span>
+            </button>
           )}
         </div>
       ))}

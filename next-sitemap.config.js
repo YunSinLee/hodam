@@ -1,16 +1,39 @@
 /** @type {import('next-sitemap').IConfig} */
-
 module.exports = {
-  siteUrl: "https://hodam.vercel.app",
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")
+    ? process.env.NEXT_PUBLIC_SITE_URL
+    : "https://hodam.vercel.app",
   generateRobotsTxt: true,
-  sitemapSize: 5000, // 단일 파일로 생성하도록 설정
-  changefreq: "daily",
-  priority: 1,
+  changefreq: "weekly",
+  priority: 0.7,
+  exclude: [
+    "/api/*",
+    "/auth/*",
+    "/sign-in",
+    "/profile",
+    "/my-story",
+    "/my-story/*",
+    "/payment/*",
+    "/payment-history",
+    "/bead",
+    "/service",
+    "/hodam",
+  ],
   robotsTxtOptions: {
     policies: [
       {
         userAgent: "*",
         allow: "/",
+        disallow: [
+          "/api/",
+          "/auth/",
+          "/profile",
+          "/my-story",
+          "/payment",
+          "/bead",
+          "/service",
+          "/sign-in",
+        ],
       },
     ],
   },

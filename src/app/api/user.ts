@@ -1,33 +1,17 @@
-import { NextResponse } from "next/server";
-
+import { safeReturnPath } from "../utils/navigation";
 import { supabase } from "../utils/supabase";
-// The client you created from the Server-Side Auth instructions
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  // if "next" is in param, use it as the redirect URL
-  const next = searchParams.get("next") ?? "/";
-
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      const forwardedHost = request.headers.get("x-forwarded-host"); // original origin before load balancer
-      const isLocalEnv = process.env.NODE_ENV === "development";
-      if (isLocalEnv) {
-        // we can be sure that there is no load balancer in between, so no need to watch for X-Forwarded-Host
-        return NextResponse.redirect(`${origin}${next}`);
-      }
-      if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`);
-      }
-      return NextResponse.redirect(`${origin}${next}`);
-    }
-  }
-
-  // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+async function signInWithProvider(provider: "kakao" | "google", next: string) {
+  const redirectTo = new URL("/auth/callback", window.location.origin);
+  redirectTo.searchParams.set("next", safeReturnPath(next));
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: redirectTo.toString() },
+  });
+  if (error) throw error;
+  return data;
 }
+
 const userApi = {
   async signUp({
     email,
@@ -76,59 +60,21 @@ const userApi = {
       return userData;
     }
   },
-  async signInWithKakao() {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "kakao",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        console.error("Kakao Sign In Error:", error.message);
-        alert(`카카오 로그인 중 오류가 발생했습니다: ${error.message}`);
-        return null;
-      }
-
-      // OAuth는 리다이렉트 방식이므로 URL을 반환하지 않고 자동으로 리다이렉트됨
-      return data;
-    } catch (error) {
-      console.error("Kakao Sign In Error:", error);
-      alert("카카오 로그인 중 예상치 못한 오류가 발생했습니다.");
-      return null;
-    }
+  async signInWithKakao(next = "/service") {
+    return signInWithProvider("kakao", next);
   },
-  async signInWithGoogle() {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        console.error("Google Sign In Error:", error.message);
-        alert(`구글 로그인 중 오류가 발생했습니다: ${error.message}`);
-        return null;
-      }
-
-      // OAuth는 리다이렉트 방식이므로 URL을 반환하지 않고 자동으로 리다이렉트됨
-      return data;
-    } catch (error) {
-      console.error("Google Sign In Error:", error);
-      alert("구글 로그인 중 예상치 못한 오류가 발생했습니다.");
-      return null;
-    }
+  async signInWithGoogle(next = "/service") {
+    return signInWithProvider("google", next);
   },
   async signOut() {
     const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      console.error("Error signing out user", error);
-    } else {
-      console.log("User signed out");
+    if (error) throw error;
+    try {
+      sessionStorage.removeItem("hodam-picturebook-input");
+      localStorage.removeItem("hodam-user-info");
+      localStorage.removeItem("hodam-bead-info");
+    } catch {
+      /* Signing out still succeeds when storage is disabled. */
     }
   },
   async getSession() {

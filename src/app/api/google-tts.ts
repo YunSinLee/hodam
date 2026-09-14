@@ -13,6 +13,7 @@ interface TtsCache {
 
 // 간단한 인메모리 캐시 (서버 재시작 시 초기화됨)
 const ttsCache: TtsCache = {};
+const MAX_CACHE_ENTRIES = 256;
 
 // 캐시 유효 시간 (24시간)
 const CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -99,18 +100,14 @@ const googleTtsApi = {
     const now = Date.now();
 
     if (cachedItem && now - cachedItem.timestamp < CACHE_TTL) {
-      console.log(
-        `[TTS] 캐시에서 오디오 데이터 로드: ${cacheKey.substring(0, 30)}...`,
-      );
       return cachedItem.data;
     }
 
     // 캐시에 없으면 새로 가져옴
-    console.log(`[TTS] 새 오디오 데이터 생성: ${cacheKey.substring(0, 30)}...`);
     const url = this.getAudioUrl(text, language, pitch);
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) {
         throw new Error(`오디오 데이터 가져오기 실패: ${response.status}`);
       }
@@ -118,6 +115,9 @@ const googleTtsApi = {
       const buffer = await response.arrayBuffer();
       const base64Data = Buffer.from(buffer).toString("base64");
 
+      // Bound process memory even when many different stories are requested.
+      const keys = Object.keys(ttsCache);
+      if (keys.length >= MAX_CACHE_ENTRIES) delete ttsCache[keys[0]];
       // 캐시에 저장
       ttsCache[cacheKey] = {
         data: base64Data,

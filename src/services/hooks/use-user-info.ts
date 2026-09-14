@@ -1,39 +1,26 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 interface UserInfoType {
   profileUrl: string;
   id: string | undefined;
   email: string | undefined;
 }
-
-interface UserInfoState {
+export const defaultState: UserInfoType = {
+  profileUrl: "",
+  id: undefined,
+  email: undefined,
+};
+const useUserInfo = create<{
   userInfo: UserInfoType;
-}
-
-interface UserInfoActions {
-  setUserInfo: (userinfo: UserInfoType) => void;
+  isAuthReady: boolean;
+  setAuthReady: (ready: boolean) => void;
+  setUserInfo: (userInfo: UserInfoType) => void;
   deleteUserInfo: () => void;
-}
-
-export const defaultState = { profileUrl: "", id: undefined, email: undefined };
-
-const useUserInfo = create<UserInfoState & UserInfoActions>()(
-  persist(
-    set => ({
-      userInfo: defaultState,
-      setUserInfo: (userInfo: UserInfoType) => {
-        set({ userInfo });
-      },
-      deleteUserInfo: () => {
-        set({ userInfo: defaultState });
-      },
-    }),
-    {
-      name: "hodam-user-info", // localStorage 키 이름
-      partialize: state => ({ userInfo: state.userInfo }), // 저장할 상태만 선택
-    },
-  ),
-);
-
+}>(set => ({
+  userInfo: defaultState,
+  isAuthReady: false,
+  setAuthReady: isAuthReady => set({ isAuthReady }),
+  setUserInfo: userInfo => set({ userInfo }),
+  deleteUserInfo: () => set({ userInfo: defaultState }),
+}));
 export default useUserInfo;
