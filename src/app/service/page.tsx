@@ -36,6 +36,15 @@ import useBead from "@/services/hooks/use-bead";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
 import useUserInfo from "@/services/hooks/use-user-info";
 
+import {
+  clearPendingPicturebookRequest,
+  readPendingPicturebookRequest,
+  readUnconfirmedPicturebookRequests,
+  savePendingPicturebookRequest,
+  setAsidePicturebookRequest,
+  type PendingPicturebookRequest,
+} from "./picturebook-request-recovery";
+
 const storageKey = "hodam-picturebook-input";
 export default function Service() {
   const [input, setInput] = useState<PicturebookInput>(initialInput);
@@ -45,12 +54,19 @@ export default function Service() {
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
   const [seconds, setSeconds] = useState(0);
+  const [pendingRequest, setPendingRequest] =
+    useState<PendingPicturebookRequest | null>(null);
+  const [unconfirmedRequests, setUnconfirmedRequests] = useState<
+    PendingPicturebookRequest[]
+  >([]);
+  const [confirmSeparateBook, setConfirmSeparateBook] = useState(false);
   const [selectedChoice, setSelectedChoice] =
     useState<PicturebookChoiceOption["id"]>();
   const busy = useRef(false);
   const epoch = useRef(0);
   const requestId = useRef<string | null>(null);
   const requestInput = useRef<PicturebookInput | null>(null);
+  const requestUncertain = useRef(false);
   const searchAttempt = useRef<SearchGenerationAttempt | null>(null);
   const { userInfo, isAuthReady } = useUserInfo();
   const { bead, setBead } = useBead();
@@ -59,10 +75,15 @@ export default function Service() {
   const router = useRouter();
 
   useEffect(() => {
+    if (requestInput.current) setInput(initialInput);
     epoch.current += 1;
     busy.current = false;
     requestId.current = null;
     requestInput.current = null;
+    requestUncertain.current = false;
+    setPendingRequest(null);
+    setUnconfirmedRequests([]);
+    setConfirmSeparateBook(false);
     searchAttempt.current = null;
     setThread(null);
     setBook(null);
@@ -70,6 +91,17 @@ export default function Service() {
     setError("");
     setSelectedChoice(undefined);
     resetImages();
+    if (userInfo.id) {
+      setUnconfirmedRequests(readUnconfirmedPicturebookRequests(userInfo.id));
+      const pending = readPendingPicturebookRequest(userInfo.id);
+      if (pending) {
+        requestId.current = pending.requestId;
+        requestInput.current = pending.input;
+        requestUncertain.current = true;
+        setPendingRequest(pending);
+        setInput(pending.input);
+      }
+    }
     return () => {
       epoch.current += 1;
       resetImages();
@@ -77,6 +109,7 @@ export default function Service() {
   }, [userInfo.id, resetImages]);
 
   useEffect(() => {
+    if (requestInput.current) return;
     try {
       const stored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
       if (
@@ -161,6 +194,13 @@ export default function Service() {
       setStep("아이의 하루로 첫 4쪽을 쓰고 책장에 보관하고 있어요.");
       requestId.current ||= crypto.randomUUID();
       requestInput.current ||= input;
+      const pending = {
+        userId: userInfo.id,
+        requestId: requestId.current,
+        input: requestInput.current,
+      };
+      savePendingPicturebookRequest(pending, unconfirmedRequests);
+      setPendingRequest(pending);
       searchAttempt.current = beginSearchGeneration(searchAttempt.current);
       const result = await createPicturebookAction(
         requestInput.current,
@@ -169,16 +209,33 @@ export default function Service() {
       );
       if (!isCurrent()) return;
       if (!result.ok) {
-        if (!result.retrySameRequest) {
+        if (!result.retrySameRequest && !requestUncertain.current) {
+          clearPendingPicturebookRequest(
+            userInfo.id,
+            requestId.current,
+            unconfirmedRequests,
+          );
           requestId.current = null;
           requestInput.current = null;
+          setPendingRequest(null);
           searchAttempt.current = null;
+        } else {
+          // A failed retry cannot prove that another worker did not finish the
+          // earlier attempt whose result was lost.
+          requestUncertain.current = true;
         }
         setError(result.message);
         return;
       }
+      clearPendingPicturebookRequest(
+        userInfo.id,
+        requestId.current,
+        unconfirmedRequests,
+      );
       requestId.current = null;
       requestInput.current = null;
+      requestUncertain.current = false;
+      setPendingRequest(null);
       associateSearchGeneration(searchAttempt.current, result.threadId);
       searchAttempt.current = null;
       setBead({
@@ -197,7 +254,10 @@ export default function Service() {
       images.draw(result.threadId, result.book.pages);
     } catch {
       if (!isCurrent()) return;
-      if (requestInput.current) setInput(requestInput.current);
+      if (requestInput.current) {
+        requestUncertain.current = true;
+        setInput(requestInput.current);
+      }
       setError(
         "요청 결과를 확인하지 못했어요. 내 책장을 먼저 확인해주세요. 다시 시도하면 같은 요청의 저장 결과를 확인해요.",
       );
@@ -255,6 +315,9 @@ export default function Service() {
     busy.current = false;
     requestId.current = null;
     requestInput.current = null;
+    requestUncertain.current = false;
+    setPendingRequest(null);
+    setConfirmSeparateBook(false);
     searchAttempt.current = null;
     setStage("idle");
     images.reset();
@@ -264,24 +327,79 @@ export default function Service() {
     setInput(initialInput);
     setSelectedChoice(undefined);
   }
+  function startSeparateBook() {
+    if (
+      !confirmSeparateBook ||
+      !pendingRequest ||
+      pendingRequest.userId !== userInfo.id ||
+      pendingRequest.userId !== useUserInfo.getState().userInfo.id ||
+      busy.current
+    )
+      return;
+    const previousRequests = setAsidePicturebookRequest(
+      pendingRequest,
+      unconfirmedRequests,
+    );
+    reset();
+    setUnconfirmedRequests(previousRequests);
+  }
+  function resumeUnconfirmedRequest(request: PendingPicturebookRequest) {
+    if (
+      request.userId !== userInfo.id ||
+      request.userId !== useUserInfo.getState().userInfo.id ||
+      busy.current ||
+      images.isLoading ||
+      pendingRequest
+    )
+      return;
+    const remaining = unconfirmedRequests.filter(
+      value => value.requestId !== request.requestId,
+    );
+    reset();
+    requestId.current = request.requestId;
+    requestInput.current = request.input;
+    requestUncertain.current = true;
+    setInput(request.input);
+    setPendingRequest(request);
+    setUnconfirmedRequests(remaining);
+    savePendingPicturebookRequest(request, remaining);
+  }
+  const ownedUnconfirmedRequests = unconfirmedRequests.filter(
+    request => request.userId === userInfo.id,
+  );
   return (
     <div className="page-shell">
-      {!book && stage === "idle" && (
-        <PicturebookInputForm
-          value={input}
-          picturebookCost={1}
-          beadCount={bead.count}
-          isLoading={false}
-          isAuthReady={isAuthReady}
-          isSignedIn={!!userInfo.id}
-          onChange={value => {
-            requestId.current = null;
-            requestInput.current = null;
-            searchAttempt.current = null;
-            setInput(value);
-          }}
-          onSubmit={createBook}
-        />
+      {ownedUnconfirmedRequests.length > 0 && (
+        <details className="notice-info mb-5">
+          <summary>미확인 요청 {ownedUnconfirmedRequests.length}건</summary>
+          <p className="mt-3">
+            아래 요청은 나중에 책장에 저장될 수 있어요. 같은 요청을 이어서
+            확인할 수 있도록 보관했어요.
+          </p>
+          <Link className="text-link inline-block mt-3" href="/my-story">
+            내 책장에서 저장된 책 확인하기
+          </Link>
+          <ul className="mt-4 space-y-4">
+            {ownedUnconfirmedRequests.map(request => (
+              <li key={request.requestId}>
+                <p className="font-medium">
+                  {request.input.childName}의 그림책
+                </p>
+                <p className="text-sm break-words">{request.input.situation}</p>
+                <button
+                  type="button"
+                  className="button-secondary mt-2"
+                  disabled={
+                    stage !== "idle" || images.isLoading || !!pendingRequest
+                  }
+                  onClick={() => resumeUnconfirmedRequest(request)}
+                >
+                  이 요청 이어서 확인하기
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {error && (
         <div className="notice-error my-5" role="alert">
@@ -295,6 +413,89 @@ export default function Service() {
             </Link>
           </div>
         </div>
+      )}
+      {!book && stage === "idle" && (
+        <>
+          {pendingRequest && pendingRequest.userId === userInfo.id && (
+            <section
+              className="notice-info mb-5"
+              aria-labelledby="request-recovery-title"
+            >
+              <h2 id="request-recovery-title" className="text-xl mb-2">
+                이전 그림책 요청을 이어서 확인해요
+              </h2>
+              <p>
+                결과를 확인하지 못한 요청이 있어요. 아래에 보관한 내용으로
+                이어서 확인하면, 이미 저장된 책은 다시 만들거나 곶감을 추가로
+                쓰지 않아요.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 mt-4">
+                <button
+                  type="button"
+                  className="button-primary"
+                  disabled={!isAuthReady}
+                  onClick={createBook}
+                >
+                  이전 요청 이어서 확인하기
+                </button>
+                <Link className="text-link" href="/my-story">
+                  내 책장 먼저 보기
+                </Link>
+              </div>
+              {!confirmSeparateBook ? (
+                <button
+                  type="button"
+                  className="text-link mt-4"
+                  onClick={() => setConfirmSeparateBook(true)}
+                >
+                  새 그림책 따로 만들기
+                </button>
+              ) : (
+                <div className="mt-5" role="alert">
+                  <p>
+                    이전 요청은 나중에 내 책장에 저장될 수 있어요. 새 그림책을
+                    만들면 곶감 1개를 별도로 사용해요. 이전 요청은 미확인
+                    요청으로 보관하고 새 그림책을 작성할까요?
+                  </p>
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => setConfirmSeparateBook(false)}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={startSeparateBook}
+                    >
+                      확인하고 새 그림책 작성
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+          <fieldset disabled={!!pendingRequest} className="min-w-0">
+            <PicturebookInputForm
+              value={input}
+              picturebookCost={1}
+              beadCount={bead.count}
+              isLoading={false}
+              isAuthReady={isAuthReady}
+              isSignedIn={!!userInfo.id}
+              onChange={value => {
+                if (requestInput.current) return;
+                requestId.current = null;
+                requestInput.current = null;
+                searchAttempt.current = null;
+                setInput(value);
+              }}
+              onSubmit={createBook}
+            />
+          </fieldset>
+        </>
       )}
       {stage !== "idle" && (
         <section className="notice-info my-5" role="status" aria-live="polite">
