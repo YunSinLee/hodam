@@ -1,6 +1,14 @@
 import LegalContactFooter from "@/app/components/legal/LegalContactFooter";
 import LegalPageLayout from "@/app/components/legal/LegalPageLayout";
 import LegalSection from "@/app/components/legal/LegalSection";
+import { createPublicMetadata } from "@/lib/seo";
+
+export const metadata = createPublicMetadata({
+  title: "이용약관",
+  description:
+    "호담의 서비스 이용 조건, 회원의 권리와 의무, 곶감 결제 및 환불 관련 이용약관을 확인하세요.",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

@@ -1,6 +1,14 @@
 import LegalContactFooter from "@/app/components/legal/LegalContactFooter";
 import LegalPageLayout from "@/app/components/legal/LegalPageLayout";
 import LegalSection from "@/app/components/legal/LegalSection";
+import { createPublicMetadata } from "@/lib/seo";
+
+export const metadata = createPublicMetadata({
+  title: "개인정보처리방침",
+  description:
+    "호담의 개인정보 수집 항목과 이용 목적, 보유 기간 및 개인정보 관련 문의 방법을 확인하세요.",
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (
