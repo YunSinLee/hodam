@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { Ref } from "react";
 
 import Image from "next/image";
 
@@ -11,6 +12,7 @@ interface PicturebookPageProps {
   showChoiceCue?: boolean;
   largeText?: boolean;
   onImageError?: (pageNumber: number) => void;
+  focusRef?: Ref<HTMLElement>;
 }
 
 export default function PicturebookPage({
@@ -20,6 +22,7 @@ export default function PicturebookPage({
   showChoiceCue = false,
   largeText = false,
   onImageError,
+  focusRef,
 }: PicturebookPageProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [imageAttempt, setImageAttempt] = useState(0);
@@ -38,8 +41,10 @@ export default function PicturebookPage({
 
   return (
     <article
+      ref={focusRef}
+      tabIndex={focusRef ? -1 : undefined}
       aria-label={`${page.pageNumber}쪽`}
-      className={`flex flex-col gap-3 rounded-xl border bg-[#fffaf2] p-5 shadow-sm sm:p-7 ${
+      className={`scroll-mt-24 flex flex-col gap-3 rounded-xl border bg-[#fffaf2] p-5 shadow-sm sm:p-7 ${
         showChoiceCue
           ? "border-orange-300 ring-2 ring-orange-100"
           : "border-orange-100"
