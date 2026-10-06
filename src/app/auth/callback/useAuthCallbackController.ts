@@ -297,12 +297,10 @@ export default function useAuthCallbackController() {
     };
 
     const setLoadingMessage = (nextMessage: string) => {
-      if (disposed || completedRef.current) return;
-      setStatus(currentStatus => {
-        if (currentStatus !== "loading") return currentStatus;
-        setMessage(nextMessage);
-        return currentStatus;
-      });
+      if (disposed || completedRef.current || statusRef.current !== "loading") {
+        return;
+      }
+      setMessage(nextMessage);
     };
 
     const waitForSession = async (
@@ -388,6 +386,7 @@ export default function useAuthCallbackController() {
         const {
           code,
           oauthError,
+          oauthErrorCode,
           accessTokenFromHash,
           refreshTokenFromHash,
           hasCode,
@@ -403,13 +402,15 @@ export default function useAuthCallbackController() {
         });
 
         if (oauthError) {
+          const structuredRecoveryCode = toSignInRecoveryCode(oauthErrorCode);
+          const oauthRecoveryCode =
+            structuredRecoveryCode === "callback_failed"
+              ? toSignInRecoveryCode(oauthError)
+              : structuredRecoveryCode;
           emitAndSyncMetric("oauth_error", {
-            recoveryCode: toSignInRecoveryCode(oauthError),
+            recoveryCode: oauthRecoveryCode,
           });
-          setAuthError(
-            `OAuth 로그인 오류: ${oauthError}`,
-            toSignInRecoveryCode(oauthError),
-          );
+          setAuthError(`OAuth 로그인 오류: ${oauthError}`, oauthRecoveryCode);
           return;
         }
 

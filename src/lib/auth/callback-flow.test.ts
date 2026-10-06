@@ -43,6 +43,30 @@ describe("parseOAuthCallbackPayload", () => {
     expect(payload.hasCallbackPayload).toBe(true);
   });
 
+  it.each([
+    "?error=access_denied&error_description=Login+cancelled",
+    "#error=access_denied&error_description=Login+cancelled",
+  ])("preserves the OAuth code separately from its description: %s", suffix => {
+    const payload = parseOAuthCallbackPayload(
+      new URL(`https://hodam.vercel.app/auth/callback${suffix}`),
+    );
+
+    expect(payload.oauthError).toBe("Login cancelled");
+    expect(payload.oauthErrorCode).toBe("access_denied");
+  });
+
+  it("recognizes an error_code-only response as an error payload", () => {
+    const payload = parseOAuthCallbackPayload(
+      new URL(
+        "https://hodam.vercel.app/auth/callback?error_code=bad_oauth_state",
+      ),
+    );
+
+    expect(payload.oauthError).toBe("bad_oauth_state");
+    expect(payload.oauthErrorCode).toBe("bad_oauth_state");
+    expect(payload.hasCallbackPayload).toBe(true);
+  });
+
   it("parses invalid_grant expiry callback payload", () => {
     const payload = parseOAuthCallbackPayload(
       new URL(

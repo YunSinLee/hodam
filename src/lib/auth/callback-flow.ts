@@ -1,6 +1,7 @@
 export interface OAuthCallbackPayload {
   code: string | null;
   oauthError: string | null;
+  oauthErrorCode: string | null;
   accessTokenFromHash: string | null;
   refreshTokenFromHash: string | null;
   hasCode: boolean;
@@ -18,11 +19,17 @@ export function parseOAuthCallbackPayload(url: URL): OAuthCallbackPayload {
   const hashParams = new URLSearchParams(hash.slice(1));
 
   const code = searchParams.get("code");
+  const oauthErrorCode =
+    searchParams.get("error") ||
+    searchParams.get("error_code") ||
+    hashParams.get("error") ||
+    hashParams.get("error_code");
   const oauthError =
     searchParams.get("error_description") ||
     searchParams.get("error") ||
     hashParams.get("error_description") ||
-    hashParams.get("error");
+    hashParams.get("error") ||
+    oauthErrorCode;
   const accessTokenFromHash = hashParams.get("access_token");
   const refreshTokenFromHash = hashParams.get("refresh_token");
   const hasCode = Boolean(code);
@@ -31,6 +38,7 @@ export function parseOAuthCallbackPayload(url: URL): OAuthCallbackPayload {
   return {
     code,
     oauthError,
+    oauthErrorCode,
     accessTokenFromHash,
     refreshTokenFromHash,
     hasCode,

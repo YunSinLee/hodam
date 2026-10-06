@@ -141,6 +141,7 @@ describe("toSignInRecoveryCode", () => {
 
   it("maps invalid request and timeout", () => {
     expect(toSignInRecoveryCode("invalid request")).toBe("invalid_request");
+    expect(toSignInRecoveryCode("invalid_request")).toBe("invalid_request");
     expect(toSignInRecoveryCode("session timeout")).toBe("timeout");
   });
 
