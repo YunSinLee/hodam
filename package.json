@@ -1,6 +1,6 @@
 {
   "name": "hodam",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -59,9 +59,10 @@
     "test:e2e:payments:webhook:local": "node scripts/run-payments-webhook-local.mjs",
     "test:e2e:payments:webhook:local:optional": "HODAM_E2E_ALLOW_WEBHOOK_SKIP=1 node scripts/run-payments-webhook-local.mjs",
     "test:e2e:payments:unauth:local": "HODAM_E2E_FORCE_UNAUTHORIZED=1 node scripts/e2e-payments-local.mjs",
-    "postbuild": "next-sitemap && node scripts/normalize-sitemap.mjs && node scripts/check-public-artifacts.mjs",
+    "postbuild": "next-sitemap && node scripts/normalize-sitemap.mjs && node scripts/check-public-artifacts.mjs && npm run check:seo:build",
     "typecheck": "tsc --noEmit",
-    "test:db": "sh scripts/test-migration.sh"
+    "test:db": "sh scripts/test-migration.sh",
+    "check:seo:build": "node scripts/check-search-artifacts.mjs"
   },
   "dependencies": {
     "@next/third-parties": "^15.5.25",

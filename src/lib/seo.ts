@@ -40,7 +40,9 @@ export function createPublicMetadata({
   const shareTitle = `${title} | ${SITE_NAME}`;
 
   return {
-    title,
+    // A root page does not inherit its layout's title template. Make the
+    // public title explicit so home and nested pages share the same identity.
+    title: { absolute: shareTitle },
     description,
     alternates: { canonical: url },
     openGraph: {

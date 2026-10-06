@@ -18,7 +18,7 @@
 
 ## 메타데이터와 주소
 
-`src/lib/seo.ts`의 `createPublicMetadata({ title, description, path, image? })`를 사용한다. 제목에는 `| 호담`을 붙이지 않는다. root layout의 제목 템플릿이 붙이고, 공유 제목도 helper가 생성한다. `path`와 `image`에는 `/`로 시작하는 로컬 경로를 전달한다. 경로의 조회 매개변수와 fragment는 canonical에서 제외한다.
+`src/lib/seo.ts`의 `createPublicMetadata({ title, description, path, image? })`를 사용한다. 입력 제목에는 `| 호담`을 붙이지 않는다. helper가 브랜드를 붙인 absolute 제목과 공유 제목을 생성한다. 루트 페이지는 같은 경로의 layout 제목 템플릿을 상속하지 않으므로 템플릿에만 의존하지 않는다. `path`와 `image`에는 `/`로 시작하는 로컬 경로를 전달한다. 경로의 조회 매개변수와 fragment는 canonical에서 제외한다.
 
 `config/site-url.js`를 metadata와 `next-sitemap.config.js`가 함께 사용한다. `NEXT_PUBLIC_SITE_URL`이 공개 HTTPS origin이면 사용하며, 값이 없거나 localhost·IP·내부 호스트·다른 Vercel preview 주소·하위 경로인 경우 `https://hodam.vercel.app`으로 돌아간다. 주소는 요청의 Host 헤더나 Vercel preview 환경변수에서 추론하지 않는다. 도메인을 이전할 때는 이 환경변수, 리다이렉트, OAuth 설정, 검색엔진 속성을 함께 확인한다.
 
@@ -38,6 +38,8 @@ JSON-LD를 `<script type="application/ld+json">`에 넣을 때는 `serializeJson
 
 새 공개 페이지 5개가 사이트맵에 있고, 개인 책장과 로그인·결제 URL은 없는지 확인한다. 로그인하지 않은 상태에서 각 URL의 상태 코드가 200이며 HTML에 고유한 제목·설명·본문·canonical이 나오는지 확인한다. 존재하지 않는 동화 slug는 404여야 한다.
 
+`postbuild`의 `npm run check:seo:build`는 생성된 사이트맵과 실제 HTML을 검사한다. 공개 페이지의 고유한 제목·설명·대표 주소·서버 렌더링 제목, 공개 동화 본문과 구조화 데이터, 개인 페이지 7개의 `noindex`를 확인한다. 이것은 배포 산출물 검사이며 Google·네이버의 실제 색인 성공을 보장하지 않는다.
+
 ## 소유권 확인과 등록
 
 Google Search Console과 네이버 서치어드바이저에서 `https://hodam.vercel.app` 속성의 기존 소유권 상태를 먼저 확인한다. 저장소에는 기존 Google HTML 인증 파일 `public/google3bfc19763798d3ea.html`이 있다. 파일이 있다는 사실만으로 현재 계정의 소유권이 검증되었다고 판단하지 않는다. 인증 파일은 삭제하지 않는다.
@@ -55,6 +57,8 @@ HTML 메타 태그 방식이 필요하면 콘솔이 발급한 **실제 content �
 소유권 확인 후 Google에는 `/sitemap.xml`을 제출한다. 네이버에는 공개 URL이 들어 있는 `/sitemap-0.xml`을 제출한다. Google URL 검사와 네이버 웹페이지 수집 요청으로 공개 페이지를 확인한다. 요청 완료와 실제 색인은 구분해 기록한다. 콘솔 로그인이나 계정의 소유권 확인이 필요하면 그 단계만 운영자가 진행한다.
 
 2026-09-14 배포 전 확인: Google Search Console에서 호담 속성이 이미 등록된 것을 확인했다. 기존 `/sitemap.xml`은 성공 상태였지만 마지막 읽은 날짜가 2025-06-15여서 신규 페이지 배포 후 재제출할 예정이다. 네이버는 최초 이용약관 동의 전 단계로 사이트 등록이 완료되지 않았다. 이 시점의 기존 색인·클릭 수치는 이번 변경의 성과가 아니다.
+
+2026-10-06 재확인: Google의 `/sitemap.xml`은 9월 14일 제출, 10월 1일 읽음, 성공·발견된 URL 9개다. `/bedtime-stories`는 `발견됨 - 현재 색인이 생성되지 않음`이고 수동 색인 요청은 일일 할당량 초과로 접수되지 않았다. 같은 날 반복 요청하지 않는다. 네이버에는 호담이 아직 미등록이어서 현재 소유 계정의 공식 HTML 확인 파일 `public/naver8f972ff83d035878ddef991b9ccb2cfd.html`을 추가했다. 공개 검증 파일이며 비밀키가 아니다. 배포 후 소유 확인과 사이트맵 제출 결과를 별도로 확인한다.
 
 ## 서비스 내 이벤트 측정
 
