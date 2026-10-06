@@ -1,6 +1,6 @@
 {
   "name": "hodam",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -70,11 +70,9 @@
     "cors": "^2.8.5",
     "dayjs": "^1.11.10",
     "next": "^15.5.25",
-    "next-sitemap": "^4.2.3",
     "openai": "^4.60.0",
     "react": "^18",
     "react-dom": "^18",
-    "sass": "^1.71.0",
     "zod": "^3.23.8",
     "zustand": "^4.5.2",
     "primeicons": "^7.0.0",
@@ -82,6 +80,8 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "next-sitemap": "^4.2.3",
+    "sass": "^1.105.1",
     "@types/node": "^20.17.50",
     "@types/react": "^18",
     "@types/react-dom": "^18",
