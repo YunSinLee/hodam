@@ -97,6 +97,11 @@ AI 개발 도구인 Cursor에서 MCP 서버를 사용하려면:
 - [SECURITY_HARDENING_NEXT_STEPS.md](./SECURITY_HARDENING_NEXT_STEPS.md)
 - [검색 유입·공개 동화·사이트 등록 운영](docs/search-discovery.md)
 - [8쪽 그림책 베타·기존 기록 보존·첫 이용 QA](docs/beta-launch.md)
+- [버전별 변경 이력](CHANGELOG.md)
+
+이전 구현·검증 기록: [릴리스 분할 계획](RELEASE_CHANGESET_PLAN.md), [소셜 로그인 테스트 가이드](SOCIAL_LOGIN_TEST.md), [2025년 로그인 결과](SOCIAL_LOGIN_SUCCESS_REPORT.md), [초기 결제 설정 가이드](PAYMENT_SETUP_GUIDE.md). 당시 기준 자료이므로 현재 배포 설정과 검증 완료 범위는 위 운영 런북과 베타 QA 기록을 따릅니다.
+
+보관된 운영 보고서: [GitHub 실패 실행](reports/github-failed-runs-main.md), [해결된 실패를 포함한 실행](reports/github-failed-runs-main-all.md), [Supabase 인덱스 조사](reports/supabase-unused-indexes-report.md), [결제 웹훅 조사](reports/webhook-coverage.md). 현재 상태를 확인하려면 각 점검 명령을 다시 실행합니다.
 
 ## 📦 설치
 
@@ -399,6 +404,8 @@ npm run check:payments:webhook-coverage -- --report-file=reports/local/webhook-c
 ## 개발 및 검증
 
 Node.js 22 최신 패치와 npm을 사용합니다. `.nvmrc`로 버전을 맞춘 뒤 `npm ci`로 설치합니다. CI의 lint는 경고도 실패로 처리하며, `npm test`는 기존 `src`·`scripts` 테스트와 `tests`의 그림책 QA 테스트를 함께 실행합니다.
+
+빌드에는 개발 의존성인 `sass`와 `next-sitemap`이 필요합니다. CI·Vercel의 빌드 단계에서 개발 의존성을 제외하지 않으며, `NODE_ENV=production`을 미리 설정한 설치 환경에서는 `npm ci --include=dev`를 사용합니다.
 
 ```bash
 npm run lint
