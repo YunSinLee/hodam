@@ -117,7 +117,6 @@ async function fetchAuthSettings(supabaseUrl, anonKey) {
     method: "GET",
     headers: {
       apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
     },
   });
 
@@ -143,7 +142,6 @@ async function checkAuthorize({ supabaseUrl, anonKey, provider, redirectTo }) {
     method: "GET",
     headers: {
       apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
     },
     redirect: "manual",
   });

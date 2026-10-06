@@ -1,3 +1,9 @@
+const { assertSafePublicEnv } = require("./scripts/lib/public-env-safety.cjs");
+
+// Next loads .env files before this module. Reject server credentials before
+// either the development server or production build can publish a client bundle.
+assertSafePublicEnv();
+
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,

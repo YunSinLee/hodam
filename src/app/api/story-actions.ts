@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
   generatePicturebookEnding,
@@ -55,6 +55,37 @@ function beadCount(value: unknown): number {
       "곶감 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
     );
   return value;
+}
+
+const commitErrors: Record<string, string> = {
+  PICTUREBOOK_REQUEST_UNRESOLVED:
+    "이전 생성 요청의 저장 상태를 확인해야 해요. 내 책장을 확인하고 운영팀에 문의해주세요.",
+  INSUFFICIENT_BEADS: "곶감이 부족해요. 보유 곶감을 확인해주세요.",
+  BEAD_BALANCE_UNAVAILABLE:
+    "곶감 정보를 확인하지 못했어요. 다시 로그인해주세요.",
+  INVALID_PICTUREBOOK_REQUEST:
+    "그림책 저장 요청을 확인하지 못했어요. 운영팀에 문의해주세요.",
+  FORBIDDEN: "그림책 저장 서비스에 연결할 수 없어요. 운영팀에 문의해주세요.",
+};
+
+function knownCommitError(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("message" in error))
+    return undefined;
+  return typeof error.message === "string" &&
+    Object.hasOwn(commitErrors, error.message)
+    ? commitErrors[error.message]
+    : undefined;
+}
+
+function picturebookCommitError(error: unknown) {
+  const knownMessage = knownCommitError(error);
+  return Object.assign(
+    new Error(
+      knownMessage ||
+        "그림책 저장 결과를 확인하지 못했어요. 내 책장을 확인하거나 같은 요청을 다시 확인해주세요.",
+    ),
+    { retryable: !knownMessage },
+  );
 }
 
 function imageIsMissing(error: unknown) {
@@ -140,11 +171,8 @@ export async function createPicturebookAction(
   const existing = creating.get(key);
   if (existing) return existing;
   const operation = (async (): Promise<CreateResult> => {
-    let charged = false;
-    let createdId: number | null = null;
-    let debitAttempted = false;
     let requestConfirmedAbsent = false;
-    let reservationAttempted = false;
+    let commitAttempted = false;
     try {
       const { data: prior, error: priorError } = await client
         .from("thread")
@@ -166,24 +194,52 @@ export async function createPicturebookAction(
       if (balanceError)
         throw new Error("곶감 정보를 확인하지 못했어요. 다시 로그인해주세요.");
       const currentCount = beadCount(balance?.count);
-      if (savedBook && prior)
+      if (savedBook && prior) {
+        if (!Number.isSafeInteger(prior.id) || prior.id <= 0)
+          throw new Error("저장된 그림책 주소를 확인하지 못했어요.");
         return {
           ok: true,
           book: savedBook,
           threadId: prior.id,
           beadCount: currentCount,
         };
+      }
       if (prior)
         return {
           ok: false,
-          message: prior.raw_text
-            ? "이전 생성 요청의 저장 상태를 확인해야 해요. 내 책장을 확인하고 운영팀에 문의해주세요."
-            : "첫 4쪽의 저장 결과가 아직 확인되지 않았어요. 잠시 후 다시 확인해주세요. 계속되면 문의하기로 알려주세요.",
+          message:
+            "이전 생성 요청의 저장 상태를 확인해야 해요. 내 책장을 확인하고 운영팀에 문의해주세요.",
           retrySameRequest: true,
-          retryable: !prior.raw_text,
+          retryable: false,
         };
       if (currentCount < 1)
         throw new Error("곶감이 부족해요. 보유 곶감을 확인해주세요.");
+      const serverKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const serverUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!serverKey || !serverUrl)
+        return {
+          ok: false,
+          message:
+            "그림책 저장 서비스를 준비하고 있어요. 운영팀에 문의해주세요.",
+          retrySameRequest: false,
+          retryable: false,
+        };
+      let admin: SupabaseClient;
+      try {
+        admin = createClient(serverUrl, serverKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const readiness = await admin.rpc("picturebook_storage_ready");
+        if (readiness.error || readiness.data !== true)
+          throw new Error("Picturebook storage is not ready");
+      } catch {
+        throw Object.assign(
+          new Error(
+            "그림책 저장 서비스에 연결할 수 없어요. 운영팀에 문의해주세요.",
+          ),
+          { retryable: false },
+        );
+      }
       await quota(client, user.id, "start");
       const book = await generatePicturebookStart(input, accessToken);
       if (
@@ -191,135 +247,47 @@ export async function createPicturebookAction(
         book.status !== "choice-ready"
       )
         throw new Error("그림책 응답을 확인하지 못했어요. 다시 시도해주세요.");
-      // A second worker may reserve this request between the lookup and INSERT.
-      // Even a lost INSERT response must retain its identity on the client.
-      reservationAttempted = true;
-      const { data: thread, error: threadError } = await client
-        .from("thread")
-        .insert({
-          openai_thread_id: `picturebook_${requestId}`,
-          user_id: user.id,
-          able_english: false,
-          has_image: false,
-        })
-        .select("id")
-        .single();
-      if (threadError)
-        throw new Error("책장을 준비하지 못했어요. 다시 시도해주세요.");
-      createdId = thread.id;
-      debitAttempted = true;
-      const charge = async () => {
+      const payload = {
+        p_user_id: user.id,
+        p_request_id: requestId,
+        p_book: book,
+      };
+      const commit = async () => {
         try {
-          return await client.rpc("consume_beads", {
-            p_user_id: user.id,
-            p_cost: 1,
-            p_request_id: `picturebook_${requestId}`,
-          });
+          return await admin.rpc("commit_picturebook_start", payload);
         } catch (error) {
           return { data: null, error };
         }
       };
-      // The RPC is idempotent. A lost response must not strand a committed debit.
-      let chargedResult = await charge();
-      if (chargedResult.error) chargedResult = await charge();
-      const { data: count, error: chargeError } = chargedResult;
-      if (chargeError)
+      // Saving the manuscript, debit and ledger are one transaction. The same
+      // payload is safe to retry even if a committed response was lost.
+      commitAttempted = true;
+      let committed = await commit();
+      if (committed.error && !knownCommitError(committed.error))
+        committed = await commit();
+      if (committed.error) throw picturebookCommitError(committed.error);
+      const row =
+        Array.isArray(committed.data) && committed.data.length === 1
+          ? committed.data[0]
+          : null;
+      const saved =
+        typeof row?.raw_text === "string"
+          ? parsePicturebookDraft(row.raw_text)
+          : null;
+      if (!saved || !Number.isSafeInteger(row?.thread_id) || row.thread_id <= 0)
         throw new Error(
-          "곶감 사용 상태를 확인하지 못했어요. 보유 수량을 확인해주세요.",
+          "그림책 저장 결과를 확인하지 못했어요. 내 책장을 확인하거나 같은 요청을 다시 확인해주세요.",
         );
-      charged = true;
-      const remaining = beadCount(count);
-      const { error: saveError } = await client
-        .from("thread")
-        .update({ raw_text: JSON.stringify(book) })
-        .eq("id", thread.id)
-        .eq("user_id", user.id)
-        .select("id")
-        .single();
-      if (saveError) throw new Error("그림책 저장 상태를 확인하지 못했어요.");
-      return { ok: true, book, threadId: thread.id, beadCount: remaining };
+      return {
+        ok: true,
+        book: saved,
+        threadId: row.thread_id,
+        beadCount: beadCount(row.bead_count),
+      };
     } catch (cause) {
-      let message =
-        cause instanceof Error ? cause.message : "그림책을 만들지 못했어요.";
-      if (reservationAttempted && createdId === null) {
-        // Reuse another worker's completed book, without debiting or refunding it.
-        try {
-          const { data: saved, error: checkError } = await client
-            .from("thread")
-            .select("id, raw_text")
-            .eq("user_id", user.id)
-            .eq("openai_thread_id", `picturebook_${requestId}`)
-            .maybeSingle();
-          const book = parsePicturebookDraft(saved?.raw_text);
-          if (!checkError && saved && book) {
-            const { data: balance, error: balanceError } = await client
-              .from("bead")
-              .select("count")
-              .eq("user_id", user.id)
-              .single();
-            if (!balanceError)
-              return {
-                ok: true,
-                book,
-                threadId: saved.id,
-                beadCount: beadCount(balance?.count),
-              };
-          }
-        } catch {
-          // Preserve the request key if the recovery read is unavailable too.
-        }
-        message =
-          "첫 4쪽의 저장 결과가 아직 확인되지 않았어요. 잠시 후 다시 확인해주세요. 계속되면 문의하기로 알려주세요.";
-      }
-      if (charged && createdId) {
-        // Check ambiguous write failures before refunding a book that may be saved.
-        const { data: saved, error: checkError } = await client
-          .from("thread")
-          .select("raw_text")
-          .eq("id", createdId)
-          .eq("user_id", user.id)
-          .single();
-        const book = parsePicturebookDraft(saved?.raw_text);
-        if (!checkError && book) {
-          const { data: balance } = await client
-            .from("bead")
-            .select("count")
-            .eq("user_id", user.id)
-            .single();
-          return {
-            ok: true,
-            book,
-            threadId: createdId,
-            beadCount: Number(balance?.count ?? 0),
-          };
-        }
-        const serverKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        if (!checkError && !saved?.raw_text && serverKey) {
-          const admin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            serverKey,
-            { auth: { persistSession: false, autoRefreshToken: false } },
-          );
-          const { error: refundError } = await admin.rpc("credit_beads", {
-            p_user_id: user.id,
-            p_amount: 1,
-          });
-          message += refundError
-            ? " 곶감 복구를 확인하지 못했어요. 문의하기로 알려주세요."
-            : " 사용한 곶감은 돌려드렸어요.";
-        } else {
-          message +=
-            " 곶감 사용 여부와 내 책장을 확인하고, 복구가 필요하면 문의하기로 알려주세요.";
-        }
-      }
       return {
         ...failure(cause, "그림책을 만들지 못했어요."),
-        message,
-        retrySameRequest:
-          !requestConfirmedAbsent ||
-          reservationAttempted ||
-          createdId !== null ||
-          debitAttempted,
+        retrySameRequest: !requestConfirmedAbsent || commitAttempted,
       };
     }
   })();

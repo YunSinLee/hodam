@@ -124,6 +124,30 @@ describe("GET /api/v1/auth/providers", () => {
     });
   });
 
+  it.each(["legacy-anon-test-key", "sb_publishable_synthetic_test_key"])(
+    "sends %s only as an API key when reading public provider settings",
+    async publicKey => {
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = publicKey;
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: vi
+          .fn()
+          .mockResolvedValue(
+            JSON.stringify({ external: { google: true, kakao: true } }),
+          ),
+      });
+      const GET = await loadGetHandler();
+      const body = await (await GET(createRequest())).json();
+      const headers = new Headers(fetchMock.mock.calls[0][1].headers);
+      expect(headers.get("apikey")).toBe(publicKey);
+      expect(headers.has("authorization")).toBe(false);
+      expect(body.settingsReachable).toBe(true);
+      expect(body.allEnabled).toBe(true);
+      expect(JSON.stringify(body)).not.toContain(publicKey);
+    },
+  );
+
   it("returns disabled status for missing or disabled provider config", async () => {
     fetchMock.mockResolvedValue({
       ok: true,

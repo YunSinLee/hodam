@@ -14,6 +14,7 @@
 - [ ] `.nvmrc`의 Node.js 22 최신 패치와 npm으로 개발 의존성을 포함한 `npm ci` 완료 (`NODE_ENV=production` 설치 환경은 `npm ci --include=dev`)
 - [ ] `OPENAI_API_KEY=dummy npm run check:all` 통과 (lint 경고 0, 기존·그림책 테스트 포함)
 - [ ] `npm run typecheck` 통과
+- [ ] `npm run build`의 공개 환경변수 검사와 공개 산출물 검사 통과 (검사를 생략하거나 우회하지 않음)
 - [ ] `npm run test:db` 통과 (로컬 `initdb`, `pg_ctl`, `psql` 필요, 운영 DB 연결 없음)
 - [ ] `npm run check:supabase:security:strict:baseline` 통과
 - [ ] `npm run check:oauth -- --runtime-origin=https://<production-domain>` 통과
@@ -28,14 +29,16 @@
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-key-or-legacy-anon-key>
 OPENAI_API_KEY=<openai-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_SERVICE_ROLE_KEY=<secret-key-or-legacy-service-role-key>
 NEXT_PUBLIC_SITE_URL=https://<production-domain>
 NEXT_PUBLIC_AUTH_REDIRECT_URL=https://<production-domain>/auth/callback
 ```
 
-서비스 역할 키는 서버 결제와 기존 v1 생성 실패 복구에 필요합니다. 브라우저 공개 설정에 넣지 않습니다. 운영 배포에 실제 설정되어 있는지 별도로 확인합니다.
+서비스 역할 키는 새 그림책의 원자적 저장, 서버 결제와 기존 v1 생성 실패 복구에 필요합니다. 브라우저 공개 설정에 넣지 않습니다. 운영 배포에 실제 설정되어 있는지 별도로 확인합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY`에는 `sb_publishable_` 키 또는 role이 anon인 legacy JWT만 허용합니다. 서버 변수에는 `sb_secret_` 또는 service_role 키를 사용합니다.
+
+키 교체 시 새 publishable/secret 키를 사용하는 배포를 먼저 검증하고, Supabase API Keys에서 기존 legacy 키를 비활성화합니다. 새 키 생성만으로 기존 키가 폐기되지는 않습니다. 값은 로그·PR·보고서에 기록하지 않습니다. [공식 교체 절차](https://supabase.com/docs/guides/getting-started/api-keys)를 따릅니다.
 
 ### 결제 활성화에 추가로 필수
 
@@ -101,13 +104,14 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 - [ ] 서비스 역할 키 및 서명 URL을 지원하는 통합 서버를 먼저 배포하고 준비 상태 확인
 - [ ] `20260914010000_harden_hodam_accounting.sql` 적용
 - [ ] `20260914020000_private_picturebook_storage.sql` 적용
+- [ ] 원자적 그림책 저장 앱 배포 전 `20261006010000_commit_picturebook_atomically.sql` 적용, 서버 역할 `picturebook_storage_ready()` true 및 두 함수의 서버 전용 권한 확인
 - [ ] `hodam_security_grants_smoke_check`와 보안 점검이 새 회계 권한 기준으로 통과
 - [ ] `image`·`profiles` 비공개 상태, 새 그림책/기존 중첩 경로의 소유자 접근 확인
 - [ ] Postgres 패치 업그레이드 (`vulnerable_postgres_version`)
 - [ ] leaked password protection(HIBP) 플랜 지원 여부 확인 후 활성화
 - [ ] 적용 절차는 `SUPABASE_MANUAL_RUNBOOK.md` 기준으로 수행
 
-두 SQL은 빌드나 Vercel 배포로 자동 적용되지 않습니다. 코드와 DB 반영을 같은 릴리스의 완료 조건으로 관리합니다. 9월 마이그레이션은 기존 4월 스키마를 전제로 하므로 빈 DB의 초기 스키마 생성용으로 사용하지 않습니다.
+SQL은 빌드나 Vercel 배포로 자동 적용되지 않습니다. 코드와 DB 반영을 같은 릴리스의 완료 조건으로 관리합니다. 9월 마이그레이션은 기존 4월 스키마를 전제로 하므로 빈 DB의 초기 스키마 생성용으로 사용하지 않습니다. 10월 원자적 저장 migration은 9월 회계 보호가 적용된 DB에 먼저 추가하고 앱을 전환합니다. 기존 미확인 예약 행을 자동 환불하거나 삭제하지 않습니다.
 
 ## 6) 모니터링/알림
 

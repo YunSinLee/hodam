@@ -11,7 +11,7 @@ DO $$ BEGIN
     RAISE EXCEPTION 'Server lost payment finalization access';
   END IF;
   IF EXISTS (SELECT 1 FROM public.hodam_security_grants_smoke_check() WHERE NOT ok)
-     OR (SELECT count(*) FROM public.hodam_security_grants_smoke_check()) <> 24 THEN
+     OR (SELECT count(*) FROM public.hodam_security_grants_smoke_check()) <> 30 THEN
     RAISE EXCEPTION 'Operational grant smoke check does not match the hardened boundary';
   END IF;
 END; $$;

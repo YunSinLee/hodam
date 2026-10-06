@@ -6,10 +6,21 @@ CREATE SCHEMA auth;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT current_setting('request.jwt.claim.role', true) $$;
 GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
-CREATE TABLE public.bead (user_id uuid PRIMARY KEY, count integer DEFAULT 10 CHECK (count >= 0));
+CREATE TABLE public.bead (user_id uuid PRIMARY KEY, count bigint DEFAULT 10 CHECK (count >= 0));
 CREATE TABLE public.bead_transactions (id bigserial PRIMARY KEY, user_id uuid, amount bigint, transaction_type text, description text, request_id text, UNIQUE(user_id, request_id));
 CREATE TABLE public.user_activity_logs (user_id uuid, action text, details jsonb, created_at timestamptz DEFAULT now());
-CREATE TABLE public.thread (id bigserial PRIMARY KEY, user_id uuid, openai_thread_id text);
+CREATE TABLE public.thread (
+  id bigserial PRIMARY KEY,
+  user_id uuid,
+  openai_thread_id text NOT NULL,
+  raw_text text,
+  able_english boolean NOT NULL DEFAULT false,
+  has_image boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  status varchar DEFAULT 'active',
+  updated_at timestamptz DEFAULT now(),
+  completed_at timestamptz
+);
 CREATE TABLE public.payment_history (id uuid, user_id uuid);
 CREATE TABLE public.payment_webhook_transmissions (id uuid);
 ALTER TABLE public.bead ENABLE ROW LEVEL SECURITY;
@@ -42,6 +53,7 @@ CREATE POLICY "auth 1nq2cb_3" ON storage.objects FOR DELETE TO authenticated USI
 INSERT INTO public.thread(id, user_id, openai_thread_id) VALUES
   (101, '11111111-1111-4111-8111-111111111111', 'picturebook_storage1'),
   (202, '22222222-2222-4222-8222-222222222222', 'picturebook_storage2');
+SELECT setval(pg_get_serial_sequence('public.thread', 'id'), 202);
 INSERT INTO storage.objects VALUES ('image','image_thread_id_101_page_1',null), ('image','image_thread_id_202_page_1',null);
 INSERT INTO storage.objects VALUES
   ('image','11111111-1111-4111-8111-111111111111/thread_101/cover_123.png',null),

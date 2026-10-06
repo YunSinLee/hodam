@@ -2,6 +2,7 @@
 
 import path from "path";
 import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
+import { assertSafePublicEnv } from "./lib/public-env-safety.cjs";
 
 const args = new Set(process.argv.slice(2));
 const strictMode = args.has("--strict");
@@ -20,10 +21,20 @@ function getEnvValue(name) {
   });
 }
 
-function maskValue(value) {
-  if (!value) return "(empty)";
-  if (value.length <= 8) return "*".repeat(value.length);
-  return `${value.slice(0, 4)}...${value.slice(-2)}`;
+// Check effective values before printing any diagnostics. No credential values
+// or fragments are needed to explain whether configuration is present.
+try {
+  const names = new Set([...Object.keys(fileEnv), ...Object.keys(process.env)]);
+  assertSafePublicEnv(
+    Object.fromEntries([...names].map(name => [name, getEnvValue(name)])),
+  );
+} catch (error) {
+  console.error(
+    error instanceof Error
+      ? error.message
+      : "Unsafe public environment configuration.",
+  );
+  process.exit(1);
 }
 
 const REQUIRED_KEYS = [
@@ -51,7 +62,8 @@ const RECOMMENDED_KEYS = [
   },
   {
     key: "SUPABASE_ACCESS_TOKEN",
-    description: "Supabase personal access token (for Management API advisor checks)",
+    description:
+      "Supabase personal access token (for Management API advisor checks)",
   },
   {
     key: "TOSS_PAYMENTS_SECRET_KEY",
@@ -122,7 +134,7 @@ for (const item of REQUIRED_KEYS) {
     missingRequired.push(item.key);
     console.log(`✗ required  ${item.key} (${item.description})`);
   } else {
-    console.log(`✓ required  ${item.key} = ${maskValue(value)}`);
+    console.log(`✓ required  ${item.key} = (set)`);
   }
 }
 
@@ -134,12 +146,12 @@ for (const item of REQUIRED_ONE_OF) {
       console.log(`✗ required  ${item.keys.join(" | ")} (${item.description})`);
     } else {
       missingRecommended.push(item.keys.join(" | "));
-      console.log(`! optional  ${item.keys.join(" | ")} missing (${item.description})`);
+      console.log(
+        `! optional  ${item.keys.join(" | ")} missing (${item.description})`,
+      );
     }
   } else {
-    console.log(
-      `✓ required  ${foundKey} = ${maskValue(getEnvValue(foundKey))}`,
-    );
+    console.log(`✓ required  ${foundKey} = (set)`);
   }
 }
 
@@ -149,7 +161,7 @@ for (const item of RECOMMENDED_KEYS) {
     missingRecommended.push(item.key);
     console.log(`! optional  ${item.key} missing (${item.description})`);
   } else {
-    console.log(`✓ optional  ${item.key} = ${maskValue(value)}`);
+    console.log(`✓ optional  ${item.key} = (set)`);
   }
 }
 
@@ -159,9 +171,7 @@ const siteOrigin = readOrigin(configuredSiteUrl);
 const redirectOrigin = readOrigin(configuredAuthRedirectUrl);
 
 if (configuredSiteUrl && !siteOrigin) {
-  validationWarnings.push(
-    "NEXT_PUBLIC_SITE_URL is not a valid absolute URL.",
-  );
+  validationWarnings.push("NEXT_PUBLIC_SITE_URL is not a valid absolute URL.");
 }
 
 if (configuredAuthRedirectUrl && !redirectOrigin) {

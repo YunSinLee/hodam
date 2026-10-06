@@ -147,7 +147,6 @@ export async function GET(request: NextRequest) {
       method: "GET",
       headers: {
         apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
       },
       cache: "no-store",
     });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { book, input } from "./fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -11,9 +11,15 @@ const mocks = vi.hoisted(() => ({
   signedUrl: vi.fn(),
   upload: vi.fn(),
   adminRpc: vi.fn(),
+  ready: vi.fn(),
 }));
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ rpc: mocks.adminRpc }),
+  createClient: () => ({
+    rpc: (name: string, ...args: unknown[]) =>
+      name === "picturebook_storage_ready"
+        ? mocks.ready()
+        : mocks.adminRpc(name, ...args),
+  }),
 }));
 vi.mock("@/app/api/server-auth", () => ({ requireServerUser: mocks.auth }));
 vi.mock("@/app/api/langchain", () => ({
@@ -49,6 +55,9 @@ function query(data: unknown, error: unknown = null) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-server-key");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://supabase.test");
+  mocks.ready.mockResolvedValue({ data: true, error: null });
   queries.length = 0;
   mocks.auth.mockResolvedValue({
     user: { id: "owner" },
@@ -85,7 +94,12 @@ beforeEach(() => {
         : { data: 9 },
     ),
   );
+  mocks.adminRpc.mockResolvedValue({
+    data: [{ thread_id: 42, raw_text: JSON.stringify(book()), bead_count: 9 }],
+    error: null,
+  });
 });
+afterEach(() => vi.unstubAllEnvs());
 describe("saved picturebook creation", () => {
   it("rejects invalid input before invoking any paid generation", async () => {
     const result = await createPicturebookAction(
@@ -105,6 +119,7 @@ describe("saved picturebook creation", () => {
     expect(
       mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
     ).toHaveLength(0);
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
   it("does not invoke AI when balance is exhausted", async () => {
     query(null);
@@ -117,8 +132,6 @@ describe("saved picturebook creation", () => {
   it("deduplicates simultaneous clicks into one generation and one debit", async () => {
     query(null);
     query({ count: 10 });
-    query({ id: 42 });
-    query({ id: 42 });
     const [first, second] = await Promise.all([
       createPicturebookAction(input, "token", requestId),
       createPicturebookAction(input, "token", requestId),
@@ -126,9 +139,10 @@ describe("saved picturebook creation", () => {
     expect(first).toEqual(second);
     expect(first).toMatchObject({ ok: true, threadId: 42, beadCount: 9 });
     expect(mocks.generate).toHaveBeenCalledTimes(1);
-    expect(
-      mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
-    ).toHaveLength(1);
+    expect(mocks.adminRpc).toHaveBeenCalledExactlyOnceWith(
+      "commit_picturebook_start",
+      { p_user_id: "owner", p_request_id: requestId, p_book: book() },
+    );
   });
   it("recovers a saved request across a later retry without another generation", async () => {
     query({ id: 42, raw_text: JSON.stringify(book()) });
@@ -138,24 +152,26 @@ describe("saved picturebook creation", () => {
     ).toMatchObject({ ok: true, threadId: 42 });
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
   it("recognizes a successful save after a lost response instead of refunding it", async () => {
     query(null);
     query({ count: 10 });
-    query({ id: 42 });
-    query(null, new Error("lost response"));
-    query({ raw_text: JSON.stringify(book()) });
-    query({ count: 9 });
+    mocks.adminRpc.mockResolvedValueOnce({ error: new Error("lost response") });
     expect(
       await createPicturebookAction(input, "token", requestId),
     ).toMatchObject({ ok: true, threadId: 42, beadCount: 9 });
+    expect(mocks.adminRpc.mock.calls[1]).toEqual(mocks.adminRpc.mock.calls[0]);
+    expect(
+      mocks.adminRpc.mock.calls.every(
+        ([name]) => name === "commit_picturebook_start",
+      ),
+    ).toBe(true);
   });
   it("does not claim a failed database save succeeded", async () => {
     query(null);
     query({ count: 10 });
-    query({ id: 42 });
-    query(null, new Error("write failed"));
-    query(null, new Error("database offline"));
+    mocks.adminRpc.mockRejectedValue(new Error("database offline"));
     expect((await createPicturebookAction(input, "token", requestId)).ok).toBe(
       false,
     );
@@ -235,38 +251,43 @@ describe("server action validation and accounting recovery", () => {
     expect(
       mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
     ).toHaveLength(0);
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
-  it("recovers a lost debit response using the same idempotency key before saving", async () => {
+  it("recovers a lost atomic commit response using the same manuscript and idempotency key", async () => {
     query(null);
     query({ count: 10 });
-    query({ id: 42 });
-    query({ id: 42 });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: [{ allowed: true }] })
-      .mockResolvedValueOnce({ error: { message: "lost response" } })
-      .mockResolvedValueOnce({ data: 9 });
+    mocks.adminRpc.mockResolvedValueOnce({
+      error: { message: "lost response" },
+    });
     expect(
       await createPicturebookAction(input, "token", requestId),
     ).toMatchObject({ ok: true, beadCount: 9 });
-    const debits = mocks.rpc.mock.calls.filter(
-      ([name]) => name === "consume_beads",
+    const commits = mocks.adminRpc.mock.calls.filter(
+      ([name]) => name === "commit_picturebook_start",
     );
-    expect(debits).toHaveLength(2);
-    expect(debits[0]).toEqual(debits[1]);
+    expect(commits).toHaveLength(2);
+    expect(commits[0]).toEqual(commits[1]);
     expect(mocks.generate).toHaveBeenCalledTimes(1);
-    expect(mocks.adminRpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
+      "consume_daily_quota",
+      expect.any(Object),
+    );
   });
-  it("retains request identity when both debit responses are ambiguous", async () => {
+  it("retains request identity when both atomic commit responses are ambiguous", async () => {
     query(null);
     query({ count: 10 });
-    query({ id: 42 });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: [{ allowed: true }] })
-      .mockResolvedValue({ error: { message: "database timeout" } });
+    mocks.adminRpc.mockResolvedValue({
+      error: { message: "database timeout" },
+    });
     expect(
       await createPicturebookAction(input, "token", requestId),
     ).toMatchObject({ ok: false, retrySameRequest: true });
-    expect(mocks.adminRpc).not.toHaveBeenCalled();
+    expect(mocks.adminRpc).toHaveBeenCalledTimes(2);
+    expect(
+      mocks.adminRpc.mock.calls.every(
+        ([name]) => name === "commit_picturebook_start",
+      ),
+    ).toBe(true);
   });
   it("does not repeat generation for an unfinished saved request", async () => {
     query({ id: 42, raw_text: null });
@@ -308,6 +329,7 @@ describe("server action validation and accounting recovery", () => {
     expect(
       mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
     ).toHaveLength(0);
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
 });
 

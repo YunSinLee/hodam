@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { book, input } from "./fixtures";
 
@@ -8,9 +8,15 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   generate: vi.fn(),
   adminRpc: vi.fn(),
+  ready: vi.fn(),
 }));
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ rpc: mocks.adminRpc }),
+  createClient: () => ({
+    rpc: (name: string, ...args: unknown[]) =>
+      name === "picturebook_storage_ready"
+        ? mocks.ready()
+        : mocks.adminRpc(name, ...args),
+  }),
 }));
 vi.mock("@/app/api/server-auth", () => ({ requireServerUser: mocks.auth }));
 vi.mock("@/app/api/langchain", () => ({
@@ -45,6 +51,9 @@ function query(data: unknown, error: unknown = null, reject = false) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-server-key");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://supabase.test");
+  mocks.ready.mockResolvedValue({ data: true, error: null });
   queries.length = 0;
   mocks.auth.mockResolvedValue({
     user: { id: "owner" },
@@ -59,6 +68,7 @@ beforeEach(() => {
     ),
   );
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe("picturebook request recovery across server failures", () => {
   it("retains the original request while authentication cannot be confirmed", async () => {
@@ -103,14 +113,21 @@ describe("picturebook request recovery across server failures", () => {
   });
 
   it.each([false, true])(
-    "recovers the winning worker's saved book after INSERT failure (throws: %s)",
+    "recovers the winning worker's saved book after atomic commit response loss (throws: %s)",
     async reject => {
       const winner = { ...book(), title: "먼저 저장된 그림책" };
       query(null);
       query({ count: 10 });
-      query(null, { code: "23505", message: "request already exists" }, reject);
-      query({ id: 42, raw_text: JSON.stringify(winner) });
-      query({ count: 9 });
+      // Reservation/INSERT handling moved into the transaction. The action now
+      // retries that transaction, whose winner must remain authoritative.
+      const lost = new Error("commit response lost");
+      if (reject) mocks.adminRpc.mockRejectedValueOnce(lost);
+      else mocks.adminRpc.mockResolvedValueOnce({ error: lost });
+      mocks.adminRpc.mockResolvedValueOnce({
+        data: [
+          { thread_id: 42, raw_text: JSON.stringify(winner), bead_count: 9 },
+        ],
+      });
 
       expect(await createPicturebookAction(input, "token", requestId)).toEqual({
         ok: true,
@@ -118,37 +135,41 @@ describe("picturebook request recovery across server failures", () => {
         threadId: 42,
         beadCount: 9,
       });
-      expect(queries[3].steps).toContainEqual(["eq", ["user_id", "owner"]]);
-      expect(queries[3].steps).toContainEqual([
+      expect(queries[0].steps).toContainEqual(["eq", ["user_id", "owner"]]);
+      expect(queries[0].steps).toContainEqual([
         "eq",
         ["openai_thread_id", `picturebook_${requestId}`],
       ]);
       expect(
         mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
       ).toHaveLength(0);
-      expect(mocks.adminRpc).not.toHaveBeenCalled();
+      expect(mocks.adminRpc).toHaveBeenCalledTimes(2);
+      expect(mocks.adminRpc.mock.calls[0]).toEqual(
+        mocks.adminRpc.mock.calls[1],
+      );
     },
   );
 
-  it("retains the same request when another worker is still saving it", async () => {
+  it("retains the same request when the transaction reports unresolved legacy work", async () => {
     query(null);
     query({ count: 10 });
-    query(null, { code: "23505" });
-    query({ id: 42, raw_text: null });
+    mocks.adminRpc.mockResolvedValue({
+      error: { message: "PICTUREBOOK_REQUEST_UNRESOLVED" },
+    });
 
     expect(
       await createPicturebookAction(input, "token", requestId),
     ).toMatchObject({
       ok: false,
       retrySameRequest: true,
-      retryable: true,
+      retryable: false,
     });
     expect(
       mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
     ).toHaveLength(0);
   });
 
-  it("keeps recovery retryable while the reserved book is not saved yet", async () => {
+  it("preserves an unfinished legacy reservation for manual recovery without a new debit", async () => {
     query({ id: 42, raw_text: null });
     query({ count: 9 });
 
@@ -157,19 +178,20 @@ describe("picturebook request recovery across server failures", () => {
     ).toMatchObject({
       ok: false,
       retrySameRequest: true,
-      retryable: true,
+      retryable: false,
     });
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it.each([false, true])(
-    "keeps the same request if the recovery lookup also fails (throws: %s)",
+    "keeps the same request if both commit responses are unavailable (throws: %s)",
     async reject => {
       query(null);
       query({ count: 10 });
-      query(null, new Error("INSERT response lost"));
-      query(null, new Error("recovery read unavailable"), reject);
+      const unavailable = new Error("commit response unavailable");
+      if (reject) mocks.adminRpc.mockRejectedValue(unavailable);
+      else mocks.adminRpc.mockResolvedValue({ error: unavailable });
 
       expect(
         await createPicturebookAction(input, "token", requestId),
@@ -177,7 +199,10 @@ describe("picturebook request recovery across server failures", () => {
       expect(
         mocks.rpc.mock.calls.filter(([name]) => name === "consume_beads"),
       ).toHaveLength(0);
-      expect(mocks.adminRpc).not.toHaveBeenCalled();
+      expect(mocks.adminRpc).toHaveBeenCalledTimes(2);
+      expect(mocks.adminRpc.mock.calls[0]).toEqual(
+        mocks.adminRpc.mock.calls[1],
+      );
     },
   );
 
@@ -186,14 +211,23 @@ describe("picturebook request recovery across server failures", () => {
     async count => {
       query(null);
       query({ count: 10 });
-      query(null, { code: "23505" });
-      query({ id: 42, raw_text: JSON.stringify(book()) });
-      query({ count });
+      mocks.adminRpc.mockResolvedValue({
+        data: [
+          {
+            thread_id: 42,
+            raw_text: JSON.stringify(book()),
+            bead_count: count,
+          },
+        ],
+      });
 
       expect(
         await createPicturebookAction(input, "token", requestId),
       ).toMatchObject({ ok: false, retrySameRequest: true });
-      expect(mocks.adminRpc).not.toHaveBeenCalled();
+      expect(mocks.adminRpc).toHaveBeenCalledExactlyOnceWith(
+        "commit_picturebook_start",
+        expect.any(Object),
+      );
     },
   );
 });

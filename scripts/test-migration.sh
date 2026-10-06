@@ -17,5 +17,9 @@ psql -X -v ON_ERROR_STOP=1 -h "$HODAM_TEST_TMP" -p 54599 -d postgres \
   -f supabase/migrations/20260914010000_harden_hodam_accounting.sql \
   -f supabase/migrations/20260914020000_private_picturebook_storage.sql \
   -f supabase/migrations/20260914020000_private_picturebook_storage.sql \
+  -f supabase/migrations/20261006010000_commit_picturebook_atomically.sql \
+  -f supabase/migrations/20261006010000_commit_picturebook_atomically.sql \
   -f tests/db/assertions.sql \
-  -f tests/db/storage-assertions.sql
+  -f tests/db/storage-assertions.sql \
+  -f tests/db/picturebook-atomic-assertions.sql
+sh tests/db/picturebook-atomic-concurrency.sh "$HODAM_TEST_TMP"
