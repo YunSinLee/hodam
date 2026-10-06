@@ -130,7 +130,10 @@ export async function createPicturebookAction(
   try {
     auth = await requireServerUser(accessToken);
   } catch (cause) {
-    return failure(cause, "로그인을 확인해주세요.");
+    return {
+      ...failure(cause, "로그인을 확인해주세요."),
+      retrySameRequest: true,
+    };
   }
   const { user, client } = auth;
   const key = `${user.id}:${requestId}`;
@@ -140,6 +143,8 @@ export async function createPicturebookAction(
     let charged = false;
     let createdId: number | null = null;
     let debitAttempted = false;
+    let requestConfirmedAbsent = false;
+    let reservationAttempted = false;
     try {
       const { data: prior, error: priorError } = await client
         .from("thread")
@@ -151,6 +156,7 @@ export async function createPicturebookAction(
         throw new Error(
           "이전 요청을 확인하지 못했어요. 내 책장을 확인해주세요.",
         );
+      requestConfirmedAbsent = !prior;
       const savedBook = parsePicturebookDraft(prior?.raw_text);
       const { data: balance, error: balanceError } = await client
         .from("bead")
@@ -170,10 +176,11 @@ export async function createPicturebookAction(
       if (prior)
         return {
           ok: false,
-          message:
-            "이전 생성 요청의 저장 상태를 확인해야 해요. 내 책장을 확인하고 운영팀에 문의해주세요.",
+          message: prior.raw_text
+            ? "이전 생성 요청의 저장 상태를 확인해야 해요. 내 책장을 확인하고 운영팀에 문의해주세요."
+            : "첫 4쪽의 저장 결과가 아직 확인되지 않았어요. 잠시 후 다시 확인해주세요. 계속되면 문의하기로 알려주세요.",
           retrySameRequest: true,
-          retryable: false,
+          retryable: !prior.raw_text,
         };
       if (currentCount < 1)
         throw new Error("곶감이 부족해요. 보유 곶감을 확인해주세요.");
@@ -184,6 +191,9 @@ export async function createPicturebookAction(
         book.status !== "choice-ready"
       )
         throw new Error("그림책 응답을 확인하지 못했어요. 다시 시도해주세요.");
+      // A second worker may reserve this request between the lookup and INSERT.
+      // Even a lost INSERT response must retain its identity on the client.
+      reservationAttempted = true;
       const { data: thread, error: threadError } = await client
         .from("thread")
         .insert({
@@ -231,6 +241,36 @@ export async function createPicturebookAction(
     } catch (cause) {
       let message =
         cause instanceof Error ? cause.message : "그림책을 만들지 못했어요.";
+      if (reservationAttempted && createdId === null) {
+        // Reuse another worker's completed book, without debiting or refunding it.
+        try {
+          const { data: saved, error: checkError } = await client
+            .from("thread")
+            .select("id, raw_text")
+            .eq("user_id", user.id)
+            .eq("openai_thread_id", `picturebook_${requestId}`)
+            .maybeSingle();
+          const book = parsePicturebookDraft(saved?.raw_text);
+          if (!checkError && saved && book) {
+            const { data: balance, error: balanceError } = await client
+              .from("bead")
+              .select("count")
+              .eq("user_id", user.id)
+              .single();
+            if (!balanceError)
+              return {
+                ok: true,
+                book,
+                threadId: saved.id,
+                beadCount: beadCount(balance?.count),
+              };
+          }
+        } catch {
+          // Preserve the request key if the recovery read is unavailable too.
+        }
+        message =
+          "첫 4쪽의 저장 결과가 아직 확인되지 않았어요. 잠시 후 다시 확인해주세요. 계속되면 문의하기로 알려주세요.";
+      }
       if (charged && createdId) {
         // Check ambiguous write failures before refunding a book that may be saved.
         const { data: saved, error: checkError } = await client
@@ -275,7 +315,11 @@ export async function createPicturebookAction(
       return {
         ...failure(cause, "그림책을 만들지 못했어요."),
         message,
-        retrySameRequest: createdId !== null || debitAttempted,
+        retrySameRequest:
+          !requestConfirmedAbsent ||
+          reservationAttempted ||
+          createdId !== null ||
+          debitAttempted,
       };
     }
   })();
