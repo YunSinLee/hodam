@@ -200,7 +200,6 @@ async function main() {
             method: "POST",
             headers: {
               apikey: supabaseAnonKey,
-              Authorization: `Bearer ${supabaseAnonKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify(rpcCheck.args),
@@ -262,7 +261,6 @@ async function main() {
             method: "POST",
             headers: {
               apikey: supabaseAnonKey,
-              Authorization: `Bearer ${supabaseAnonKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify(rpcCheck.args),
@@ -365,7 +363,6 @@ async function main() {
           method: "GET",
           headers: {
             apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
           },
         });
 

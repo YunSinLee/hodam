@@ -14,6 +14,7 @@
 - [ ] `.nvmrc`의 Node.js 22 최신 패치와 npm으로 개발 의존성을 포함한 `npm ci` 완료 (`NODE_ENV=production` 설치 환경은 `npm ci --include=dev`)
 - [ ] `OPENAI_API_KEY=dummy npm run check:all` 통과 (lint 경고 0, 기존·그림책 테스트 포함)
 - [ ] `npm run typecheck` 통과
+- [ ] `npm run build`의 공개 환경변수 검사와 공개 산출물 검사 통과 (검사를 생략하거나 우회하지 않음)
 - [ ] `npm run test:db` 통과 (로컬 `initdb`, `pg_ctl`, `psql` 필요, 운영 DB 연결 없음)
 - [ ] `npm run check:supabase:security:strict:baseline` 통과
 - [ ] `npm run check:oauth -- --runtime-origin=https://<production-domain>` 통과
@@ -28,14 +29,16 @@
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-key-or-legacy-anon-key>
 OPENAI_API_KEY=<openai-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_SERVICE_ROLE_KEY=<secret-key-or-legacy-service-role-key>
 NEXT_PUBLIC_SITE_URL=https://<production-domain>
 NEXT_PUBLIC_AUTH_REDIRECT_URL=https://<production-domain>/auth/callback
 ```
 
-서비스 역할 키는 서버 결제와 기존 v1 생성 실패 복구에 필요합니다. 브라우저 공개 설정에 넣지 않습니다. 운영 배포에 실제 설정되어 있는지 별도로 확인합니다.
+서비스 역할 키는 새 그림책의 원자적 저장, 서버 결제와 기존 v1 생성 실패 복구에 필요합니다. 브라우저 공개 설정에 넣지 않습니다. 운영 배포에 실제 설정되어 있는지 별도로 확인합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY`에는 `sb_publishable_` 키 또는 role이 anon인 legacy JWT만 허용합니다. 서버 변수에는 `sb_secret_` 또는 service_role 키를 사용합니다.
+
+키 교체 시 새 publishable/secret 키를 사용하는 배포를 먼저 검증하고, Supabase API Keys에서 기존 legacy 키를 비활성화합니다. 새 키 생성만으로 기존 키가 폐기되지는 않습니다. 값은 로그·PR·보고서에 기록하지 않습니다. [공식 교체 절차](https://supabase.com/docs/guides/getting-started/api-keys)를 따릅니다.
 
 ### 결제 활성화에 추가로 필수
 
