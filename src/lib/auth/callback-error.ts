@@ -91,7 +91,10 @@ export function toSignInRecoveryCode(
     return "expired_code";
   }
 
-  if (normalized.includes("invalid request")) {
+  if (
+    normalized.includes("invalid request") ||
+    normalized.includes("invalid_request")
+  ) {
     return "invalid_request";
   }
 
