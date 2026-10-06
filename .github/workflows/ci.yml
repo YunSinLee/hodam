@@ -56,6 +56,15 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Install PostgreSQL test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql postgresql-client libpq-dev
+          pg_config --bindir >> "$GITHUB_PATH"
+
+      - name: Isolated database regressions
+        run: npm run test:db
+
       - name: Build
         run: npm run build
 

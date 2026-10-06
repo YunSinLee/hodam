@@ -101,13 +101,14 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 - [ ] 서비스 역할 키 및 서명 URL을 지원하는 통합 서버를 먼저 배포하고 준비 상태 확인
 - [ ] `20260914010000_harden_hodam_accounting.sql` 적용
 - [ ] `20260914020000_private_picturebook_storage.sql` 적용
+- [ ] 원자적 그림책 저장 앱 배포 전 `20261006010000_commit_picturebook_atomically.sql` 적용, 서버 역할 `picturebook_storage_ready()` true 및 두 함수의 서버 전용 권한 확인
 - [ ] `hodam_security_grants_smoke_check`와 보안 점검이 새 회계 권한 기준으로 통과
 - [ ] `image`·`profiles` 비공개 상태, 새 그림책/기존 중첩 경로의 소유자 접근 확인
 - [ ] Postgres 패치 업그레이드 (`vulnerable_postgres_version`)
 - [ ] leaked password protection(HIBP) 플랜 지원 여부 확인 후 활성화
 - [ ] 적용 절차는 `SUPABASE_MANUAL_RUNBOOK.md` 기준으로 수행
 
-두 SQL은 빌드나 Vercel 배포로 자동 적용되지 않습니다. 코드와 DB 반영을 같은 릴리스의 완료 조건으로 관리합니다. 9월 마이그레이션은 기존 4월 스키마를 전제로 하므로 빈 DB의 초기 스키마 생성용으로 사용하지 않습니다.
+SQL은 빌드나 Vercel 배포로 자동 적용되지 않습니다. 코드와 DB 반영을 같은 릴리스의 완료 조건으로 관리합니다. 9월 마이그레이션은 기존 4월 스키마를 전제로 하므로 빈 DB의 초기 스키마 생성용으로 사용하지 않습니다. 10월 원자적 저장 migration은 9월 회계 보호가 적용된 DB에 먼저 추가하고 앱을 전환합니다. 기존 미확인 예약 행을 자동 환불하거나 삭제하지 않습니다.
 
 ## 6) 모니터링/알림
 
