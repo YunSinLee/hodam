@@ -75,7 +75,18 @@ function generationError(cause: unknown, fallback: string): GenerationError {
 function reportGenerationFailure(error: unknown, stage: "start" | "ending") {
   if (error instanceof GenerationError) return;
   let category = "model_or_response";
-  if (error instanceof Error) {
+  if (isRecord(error)) {
+    if (
+      error.code === "credit_balance_exhausted" ||
+      error.code === "insufficient_quota" ||
+      error.type === "insufficient_quota"
+    )
+      category = "provider_quota";
+    else if (error.status === 401) category = "provider_authentication";
+    else if (error.status === 403) category = "provider_permission";
+    else if (error.status === 429) category = "provider_rate_limit";
+  }
+  if (category === "model_or_response" && error instanceof Error) {
     if (error.name === "APIConnectionTimeoutError") category = "timeout";
     else if (error.name === "APIConnectionError") category = "connection";
     else if (error.name === "SyntaxError") category = "invalid_json";
