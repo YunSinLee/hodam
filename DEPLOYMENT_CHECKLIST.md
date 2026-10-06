@@ -1,7 +1,7 @@
 # HODAM 프로덕션 배포 체크리스트
 
 이 문서는 실제 배포 직전/직후에 바로 사용할 수 있는 체크리스트입니다.
-현재 기준일: 2026-09-14 (기존 v1 API와 그림책 QA 통합)
+문서 기준일: 2026-10-06 (빌드 설치 요건·그림책 생성 설정 동기화; 실제 검증 범위는 릴리스 기록 기준)
 
 관련 런북:
 
@@ -11,7 +11,7 @@
 
 ## 1) 배포 전 필수 게이트
 
-- [ ] `.nvmrc`의 Node.js 22 최신 패치와 npm으로 `npm ci` 완료
+- [ ] `.nvmrc`의 Node.js 22 최신 패치와 npm으로 개발 의존성을 포함한 `npm ci` 완료 (`NODE_ENV=production` 설치 환경은 `npm ci --include=dev`)
 - [ ] `OPENAI_API_KEY=dummy npm run check:all` 통과 (lint 경고 0, 기존·그림책 테스트 포함)
 - [ ] `npm run typecheck` 통과
 - [ ] `npm run test:db` 통과 (로컬 `initdb`, `pg_ctl`, `psql` 필요, 운영 DB 연결 없음)
@@ -49,7 +49,8 @@ NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY=<toss-client-key>
 ### 모델·운영 도구 설정
 
 ```bash
-OPENAI_STORY_MODEL=gpt-4o-mini
+OPENAI_STORY_MODEL=gpt-5.4-2026-03-05
+OPENAI_STORY_REVIEW_MODEL=gpt-5.4-2026-03-05
 OPENAI_IMAGE_MODEL=gpt-image-2.5-flare
 SUPABASE_ACCESS_TOKEN=<supabase-personal-access-token>
 SUPABASE_PROJECT_REF=<project-ref>
@@ -138,6 +139,6 @@ OpenAI 모델 접근 권한·API 이용 한도와 Toss 운영 설정은 모의 �
 
 ### Vercel Hobby 실행 시간
 
-현재 프로젝트의 함수 한도는 60초다. 생성·책장 레이아웃의 `maxDuration`도 60으로 유지한다. 이야기 초안 요청은 35초, 선택적인 품질 재작성은 15초, 삽화 요청은 45초로 제한해 저장 및 오류 응답 시간을 남긴다. 품질 재작성 실패 시 검증된 첫 초안을 보존한다.
+현재 프로젝트의 함수 한도는 60초다. 생성·책장 레이아웃의 `maxDuration`도 60으로 유지한다. 시작·결말 생성은 각각 작성·검수·교정·재검수 최대 4회 호출에 50초를 공유하며, 개별 상한은 작성 18초·검수 20초·교정 18초다. 삽화 요청은 별도로 45초로 제한한다. 검수 오류나 교정 후 미달인 원고는 저장하지 않고, 결말 실패 시 이미 저장된 앞 4쪽을 보존한다. 세부 조건은 [그림책 품질 운영 가이드](docs/picturebook-quality.md)를 따른다.
 
 프로필 사진은 인증된 사용자 범위의 서버 클라이언트와 저장소 소유자 정책으로 처리한다. 서비스 역할 키 없이도 본인의 사진만 업로드·서명·삭제할 수 있다. Toss 및 서비스 역할 키가 없는 환경에서는 충전 기능이 준비 중으로 표시된다.

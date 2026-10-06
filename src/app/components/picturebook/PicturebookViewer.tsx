@@ -67,7 +67,8 @@ export default function PicturebookViewer({
   const [pendingChoiceId, setPendingChoiceId] = useState("");
   const titleRef = useRef<HTMLHeadingElement>(null);
   const choiceRef = useRef<HTMLHeadingElement>(null);
-  const pendingFocus = useRef<"title" | "choice" | null>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  const pendingFocus = useRef<"title" | "choice" | "page" | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { pages } = picturebook;
   const bookIdentity =
@@ -162,14 +163,17 @@ export default function PicturebookViewer({
   }, [bookIdentity, picturebook.choice.afterPage, picturebook.status]);
 
   useEffect(() => {
-    let target: HTMLHeadingElement | null = null;
+    let target: HTMLElement | null = null;
     if (pendingFocus.current === "choice") {
       target = choiceRef.current;
     } else if (pendingFocus.current === "title") {
       target = titleRef.current;
+    } else if (pendingFocus.current === "page") {
+      target = pageRef.current;
     }
     if (target) {
-      target.focus();
+      target.focus({ preventScroll: true });
+      target.scrollIntoView?.({ block: "start", behavior: "auto" });
       pendingFocus.current = null;
     }
   }, [bookIdentity, currentIndex, picturebook.status]);
@@ -184,14 +188,19 @@ export default function PicturebookViewer({
     }
   }
 
+  function goToPage(index: number) {
+    const nextIndex = spreadStart(index, isDesktop, pages.length);
+    if (nextIndex === currentIndex) return;
+    pendingFocus.current = "page";
+    setCurrentIndex(nextIndex);
+  }
+
   function goPrevious() {
-    setCurrentIndex(index => Math.max(0, index - (isDesktop ? 2 : 1)));
+    goToPage(Math.max(0, currentIndex - (isDesktop ? 2 : 1)));
   }
 
   function goNext() {
-    setCurrentIndex(index =>
-      spreadStart(index + (isDesktop ? 2 : 1), isDesktop, pages.length),
-    );
+    goToPage(currentIndex + (isDesktop ? 2 : 1));
   }
 
   function goToChoice() {
@@ -223,10 +232,10 @@ export default function PicturebookViewer({
       goNext();
     } else if (event.key === "Home") {
       event.preventDefault();
-      setCurrentIndex(0);
+      goToPage(0);
     } else if (event.key === "End") {
       event.preventDefault();
-      setCurrentIndex(spreadStart(pages.length - 1, isDesktop, pages.length));
+      goToPage(pages.length - 1);
     }
   }
 
@@ -355,7 +364,7 @@ export default function PicturebookViewer({
           <h2
             ref={titleRef}
             tabIndex={-1}
-            className="text-2xl font-bold text-gray-900"
+            className="scroll-mt-24 text-2xl font-bold text-gray-900"
           >
             {picturebook.title}
           </h2>
@@ -402,6 +411,9 @@ export default function PicturebookViewer({
             largeText={largeText}
             key={page.pageNumber}
             page={page}
+            focusRef={
+              page.pageNumber === currentPage.pageNumber ? pageRef : undefined
+            }
             imageUrl={getPageImageUrl(page.pageNumber)}
             isImageLoading={isImageLoading}
             onImageError={onImageError}
@@ -423,7 +435,7 @@ export default function PicturebookViewer({
           <h3
             ref={choiceRef}
             tabIndex={-1}
-            className="mb-3 text-lg font-semibold text-gray-900"
+            className="mb-3 scroll-mt-24 text-lg font-semibold text-gray-900"
           >
             {picturebook.choice.promptKo}
           </h3>
