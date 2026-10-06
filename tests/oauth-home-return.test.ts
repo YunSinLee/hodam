@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 import { describe, expect, it } from "vitest";
 
-import { config, middleware } from "../middleware";
+import { config, middleware } from "../src/middleware";
 
 describe("OAuth responses returned to the site URL", () => {
   it.each([
