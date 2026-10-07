@@ -142,6 +142,9 @@ export function createSampleBook(
 // A deliberate sample CTA carries only this tab's transient input. Nothing is
 // put in a URL or persistent browser storage; a reload safely drops the hint.
 let starter: { name: string; expiresAt: number } | null = null;
+export function clearSampleStarter() {
+  starter = null;
+}
 export function prepareSampleStarter(name: string) {
   starter = {
     name: normalizeSampleName(name),

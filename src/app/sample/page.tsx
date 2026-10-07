@@ -2,7 +2,13 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 
 import Link from "next/link";
 
@@ -13,6 +19,7 @@ import {
   trackSearchCta,
 } from "@/lib/client/search-analytics";
 import {
+  clearSampleStarter,
   createSampleBook,
   normalizeSampleName,
   prepareSampleStarter,
@@ -48,9 +55,19 @@ export default function SamplePage() {
     setBook(createSampleBook(book.childName, id));
     trackOnce("sample_choice");
   }
-  function startOwnBook() {
+  function startOwnBook(event: MouseEvent<HTMLAnchorElement>) {
     // Only an explicitly entered name is carried into the creation form.
-    if (appliedName) prepareSampleStarter(appliedName);
+    // Modified clicks open another tab/window, which cannot consume this memory.
+    clearSampleStarter();
+    if (
+      appliedName &&
+      event.button === 0 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey
+    )
+      prepareSampleStarter(appliedName);
     trackSearchCta("sample");
   }
   return (

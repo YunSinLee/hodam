@@ -13,7 +13,10 @@ vi.mock("next/link", () => ({
 }));
 
 import SamplePage from "../src/app/sample/page";
-import { consumeSampleStarter } from "../src/lib/picturebook/sample";
+import {
+  consumeSampleStarter,
+  prepareSampleStarter,
+} from "../src/lib/picturebook/sample";
 
 const gtag = vi.fn();
 beforeEach(() => {
@@ -86,6 +89,7 @@ describe("sample to first book", () => {
   });
 
   it("does not copy the fictional name into a real child's form", () => {
+    prepareSampleStarter("이전 별명");
     render(<SamplePage />);
     fireEvent.click(screen.getByRole("button", { name: "이 이름으로 읽기" }));
     const link = screen.getByRole("link", { name: /우리 아이 그림책 만들기/ });
@@ -96,4 +100,29 @@ describe("sample to first book", () => {
       gtag.mock.calls.some(call => call[1] === "hodam_sample_personalized"),
     ).toBe(false);
   });
+
+  it.each(["ctrlKey", "metaKey", "shiftKey", "altKey"])(
+    "does not leave a nickname behind after a %s click",
+    modifier => {
+      render(<SamplePage />);
+      fireEvent.change(
+        screen.getByLabelText("우리 아이 별명으로 읽어볼까요?"),
+        { target: { value: "보라" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "이 이름으로 읽기" }));
+      const link = screen.getByRole("link", {
+        name: /우리 아이 그림책 만들기/,
+      });
+      link.addEventListener("click", event => event.preventDefault());
+      fireEvent.click(link, { [modifier]: true });
+      expect(consumeSampleStarter()).toBeNull();
+      fireEvent.change(
+        screen.getByLabelText("우리 아이 별명으로 읽어볼까요?"),
+        { target: { value: "" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "이 이름으로 읽기" }));
+      fireEvent.click(link);
+      expect(consumeSampleStarter()).toBeNull();
+    },
+  );
 });
