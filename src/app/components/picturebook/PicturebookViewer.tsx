@@ -43,6 +43,7 @@ interface PicturebookViewerProps {
   createAnotherLabel?: string;
   onImageError?: (pageNumber: number) => void;
   headingLevel?: 1 | 2;
+  onReadComplete?: () => void;
 }
 
 export default function PicturebookViewer({
@@ -58,6 +59,7 @@ export default function PicturebookViewer({
   createAnotherLabel = "다른 그림책 만들기",
   onImageError,
   headingLevel = 2,
+  onReadComplete,
 }: PicturebookViewerProps) {
   const BookHeading = headingLevel === 1 ? "h1" : "h2";
   const SectionHeading = headingLevel === 1 ? "h2" : "h3";
@@ -87,6 +89,10 @@ export default function PicturebookViewer({
   const isLastPage = isDesktop
     ? currentIndex >= pages.length - 2
     : currentIndex >= pages.length - 1;
+
+  useEffect(() => {
+    if (isComplete && isLastPage) onReadComplete?.();
+  }, [isComplete, isLastPage, onReadComplete]);
 
   const visiblePages = useMemo(() => {
     const firstPage = pages[currentIndex];

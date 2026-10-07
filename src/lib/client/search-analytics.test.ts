@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SearchSource } from "@/lib/client/search-analytics";
+import type {
+  FirstBookStep,
+  SearchSource,
+} from "@/lib/client/search-analytics";
 
 const sourceKey = "hodam:search-source";
 
@@ -26,12 +29,14 @@ describe("search acquisition analytics", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.unstubAllGlobals());
 
-  it("maps only the five public page paths to allowlisted sources", async () => {
+  it("maps only public acquisition paths to allowlisted sources", async () => {
     const { searchSourceForPathname } = await import(
       "@/lib/client/search-analytics"
     );
     expect(
       [
+        "/",
+        "/sample",
         "/bedtime-stories",
         "/ai-storybook",
         "/bedtime-stories/moonlit-rabbit",
@@ -39,6 +44,8 @@ describe("search acquisition analytics", () => {
         "/bedtime-stories/little-fox-crossing",
       ].map(searchSourceForPathname),
     ).toEqual([
+      "home",
+      "sample",
       "bedtime",
       "ai-maker",
       "moonlit-rabbit",
@@ -47,7 +54,7 @@ describe("search acquisition analytics", () => {
     ]);
     expect(
       [
-        "/",
+        "/sample?childName=private",
         "/my-story/752",
         "/service",
         "/bedtime-stories/unknown",
@@ -76,17 +83,22 @@ describe("search acquisition analytics", () => {
     expect(gtag.mock.calls[1][2].search_source).toBe("moonlit-rabbit");
   });
 
-  it("ignores arbitrary query values and traffic without a tracked CTA", async () => {
+  it("counts unattributed traffic as direct without accepting arbitrary sources", async () => {
     const { gtag } = installBrowser({ [sourceKey]: "childName=민준" });
     const analytics = await import("@/lib/client/search-analytics");
     analytics.trackSearchCta("/my-story/987654" as SearchSource);
-    expect(analytics.beginSearchGeneration()).toBeNull();
+    expect(analytics.beginSearchGeneration()?.source).toBe("direct");
     analytics.completeSearchGeneration(987654, {
       status: "complete",
       pageCount: 8,
       hasAllImages: true,
     });
-    expect(gtag).not.toHaveBeenCalled();
+    expect(gtag.mock.calls.map(call => call[1])).toEqual([
+      "hodam_generation_started",
+    ]);
+    expect(JSON.stringify(gtag.mock.calls)).not.toMatch(
+      /987654|childName|민준|private/,
+    );
   });
 
   it("counts one start for an idempotent retry and completion only when all eight illustrations exist", async () => {
@@ -95,6 +107,7 @@ describe("search acquisition analytics", () => {
     analytics.trackSearchCta("bedtime");
     const attempt = analytics.beginSearchGeneration();
     expect(analytics.beginSearchGeneration(attempt)).toBe(attempt);
+    analytics.associateSearchGeneration(attempt, 987654);
     analytics.associateSearchGeneration(attempt, 987654);
     analytics.completeSearchGeneration(987654, {
       status: "choice-ready",
@@ -106,7 +119,7 @@ describe("search acquisition analytics", () => {
       pageCount: 8,
       hasAllImages: false,
     });
-    expect(gtag).toHaveBeenCalledTimes(2);
+    expect(gtag).toHaveBeenCalledTimes(3);
     analytics.completeSearchGeneration(987654, {
       status: "complete",
       pageCount: 8,
@@ -123,9 +136,10 @@ describe("search acquisition analytics", () => {
     expect(gtag.mock.calls.map(call => call[1])).toEqual([
       "hodam_cta_click",
       "hodam_generation_started",
+      "hodam_draft_saved",
       "hodam_generation_completed",
     ]);
-    expect(gtag.mock.calls[2]).toEqual([
+    expect(gtag.mock.calls[3]).toEqual([
       "event",
       "hodam_generation_completed",
       {
@@ -155,6 +169,22 @@ describe("search acquisition analytics", () => {
     });
     expect(gtag.mock.calls.at(-1)?.[2].search_source).toBe("bedtime");
     expect(analytics.beginSearchGeneration()?.source).toBe("ai-maker");
+  });
+
+  it("accepts only fixed funnel steps and never sends private route context", async () => {
+    const { gtag } = installBrowser();
+    const analytics = await import("@/lib/client/search-analytics");
+    analytics.trackFirstBookStep("sample_opened", "sample");
+    analytics.trackFirstBookStep("childName=private" as FirstBookStep);
+    analytics.trackFirstBookStep("form_started", "private" as SearchSource);
+    expect(gtag).toHaveBeenCalledOnce();
+    expect(gtag.mock.calls[0][2].search_source).toBe("sample");
+    expect(JSON.stringify(gtag.mock.calls)).not.toMatch(
+      /childName|private|987654/,
+    );
+    analytics.trackSearchCta("home");
+    analytics.trackFirstBookStep("form_started");
+    expect(gtag.mock.calls.at(-1)?.[2].search_source).toBe("home");
   });
 
   it("does not treat reopening an old saved book as a new conversion", async () => {

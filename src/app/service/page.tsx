@@ -30,8 +30,10 @@ import {
   associateSearchGeneration,
   beginSearchGeneration,
   completeSearchGeneration,
+  trackFirstBookStep,
   type SearchGenerationAttempt,
 } from "@/lib/client/search-analytics";
+import { consumeSampleStarter } from "@/lib/picturebook/sample";
 import useBead from "@/services/hooks/use-bead";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
 import useUserInfo from "@/services/hooks/use-user-info";
@@ -48,6 +50,7 @@ import {
 const storageKey = "hodam-picturebook-input";
 export default function Service() {
   const [input, setInput] = useState<PicturebookInput>(initialInput);
+  const [fromSample, setFromSample] = useState(false);
   const [thread, setThread] = useState<Thread | null>(null);
   const [book, setBook] = useState<PicturebookDraft | null>(null);
   const [stage, setStage] = useState<"idle" | "drafting" | "ending">("idle");
@@ -63,6 +66,8 @@ export default function Service() {
   const [selectedChoice, setSelectedChoice] =
     useState<PicturebookChoiceOption["id"]>();
   const busy = useRef(false);
+  const formStarted = useRef(false);
+  const initialFormApplied = useRef(false);
   const epoch = useRef(0);
   const requestId = useRef<string | null>(null);
   const requestInput = useRef<PicturebookInput | null>(null);
@@ -75,7 +80,10 @@ export default function Service() {
   const router = useRouter();
 
   useEffect(() => {
-    if (requestInput.current) setInput(initialInput);
+    if (requestInput.current) {
+      setInput(initialInput);
+      setFromSample(false);
+    }
     epoch.current += 1;
     busy.current = false;
     requestId.current = null;
@@ -95,6 +103,7 @@ export default function Service() {
       setUnconfirmedRequests(readUnconfirmedPicturebookRequests(userInfo.id));
       const pending = readPendingPicturebookRequest(userInfo.id);
       if (pending) {
+        setFromSample(false);
         requestId.current = pending.requestId;
         requestInput.current = pending.input;
         requestUncertain.current = true;
@@ -109,7 +118,15 @@ export default function Service() {
   }, [userInfo.id, resetImages]);
 
   useEffect(() => {
+    if (initialFormApplied.current) return;
+    initialFormApplied.current = true;
+    const sampleStarter = consumeSampleStarter();
     if (requestInput.current) return;
+    if (sampleStarter) {
+      setInput({ ...initialInput, ...sampleStarter });
+      setFromSample(true);
+      return;
+    }
     try {
       const stored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
       if (
@@ -170,6 +187,7 @@ export default function Service() {
       return;
     }
     if (!userInfo.id) {
+      trackFirstBookStep("login_requested");
       try {
         sessionStorage.setItem(
           storageKey,
@@ -325,6 +343,7 @@ export default function Service() {
     setThread(null);
     setError("");
     setInput(initialInput);
+    setFromSample(false);
     setSelectedChoice(undefined);
   }
   function startSeparateBook() {
@@ -485,8 +504,14 @@ export default function Service() {
               isLoading={false}
               isAuthReady={isAuthReady}
               isSignedIn={!!userInfo.id}
+              fromSample={fromSample}
               onChange={value => {
                 if (requestInput.current) return;
+                if (value.situation !== input.situation) setFromSample(false);
+                if (!formStarted.current) {
+                  formStarted.current = true;
+                  trackFirstBookStep("form_started");
+                }
                 requestId.current = null;
                 requestInput.current = null;
                 searchAttempt.current = null;

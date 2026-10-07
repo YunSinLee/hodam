@@ -66,11 +66,22 @@ HTML 메타 태그 방식이 필요하면 콘솔이 발급한 **실제 content �
 
 | 이벤트 | 발생 조건 |
 | --- | --- |
-| `hodam_cta_click` | 공개 페이지에서 그림책 만들기 링크 클릭 |
+| `hodam_cta_click` | 공개 페이지에서 무료 체험 또는 그림책 만들기 링크 클릭 |
+| `hodam_sample_opened` | 무료 그림책 화면 열기. 같은 화면이 유지되는 동안 1회 |
+| `hodam_sample_personalized` | 비어 있지 않은 별명을 적용. 같은 화면에서 반복 변경해도 1회 |
+| `hodam_sample_choice` | 예시에서 결말 선택. 같은 화면에서 다시 읽어도 1회 |
+| `hodam_sample_completed` | 결말이 있는 예시의 마지막 쪽(데스크톱에서는 7–8쪽)에 도달. 읽은 시간이나 내용 이해를 뜻하지 않음 |
+| `hodam_form_started` | 만들기 화면에서 첫 입력 또는 예시·추천 선택. 자동으로 이어받은 입력만으로는 기록하지 않음 |
+| `hodam_login_requested` | 유효한 입력으로 만들기를 눌렀으나 로그인 필요. 로그인 성공과는 별개 |
 | `hodam_generation_started` | 입력·인증 확인 후 새 생성 요청 시작. 같은 요청 재시도는 중복 시작으로 세지 않음 |
+| `hodam_draft_saved` | 생성 응답에서 저장된 책 ID를 확인. 같은 요청은 1회이며 그림 완료와는 별개 |
 | `hodam_generation_completed` | 해당 요청의 책이 `complete`이고 본문 8쪽과 각 쪽의 삽화 URL이 모두 준비됨. 책장 화면에서 이어 완성해도 같은 탭 메모리가 유지되면 기록 |
 
-`search_source` 값은 `bedtime`, `ai-maker`, 세 동화 slug 중 하나다. 검색엔진이나 검색어가 아니라 **마지막으로 만들기를 누른 공개 페이지**를 뜻한다. 같은 탭의 `sessionStorage`에 출처만 보관하고, 책과 요청의 연결은 메모리에만 둔다. 새로고침·탭 종료 시 완료가 누락될 수 있다. 이 세 이벤트에는 아이 이름·입력 본문·책 ID를 보내지 않고, URL·referrer도 중립적인 `/service` 주소와 빈 값으로 지정한다. 기존 GA의 자동 페이지 조회 수집과는 별개의 처리다.
+`search_source` 값은 `home`, `sample`, `direct`, `bedtime`, `ai-maker`, 세 동화 slug 중 하나다. 검색엔진이나 검색어가 아니라 **마지막으로 체험·만들기 링크를 누른 공개 페이지**를 뜻한다. 같은 탭의 `sessionStorage`에 출처만 보관하고, 책과 요청의 연결은 메모리에만 둔다. 출처 없이 직접 생성하면 `direct`로 기록한다. 새로고침·탭 종료 시 완료가 누락될 수 있다. 이 맞춤 이벤트에는 아이 이름·입력 본문·책 ID를 보내지 않고, URL·referrer도 중립적인 `/service` 주소와 빈 값으로 지정한다. 기존 GA의 자동 페이지 조회 수집과는 별개의 처리다.
+
+단계별 수치는 한 번의 화면 방문 또는 생성 요청 기준이며 첫 가입자만 집계하는 것은 아니다. 마지막 클릭 출처가 바뀔 수 있으므로 `home` 이벤트 수와 `sample` 완료 수를 단순히 나눠 전환율로 해석하지 않는다. GA에서 같은 세션의 순서를 묶어 `sample_opened → sample_choice → sample_completed → form_started → generation_started → draft_saved → generation_completed` 이탈 구간을 확인한다. 기존 자동 수집 범위의 개인정보 점검은 별도 후속 작업이다.
+
+무료 예시의 이름 바꾸기는 준비된 글의 별명만 변경하며 AI를 호출하지 않는다. 적용한 별명은 만들기 버튼을 눌렀을 때만 메모리로 한 번 전달하고 15분 후 만료된다. URL·브라우저 저장소에 예시 별명을 기록하지 않는다. 새로고침하거나 새 탭으로 열면 이 연결은 사라지며 나이는 다시 선택해야 한다. 기존 미확인 생성 요청이 있으면 그 요청을 우선 복구하고 예시 입력은 버린다. 실제 만들기 화면의 로그인 전 입력 보관 정책은 기존과 같다.
 
 운영 HTML에 기존 GA 태그가 포함된 것은 확인했지만, 새 이벤트가 GA 속성에 실제 수신되는지는 배포 후 별도로 확인한다. 이벤트 수신은 실시간 보고서 또는 설정한 DebugView에서 검사한다. `search_source`를 보고서에서 비교하려면 이벤트 범위의 맞춤 측정기준으로 등록한다. 태그 존재, 이벤트 수신, 분석 보고서 반영을 같은 완료 상태로 취급하지 않는다. [GA 이벤트 확인](https://developers.google.com/analytics/devguides/collection/ga4/events), [맞춤 측정기준 안내](https://support.google.com/analytics/answer/14240153?hl=ko).
 

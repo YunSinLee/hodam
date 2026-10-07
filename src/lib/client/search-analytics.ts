@@ -1,6 +1,9 @@
 const SOURCE_STORAGE_KEY = "hodam:search-source";
 
 export const SEARCH_SOURCES = [
+  "home",
+  "sample",
+  "direct",
   "bedtime",
   "ai-maker",
   "moonlit-rabbit",
@@ -11,6 +14,8 @@ export const SEARCH_SOURCES = [
 export type SearchSource = (typeof SEARCH_SOURCES)[number];
 
 export function searchSourceForPathname(pathname: string): SearchSource | null {
+  if (pathname === "/") return "home";
+  if (pathname === "/sample") return "sample";
   if (pathname === "/bedtime-stories") return "bedtime";
   if (pathname === "/ai-storybook") return "ai-maker";
   return (
@@ -18,18 +23,34 @@ export function searchSourceForPathname(pathname: string): SearchSource | null {
       source =>
         source !== "bedtime" &&
         source !== "ai-maker" &&
+        source !== "home" &&
+        source !== "sample" &&
+        source !== "direct" &&
         pathname === `/bedtime-stories/${source}`,
     ) ?? null
   );
 }
 
+const FUNNEL_STEPS = [
+  "sample_opened",
+  "sample_personalized",
+  "sample_choice",
+  "sample_completed",
+  "form_started",
+  "login_requested",
+] as const;
+export type FirstBookStep = (typeof FUNNEL_STEPS)[number];
+
 type SearchEvent =
+  | `hodam_${FirstBookStep}`
   | "hodam_cta_click"
+  | "hodam_draft_saved"
   | "hodam_generation_started"
   | "hodam_generation_completed";
 
 export interface SearchGenerationAttempt {
   readonly source: SearchSource;
+  draftSaved?: boolean;
   completed: boolean;
 }
 
@@ -73,6 +94,14 @@ export function trackSearchCta(source: SearchSource): void {
   sendEvent("hodam_cta_click", source);
 }
 
+export function trackFirstBookStep(
+  step: FirstBookStep,
+  fallbackSource: SearchSource = "direct",
+): void {
+  if (!FUNNEL_STEPS.includes(step)) return;
+  sendEvent(`hodam_${step}`, readSource() || fallbackSource);
+}
+
 function readSource(): SearchSource | null {
   if (typeof window === "undefined") return null;
   try {
@@ -89,8 +118,8 @@ export function beginSearchGeneration(
 ): SearchGenerationAttempt | null {
   // A retry of the same idempotent generation request is one start.
   if (previous) return previous;
-  const source = readSource();
-  if (!source) return null;
+  if (typeof window === "undefined") return null;
+  const source = readSource() || "direct";
   const attempt = { source, completed: false };
   sendEvent("hodam_generation_started", source);
   return attempt;
@@ -102,6 +131,11 @@ export function associateSearchGeneration(
 ): void {
   if (!attempt || attempt.completed || !Number.isSafeInteger(threadId)) return;
   if (threadId <= 0) return;
+  if (!attempt.draftSaved) {
+    const currentAttempt = attempt;
+    currentAttempt.draftSaved = true;
+    sendEvent("hodam_draft_saved", attempt.source);
+  }
   // Keep this bounded even when a tab is left open for a long time.
   if (pendingBooks.size >= 20) {
     const oldest = pendingBooks.keys().next().value;
