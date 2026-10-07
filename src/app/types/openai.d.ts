@@ -67,6 +67,13 @@ export type PicturebookTone = "calm" | "playful" | "brave";
 
 export type PicturebookStatus = "choice-ready" | "complete";
 
+export interface PicturebookAdventure {
+  world: "moon-bakery" | "dinosaur-post" | "ocean-library";
+  companion: "rabbit" | "fox" | "dinosaur";
+  companionName: string;
+  heroStyle: "short" | "bob" | "curly";
+}
+
 export type PicturebookEmotionalBeat =
   | "setup"
   | "tension"
@@ -81,6 +88,7 @@ export interface PicturebookInput {
   lesson: string;
   tone: PicturebookTone;
   interests?: string;
+  adventure?: PicturebookAdventure;
 }
 
 export interface PicturebookPage {
@@ -115,6 +123,8 @@ export interface PicturebookDraft {
   status: PicturebookStatus;
   title: string;
   childName: string;
+  childAge?: string;
+  adventure?: PicturebookAdventure;
   ageBand: "3-4" | "5-7" | "8+";
   situation: string;
   lesson: string;

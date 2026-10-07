@@ -86,6 +86,35 @@ export default function Home() {
         <span>함께 고르는 세 가지 선택</span>
         <span>내 책장에 보관하는 8쪽 그림책</span>
       </div>
+      <section className="home-section home-adventure">
+        <div>
+          <p className="eyebrow">아이와 단짝의 상상 모험</p>
+          <h2>
+            오늘은 달나라 빵집,
+            <br />
+            다음에는 어디로 갈까요?
+          </h2>
+          <p>
+            마음에 드는 단짝에게 이름을 지어주세요.
+            <br />한 권을 다 읽으면, 같은 단짝과 새로운 모험을 떠날 수 있어요.
+          </p>
+        </div>
+        <div>
+          <p className="adventure-destinations">
+            달나라 빵집 · 공룡 우체국 · 바닷속 도서관
+          </p>
+          <TrackedLink
+            href="/service?mode=adventure"
+            source="home"
+            className="button-primary"
+          >
+            우리의 첫 모험 고르기 →
+          </TrackedLink>
+          <p className="field-help">
+            장소와 단짝만 골라도 좋아요. 교훈은 적지 않아도 돼요.
+          </p>
+        </div>
+      </section>
       <section className="home-section">
         <div className="section-intro">
           <h2>

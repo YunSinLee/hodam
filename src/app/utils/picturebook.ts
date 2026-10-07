@@ -3,6 +3,7 @@ import type {
   PicturebookInput,
   PicturebookStoryGuide,
 } from "@/app/types/openai";
+import { parseAdventure } from "@/lib/picturebook/adventure";
 
 export const initialInput: PicturebookInput = {
   childName: "",
@@ -37,6 +38,9 @@ export function validatePicturebookInput(value: unknown): string | null {
   if (!value || typeof value !== "object")
     return "아이의 이야기를 입력해주세요.";
   const input = value as PicturebookInput;
+  const adventure =
+    input.adventure === undefined ? undefined : parseAdventure(input.adventure);
+  if (adventure === null) return "모험의 장소와 단짝을 다시 골라주세요.";
   if (
     typeof input.childName !== "string" ||
     !input.childName.trim() ||
@@ -50,13 +54,13 @@ export function validatePicturebookInput(value: unknown): string | null {
     return "아이 나이는 3~12세 중에서 골라주세요.";
   if (
     typeof input.situation !== "string" ||
-    !input.situation.trim() ||
+    (!adventure && !input.situation.trim()) ||
     input.situation.length > 500
   )
     return "오늘의 상황을 1~500자로 적어주세요.";
   if (
     typeof input.lesson !== "string" ||
-    !input.lesson.trim() ||
+    (!adventure && !input.lesson.trim()) ||
     input.lesson.length > 200
   )
     return "전하고 싶은 마음을 1~200자로 적어주세요.";
@@ -67,6 +71,8 @@ export function validatePicturebookInput(value: unknown): string | null {
     (typeof input.interests !== "string" || input.interests.length > 100)
   )
     return "좋아하는 것은 100자 안으로 적어주세요.";
+  if (adventure?.companionName === input.childName.trim())
+    return "단짝 이름은 아이의 이름과 다르게 지어주세요.";
   return null;
 }
 
@@ -105,6 +111,10 @@ export function parsePicturebookDraft(
   if (!rawText) return null;
   try {
     const book = JSON.parse(rawText);
+    const adventure =
+      book?.adventure === undefined
+        ? undefined
+        : parseAdventure(book.adventure);
     const storyGuide =
       book?.storyGuide === undefined
         ? undefined
@@ -121,6 +131,10 @@ export function parsePicturebookDraft(
     );
     if (
       book?.kind !== "picturebook" ||
+      adventure === null ||
+      (adventure !== undefined &&
+        (typeof book.childAge !== "string" ||
+          !/^(?:[3-9]|1[0-2])$/.test(book.childAge))) ||
       !["choice-ready", "complete"].includes(book.status) ||
       typeof book.title !== "string" ||
       !book.title.trim() ||
@@ -167,6 +181,7 @@ export function parsePicturebookDraft(
       return null;
     return {
       ...book,
+      ...(adventure ? { adventure } : {}),
       ...(storyGuide ? { storyGuide } : {}),
       safetyNotes: book.safetyNotes ?? [],
     } as PicturebookDraft;

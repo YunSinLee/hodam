@@ -6,6 +6,7 @@ import type {
   PicturebookDraft,
 } from "@/app/types/openai";
 import { spreadStart } from "@/app/utils/picturebook";
+import { adventureWorlds } from "@/lib/picturebook/adventure";
 
 import PicturebookPage from "./PicturebookPage";
 
@@ -39,6 +40,7 @@ interface PicturebookViewerProps {
   selectedChoiceId?: string;
   onSelectChoice?: (choiceId: PicturebookChoiceOption["id"]) => void;
   onCreateAnother?: () => void;
+  onContinueAdventure?: () => void;
   bookPath?: string;
   createAnotherLabel?: string;
   onImageError?: (pageNumber: number) => void;
@@ -55,6 +57,7 @@ export default function PicturebookViewer({
   selectedChoiceId = "",
   onSelectChoice,
   onCreateAnother,
+  onContinueAdventure,
   bookPath,
   createAnotherLabel = "다른 그림책 만들기",
   onImageError,
@@ -375,7 +378,9 @@ export default function PicturebookViewer({
             {picturebook.title}
           </BookHeading>
           <p className="mt-1 text-sm leading-6 text-gray-600">
-            {picturebook.situation}
+            {picturebook.adventure
+              ? `${adventureWorlds[picturebook.adventure.world].label} · ${picturebook.adventure.companionName}${hasFinalConsonant(picturebook.adventure.companionName) ? "과" : "와"} 함께하는 모험`
+              : picturebook.situation}
           </p>
         </div>
       </div>
@@ -481,6 +486,32 @@ export default function PicturebookViewer({
 
       {isComplete && isLastPage && (
         <div className="reader-ending">
+          {picturebook.adventure && onContinueAdventure && (
+            <div className="reader-next-adventure">
+              <SectionHeading>
+                우리 단짝과, 다음에는 어디로 갈까요?
+              </SectionHeading>
+              <p>
+                {picturebook.adventure.companionName}의 이름과 모습을 기억해
+                둘게요. 새로운 장소에서 또 만나요.
+              </p>
+              <button
+                type="button"
+                className="button-primary mt-4"
+                disabled={isImageLoading || isEndingLoading}
+                onClick={onContinueAdventure}
+              >
+                {picturebook.adventure.companionName}
+                {hasFinalConsonant(picturebook.adventure.companionName)
+                  ? "과"
+                  : "와"}{" "}
+                다음 모험 고르기 →
+              </button>
+              <p className="field-help">
+                장소를 고르는 건 무료예요. 새 책을 만들 때 곶감 1개를 사용해요.
+              </p>
+            </div>
+          )}
           <SectionHeading className="font-semibold">
             {illustrationCount === pages.length
               ? "그림책이 완성됐어요"
@@ -501,7 +532,11 @@ export default function PicturebookViewer({
             <button
               type="button"
               onClick={downloadStory}
-              className="button-primary"
+              className={
+                picturebook.adventure && onContinueAdventure
+                  ? "button-secondary"
+                  : "button-primary"
+              }
             >
               이야기 글 저장 (.txt)
             </button>

@@ -1207,3 +1207,80 @@ describe("provider failures safe for server action results", () => {
     },
   );
 });
+
+describe("adventure generation continuity", () => {
+  const adventure = {
+    world: "moon-bakery",
+    companion: "rabbit",
+    companionName: "두부",
+    heroStyle: "curly",
+  } as const;
+  it("uses the selected world in writing and review, stores identity and reuses it for the ending", async () => {
+    mocks.chat.mockResolvedValueOnce(response(startResponse()));
+    approveNextReview();
+    const draft = await generatePicturebookStart(
+      { ...input, adventure, situation: "분홍 구름", lesson: "" },
+      "token",
+    );
+    expect(draft.adventure).toEqual(adventure);
+    expect(draft.childAge).toBe("5");
+    expect(draft.situation).toContain("별사탕이 사라졌어요");
+    expect(draft.situation).toContain("분홍 구름");
+    expect(draft.storyGuide!.visualStyle).toContain("curly dark-brown hair");
+    expect(draft.storyGuide!.visualStyle).toContain("mustard-yellow scarf");
+    for (const call of mocks.chat.mock.calls) {
+      expect(call[0].messages[1].content).toContain("상상 모험 모드");
+      expect(call[0].messages[1].content).toContain("두부");
+    }
+    mocks.chat.mockResolvedValueOnce(response(endingResponse()));
+    approveNextReview();
+    const finished = await generatePicturebookEnding(draft, "B", "token");
+    expect(finished.adventure).toEqual(adventure);
+    expect(finished.storyGuide).toEqual(draft.storyGuide);
+    expect(finished.pages.slice(0, 4)).toEqual(draft.pages);
+    expect(finished.childAge).toBe("5");
+    expect(mocks.chat.mock.calls[2][0].messages[1].content).toContain("두부");
+    expect(mocks.chat.mock.calls[3][0].messages[1].content).toContain(
+      "상상 모험 모드",
+    );
+  });
+  it("preserves adventure identity after a repair and refuses a model-written replacement", async () => {
+    mocks.chat.mockResolvedValueOnce(response(startResponse()));
+    rejectNextReview();
+    mocks.chat.mockResolvedValueOnce(
+      response({ pages: [startResponse().pages[0]] }),
+    );
+    approveNextReview();
+    const result = await generatePicturebookStart(
+      { ...input, adventure },
+      "token",
+    );
+    expect(result.adventure).toEqual(adventure);
+    expect(mocks.chat.mock.calls[2][0].messages[1].content).toContain(
+      "상상 모험 모드",
+    );
+    expect(
+      result.storyGuide!.visualStyle.match(/Child protagonist:/g),
+    ).toHaveLength(1);
+    mocks.chat.mockResolvedValueOnce(response(startResponse()));
+    rejectNextReview();
+    mocks.chat.mockResolvedValueOnce(
+      response({
+        pages: [],
+        adventure: { ...adventure, companionName: "침입" },
+      }),
+    );
+    await expect(
+      generatePicturebookStart({ ...input, adventure }, "token"),
+    ).rejects.toThrow();
+  });
+  it("rejects unsupported adventure data before spending on a model", async () => {
+    await expect(
+      generatePicturebookStart(
+        { ...input, adventure: { ...adventure, world: "not-a-world" as any } },
+        "token",
+      ),
+    ).rejects.toThrow();
+    expect(mocks.chat).not.toHaveBeenCalled();
+  });
+});
