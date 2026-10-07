@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useRef } from "react";
 
 import Link from "next/link";
 
@@ -7,6 +7,9 @@ import {
   situationExamples,
   validatePicturebookInput,
 } from "@/app/utils/picturebook";
+import { defaultAdventure } from "@/lib/picturebook/adventure";
+
+import AdventureFields from "./AdventureFields";
 
 interface PicturebookInputFormProps {
   value: PicturebookInput;
@@ -40,6 +43,33 @@ export default function PicturebookInputForm({
   const identityHelpId = `${formId}-identity-help`;
   const situationHelpId = `${formId}-situation-help`;
   const invalid = validatePicturebookInput(value);
+  const isAdventure = !!value.adventure;
+  const previousDaily = useRef({
+    situation: value.situation,
+    lesson: value.lesson,
+  });
+  const previousAdventure = useRef({
+    adventure: { ...defaultAdventure },
+    situation: "",
+    lesson: "",
+  });
+  function switchMode(adventure: boolean) {
+    if (adventure === isAdventure) return;
+    if (adventure) {
+      previousDaily.current = {
+        situation: value.situation,
+        lesson: value.lesson,
+      };
+      onChange({ ...value, ...previousAdventure.current });
+    } else {
+      previousAdventure.current = {
+        adventure: value.adventure!,
+        situation: value.situation,
+        lesson: value.lesson,
+      };
+      onChange({ ...value, ...previousDaily.current, adventure: undefined });
+    }
+  }
   function update<Key extends keyof PicturebookInput>(
     key: Key,
     next: PicturebookInput[Key],
@@ -56,9 +86,10 @@ export default function PicturebookInputForm({
   if (isAuthReady && isLoading) {
     submitLabel = "그림책을 만들고 있어요…";
   } else if (isAuthReady) {
-    submitLabel = isSignedIn
-      ? "오늘 밤 그림책 만들기"
-      : "로그인하고 그림책 만들기";
+    submitLabel = isAdventure
+      ? "우리의 모험 그림책 만들기"
+      : "오늘 밤 그림책 만들기";
+    if (!isSignedIn) submitLabel = "로그인하고 그림책 만들기";
   }
   return (
     <form
@@ -71,10 +102,34 @@ export default function PicturebookInputForm({
     >
       <div className="page-heading">
         <p className="eyebrow">오늘 밤, 우리 아이가 주인공</p>
-        <h1>어떤 하루를 보냈나요?</h1>
+        <h1 tabIndex={-1}>
+          {isAdventure
+            ? "오늘은 어떤 모험을 떠날까요?"
+            : "어떤 하루를 보냈나요?"}
+        </h1>
         <p>
-          이름과 오늘의 한 장면을 알려주세요. 아이가 주인공인 이야기를 만들어요.
+          {isAdventure
+            ? "아이와 단짝이 주인공인 이야기. 장소를 고르면 모험이 시작돼요."
+            : "이름과 오늘의 한 장면을 알려주세요. 아이가 주인공인 이야기를 만들어요."}
         </p>
+      </div>
+      <div className="story-mode" role="group" aria-label="이야기 종류">
+        <button
+          type="button"
+          aria-pressed={!isAdventure}
+          disabled={isLoading}
+          onClick={() => switchMode(false)}
+        >
+          오늘의 이야기<span>하루의 한 장면을 담아요</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={isAdventure}
+          disabled={isLoading}
+          onClick={() => switchMode(true)}
+        >
+          단짝과 상상 모험<span>가고 싶은 세상을 골라요</span>
+        </button>
       </div>
       <div className="creation-expectation">
         <p>
@@ -126,79 +181,90 @@ export default function PicturebookInputForm({
           실명 대신 별명도 좋아요. 주소나 연락처는 적지 않아도 돼요.
         </p>
       </section>
-      <section className="form-section">
-        <h2>
-          <span>02</span>오늘의 작은 순간
-        </h2>
-        {fromSample && (
-          <p className="field-help mb-4">
-            무료 체험의 상황을 가져왔어요. 오늘 있었던 일에 맞게 고쳐주세요.
+      {value.adventure ? (
+        <AdventureFields
+          value={{ ...value, adventure: value.adventure }}
+          disabled={isLoading}
+          onChange={onChange}
+        />
+      ) : (
+        <section className="form-section">
+          <h2>
+            <span>02</span>오늘의 작은 순간
+          </h2>
+          {fromSample && (
+            <p className="field-help mb-4">
+              무료 체험의 상황을 가져왔어요. 오늘 있었던 일에 맞게 고쳐주세요.
+            </p>
+          )}
+          <div className="example-buttons" aria-label="상황 예시">
+            {Object.entries(situationExamples).map(([key, example]) => (
+              <button
+                key={key}
+                type="button"
+                disabled={isLoading}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    situation: example.situation,
+                    lesson: example.lesson,
+                  })
+                }
+              >
+                {example.label}
+              </button>
+            ))}
+          </div>
+          <label className="field">
+            <span>오늘 있었던 일</span>
+            <textarea
+              name="situation"
+              value={value.situation}
+              onChange={event => update("situation", event.target.value)}
+              maxLength={500}
+              required
+              aria-describedby={situationHelpId}
+              disabled={isLoading}
+              placeholder="예: 처음 가는 유치원 앞에서 제 손을 꼭 잡았어요."
+            />
+          </label>
+          <p id={situationHelpId} className="field-help">
+            한두 문장으로 편하게 적어주세요. {value.situation.length}/500자
           </p>
-        )}
-        <div className="example-buttons" aria-label="상황 예시">
-          {Object.entries(situationExamples).map(([key, example]) => (
-            <button
-              key={key}
-              type="button"
+          <label className="field mt-5">
+            <span>전하고 싶은 마음</span>
+            <input
+              name="lesson"
+              value={value.lesson}
+              onChange={event => update("lesson", event.target.value)}
+              maxLength={200}
+              required
               disabled={isLoading}
-              onClick={() =>
-                onChange({
-                  ...value,
-                  situation: example.situation,
-                  lesson: example.lesson,
-                })
-              }
-            >
-              {example.label}
-            </button>
-          ))}
-        </div>
-        <label className="field">
-          <span>오늘 있었던 일</span>
-          <textarea
-            name="situation"
-            value={value.situation}
-            onChange={event => update("situation", event.target.value)}
-            maxLength={500}
-            required
-            aria-describedby={situationHelpId}
-            disabled={isLoading}
-            placeholder="예: 처음 가는 유치원 앞에서 제 손을 꼭 잡았어요."
-          />
-        </label>
-        <p id={situationHelpId} className="field-help">
-          한두 문장으로 편하게 적어주세요. {value.situation.length}/500자
-        </p>
-        <label className="field mt-5">
-          <span>전하고 싶은 마음</span>
-          <input
-            name="lesson"
-            value={value.lesson}
-            onChange={event => update("lesson", event.target.value)}
-            maxLength={200}
-            required
-            disabled={isLoading}
-            placeholder="예: 천천히 해도 괜찮다는 마음"
-          />
-        </label>
-        <div className="lesson-suggestions" aria-label="전하고 싶은 마음 추천">
-          {[
-            "천천히 해도 괜찮아",
-            "네 마음도 소중해",
-            "함께하면 할 수 있어",
-          ].map(message => (
-            <button
-              key={message}
-              type="button"
-              disabled={isLoading}
-              aria-pressed={value.lesson === message}
-              onClick={() => update("lesson", message)}
-            >
-              {message}
-            </button>
-          ))}
-        </div>
-      </section>
+              placeholder="예: 천천히 해도 괜찮다는 마음"
+            />
+          </label>
+          <div
+            className="lesson-suggestions"
+            aria-label="전하고 싶은 마음 추천"
+          >
+            {[
+              "천천히 해도 괜찮아",
+              "네 마음도 소중해",
+              "함께하면 할 수 있어",
+            ].map(message => (
+              <button
+                key={message}
+                type="button"
+                disabled={isLoading}
+                aria-pressed={value.lesson === message}
+                onClick={() => update("lesson", message)}
+              >
+                {message}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       <details className="form-section creation-preferences">
         <summary>
           이야기 취향 더하기 <span>선택 · 기본은 차분하고 포근하게</span>

@@ -176,3 +176,39 @@ describe("creation form", () => {
     ).toBe(true);
   });
 });
+
+it("offers the saved companion's next adventure only at the end and waits for active images", () => {
+  const adventure = {
+    world: "moon-bakery",
+    companion: "rabbit",
+    companionName: "두부",
+    heroStyle: "short",
+  } as const;
+  const next = vi.fn();
+  const saved = { ...book("complete"), adventure };
+  const page = render(
+    <PicturebookViewer
+      picturebook={saved}
+      onContinueAdventure={next}
+      isImageLoading
+    />,
+  );
+  expect(screen.queryByRole("button", { name: /다음 모험 고르기/ })).toBeNull();
+  fireEvent.keyDown(screen.getByRole("region", { name: "그림책 읽기" }), {
+    key: "End",
+  });
+  const button = screen.getByRole("button", {
+    name: /두부와 다음 모험 고르기/,
+  }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  fireEvent.click(button);
+  expect(next).not.toHaveBeenCalled();
+  page.rerender(
+    <PicturebookViewer picturebook={saved} onContinueAdventure={next} />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: /두부와 다음 모험 고르기/ }),
+  );
+  expect(next).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(/새 책을 만들 때 곶감 1개/)).toBeTruthy();
+});

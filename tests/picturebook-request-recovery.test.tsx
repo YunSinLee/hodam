@@ -37,6 +37,12 @@ vi.mock("@/app/components/picturebook/PicturebookViewer", () => ({
   ),
 }));
 
+import {
+  defaultAdventure,
+  prepareAdventureStarter,
+  consumeAdventureStarter,
+} from "../src/lib/picturebook/adventure";
+
 import Service from "../src/app/service/page";
 import {
   readPendingPicturebookRequest,
@@ -80,6 +86,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   consumeSampleStarter();
+  consumeAdventureStarter(undefined);
   owner();
   useBead.setState({
     bead: { id: "bead", user_id: "owner", count: 10, created: "today" },
@@ -593,4 +600,114 @@ describe("creation request recovery across page visits", () => {
     expect(screen.getByLabelText("이름 또는 별명")).toBeTruthy();
     expect(readPendingPicturebookRequest("owner")).toBeNull();
   });
+});
+
+describe("adventure creation and private companion handoff", () => {
+  it("starts from world and companion without requiring a lesson, and restores a daily draft", async () => {
+    render(<Service />);
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+    expect(screen.queryByLabelText("전하고 싶은 마음")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /바닷속 도서관/ }));
+    fireEvent.click(screen.getByRole("button", { name: "여우" }));
+    fireEvent.change(screen.getByLabelText("단짝 이름"), {
+      target: { value: "보리" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /오늘의 이야기/ }));
+    expect(
+      (screen.getByLabelText("오늘 있었던 일") as HTMLInputElement).value,
+    ).toBe(input.situation);
+    fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      "보리",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "우리의 모험 그림책 만들기" }),
+    );
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+    expect(mocks.create.mock.calls[0][0]).toMatchObject({
+      childName: input.childName,
+      lesson: "",
+      adventure: {
+        world: "ocean-library",
+        companion: "fox",
+        companionName: "보리",
+      },
+    });
+  });
+  it("consumes a saved companion after auth resolves, through StrictMode, and clears mode caches on account changes", () => {
+    const saved = {
+      ...book("complete"),
+      adventure: { ...defaultAdventure, companionName: "비밀단짝" },
+    };
+    prepareAdventureStarter(saved, "owner");
+    useUserInfo.setState({
+      isAuthReady: false,
+      userInfo: { id: undefined, email: "", profileUrl: "" },
+    });
+    render(
+      <StrictMode>
+        <Service />
+      </StrictMode>,
+    );
+    act(() => owner());
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      "비밀단짝",
+    );
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe(input.childName);
+    fireEvent.click(screen.getByRole("button", { name: /오늘의 이야기/ }));
+    act(() => owner("other"));
+    fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      "두부",
+    );
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("keeps the pending charged request ahead of a new adventure and drops the unused handoff", () => {
+    savePendingPicturebookRequest(pending);
+    prepareAdventureStarter(
+      { ...book("complete"), adventure: defaultAdventure },
+      "owner",
+    );
+    render(
+      <StrictMode>
+        <Service />
+      </StrictMode>,
+    );
+    expect(screen.queryByLabelText("단짝 이름")).toBeNull();
+    expect(
+      (screen.getByLabelText("오늘 있었던 일") as HTMLInputElement).value,
+    ).toBe(input.situation);
+    expect(consumeAdventureStarter("owner")).toBeNull();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+});
+
+it("clears unsent direct adventure input and mode caches when the signed-in account changes", () => {
+  render(<Service />);
+  fill();
+  fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+  fireEvent.change(screen.getByLabelText("단짝 이름"), {
+    target: { value: "비밀친구" },
+  });
+  fireEvent.change(screen.getByLabelText(/모험에 더하고 싶은 것/), {
+    target: { value: "개인적인 소재" },
+  });
+  act(() => owner("other"));
+  expect(
+    (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+  ).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+  expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+    "두부",
+  );
+  expect(
+    (screen.getByLabelText(/모험에 더하고 싶은 것/) as HTMLInputElement).value,
+  ).toBe("");
+  expect(mocks.create).not.toHaveBeenCalled();
 });

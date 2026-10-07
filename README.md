@@ -1,6 +1,6 @@
 # 호담 (HODAM) — 오늘을 담은 잠자리 그림책
 
-아이의 하루를 입력하고 첫 4쪽을 읽은 뒤, 행동을 선택하면 결말 4쪽이 이어지는 개인 맞춤형 그림책 서비스입니다. `/sample`에서는 로그인 없이 읽기 흐름을 체험할 수 있습니다.
+아이의 하루 또는 단짝과 떠나는 상상 모험으로 만드는 개인 맞춤형 그림책 서비스입니다. 첫 4쪽을 읽고 행동을 선택하면 결말 4쪽이 이어집니다. 모험은 장소와 단짝만 골라도 시작할 수 있고, 완성한 책에서 같은 단짝과 다음 모험을 고를 수 있습니다. `/sample`에서는 로그인 없이 읽기 흐름을 체험할 수 있습니다.
 
 ## 🚀 시작하기
 
@@ -97,6 +97,8 @@ AI 개발 도구인 Cursor에서 MCP 서버를 사용하려면:
 - [SECURITY_HARDENING_NEXT_STEPS.md](./SECURITY_HARDENING_NEXT_STEPS.md)
 - [검색 유입·공개 동화·사이트 등록 운영](docs/search-discovery.md)
 - [8쪽 그림책 베타·기존 기록 보존·첫 이용 QA](docs/beta-launch.md)
+- [AI 모델 효율·비용·품질 평가 계획](docs/ai-model-efficiency.md)
+- [모험과 단짝 설계·검증 범위](docs/adventure-experience-plan.md)
 - [버전별 변경 이력](CHANGELOG.md)
 
 이전 구현·검증 기록: [릴리스 분할 계획](RELEASE_CHANGESET_PLAN.md), [소셜 로그인 테스트 가이드](SOCIAL_LOGIN_TEST.md), [2025년 로그인 결과](SOCIAL_LOGIN_SUCCESS_REPORT.md), [초기 결제 설정 가이드](PAYMENT_SETUP_GUIDE.md). 당시 기준 자료이므로 현재 배포 설정과 검증 완료 범위는 위 운영 런북과 베타 QA 기록을 따릅니다.

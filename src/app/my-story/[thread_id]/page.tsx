@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import imageApi from "@/app/api/image";
 import messagesApi from "@/app/api/messages";
@@ -23,11 +23,13 @@ import type {
 import { parsePicturebookDraft } from "@/app/utils/picturebook";
 import { requireAccessToken } from "@/app/utils/session";
 import { completeSearchGeneration } from "@/lib/client/search-analytics";
+import { prepareAdventureStarter } from "@/lib/picturebook/adventure";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 export default function MyStoryDetail() {
   const params = useParams();
+  const router = useRouter();
   const id = Number(params?.thread_id);
   const { userInfo, isAuthReady } = useUserInfo();
   const [thread, setThread] = useState<Thread | null>(null);
@@ -270,6 +272,17 @@ export default function MyStoryDetail() {
                 isEndingLoading={ending}
                 selectedChoiceId={book.selectedChoiceId || selectedChoice}
                 onSelectChoice={finish}
+                onContinueAdventure={() => {
+                  if (
+                    book &&
+                    thread?.id === id &&
+                    thread.user_id === userInfo.id &&
+                    userInfo.id === useUserInfo.getState().userInfo.id &&
+                    userInfo.id &&
+                    prepareAdventureStarter(book, userInfo.id)
+                  )
+                    router.push("/service");
+                }}
                 bookPath={`/my-story/${id}`}
               />
             </>

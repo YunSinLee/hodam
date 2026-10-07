@@ -33,6 +33,11 @@ import {
   trackFirstBookStep,
   type SearchGenerationAttempt,
 } from "@/lib/client/search-analytics";
+import {
+  consumeAdventureStarter,
+  defaultAdventure,
+  nextAdventureInput,
+} from "@/lib/picturebook/adventure";
 import { consumeSampleStarter } from "@/lib/picturebook/sample";
 import useBead from "@/services/hooks/use-bead";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
@@ -51,6 +56,7 @@ const storageKey = "hodam-picturebook-input";
 export default function Service() {
   const [input, setInput] = useState<PicturebookInput>(initialInput);
   const [fromSample, setFromSample] = useState(false);
+  const [formRevision, setFormRevision] = useState(0);
   const [thread, setThread] = useState<Thread | null>(null);
   const [book, setBook] = useState<PicturebookDraft | null>(null);
   const [stage, setStage] = useState<"idle" | "drafting" | "ending">("idle");
@@ -68,21 +74,38 @@ export default function Service() {
   const busy = useRef(false);
   const formStarted = useRef(false);
   const initialFormApplied = useRef(false);
+  const adventureOwner = useRef<string | undefined>();
   const epoch = useRef(0);
   const requestId = useRef<string | null>(null);
   const requestInput = useRef<PicturebookInput | null>(null);
   const requestUncertain = useRef(false);
   const searchAttempt = useRef<SearchGenerationAttempt | null>(null);
   const { userInfo, isAuthReady } = useUserInfo();
+  const previousOwner = useRef(userInfo.id);
   const { bead, setBead } = useBead();
   const images = usePicturebookImages();
   const { reset: resetImages } = images;
   const router = useRouter();
 
   useEffect(() => {
-    if (requestInput.current) {
+    const ownerChanged =
+      !!previousOwner.current && previousOwner.current !== userInfo.id;
+    previousOwner.current = userInfo.id;
+    if (ownerChanged) {
+      try {
+        sessionStorage.removeItem(storageKey);
+      } catch {
+        /* Storage may be unavailable. */
+      }
+    }
+    if (
+      ownerChanged ||
+      requestInput.current ||
+      (adventureOwner.current && adventureOwner.current !== userInfo.id)
+    ) {
       setInput(initialInput);
       setFromSample(false);
+      adventureOwner.current = undefined;
     }
     epoch.current += 1;
     busy.current = false;
@@ -118,10 +141,17 @@ export default function Service() {
   }, [userInfo.id, resetImages]);
 
   useEffect(() => {
+    if (!isAuthReady) return;
     if (initialFormApplied.current) return;
     initialFormApplied.current = true;
     const sampleStarter = consumeSampleStarter();
+    const adventureStarter = consumeAdventureStarter(userInfo.id);
     if (requestInput.current) return;
+    if (adventureStarter) {
+      adventureOwner.current = userInfo.id;
+      setInput(adventureStarter);
+      return;
+    }
     if (sampleStarter) {
       setInput({ ...initialInput, ...sampleStarter });
       setFromSample(true);
@@ -140,12 +170,19 @@ export default function Service() {
       /* Storage may be unavailable in private browsing. */
     }
     const example = new URLSearchParams(window.location.search).get("example");
+    if (new URLSearchParams(window.location.search).get("mode") === "adventure")
+      setInput(value => ({
+        ...value,
+        situation: "",
+        lesson: "",
+        adventure: { ...defaultAdventure },
+      }));
     if (example && example in situationExamples)
       setInput(value => ({
         ...value,
         ...situationExamples[example as keyof typeof situationExamples],
       }));
-  }, []);
+  }, [isAuthReady, userInfo.id]);
 
   useEffect(() => {
     if (stage === "idle") {
@@ -209,7 +246,11 @@ export default function Service() {
     try {
       const token = await requireAccessToken();
       if (!isCurrent()) return;
-      setStep("아이의 하루로 첫 4쪽을 쓰고 책장에 보관하고 있어요.");
+      setStep(
+        input.adventure
+          ? "아이와 단짝의 첫 모험 4쪽을 쓰고 책장에 보관하고 있어요."
+          : "아이의 하루로 첫 4쪽을 쓰고 책장에 보관하고 있어요.",
+      );
       requestId.current ||= crypto.randomUUID();
       requestInput.current ||= input;
       const pending = {
@@ -329,6 +370,7 @@ export default function Service() {
     }
   }
   function reset() {
+    setFormRevision(value => value + 1);
     epoch.current += 1;
     busy.current = false;
     requestId.current = null;
@@ -343,8 +385,27 @@ export default function Service() {
     setThread(null);
     setError("");
     setInput(initialInput);
+    adventureOwner.current = undefined;
     setFromSample(false);
     setSelectedChoice(undefined);
+  }
+  function continueAdventure() {
+    if (
+      !book ||
+      thread?.user_id !== userInfo.id ||
+      userInfo.id !== useUserInfo.getState().userInfo.id ||
+      busy.current ||
+      images.isLoading
+    )
+      return;
+    const next = nextAdventureInput(book);
+    if (!next) return;
+    reset();
+    adventureOwner.current = userInfo.id;
+    setInput(next);
+    window.requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(".creation-form h1")?.focus(),
+    );
   }
   function startSeparateBook() {
     if (
@@ -498,6 +559,7 @@ export default function Service() {
           )}
           <fieldset disabled={!!pendingRequest} className="min-w-0">
             <PicturebookInputForm
+              key={`${userInfo.id || "anonymous"}:${formRevision}`}
               value={input}
               picturebookCost={1}
               beadCount={bead.count}
@@ -507,7 +569,8 @@ export default function Service() {
               fromSample={fromSample}
               onChange={value => {
                 if (requestInput.current) return;
-                if (value.situation !== input.situation) setFromSample(false);
+                if (value.situation !== input.situation || value.adventure)
+                  setFromSample(false);
                 if (!formStarted.current) {
                   formStarted.current = true;
                   trackFirstBookStep("form_started");
@@ -584,6 +647,7 @@ export default function Service() {
             selectedChoiceId={book.selectedChoiceId || selectedChoice}
             onSelectChoice={finishBook}
             onCreateAnother={reset}
+            onContinueAdventure={continueAdventure}
             bookPath={thread ? `/my-story/${thread.id}` : undefined}
           />
         </>
