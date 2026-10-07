@@ -51,7 +51,8 @@ export default function MyStoryDetail() {
     if (!book || thread?.id !== id || thread.user_id !== userInfo.id)
       return undefined;
     const previousTitle = document.title;
-    document.title = `${book.title} | 내 책장 | 호담`;
+    // Analytics may collect document titles; keep private story text in the UI.
+    document.title = "그림책 읽기 | 내 책장 | 호담";
     return () => {
       document.title = previousTitle;
     };

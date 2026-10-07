@@ -161,6 +161,8 @@ describe("saved-book client recovery", () => {
     mocks.finish.mockReturnValueOnce(pending.promise);
     const { rerender } = render(<MyStoryDetail />);
     await screen.findByText("책 1");
+    expect(document.title).toBe("그림책 읽기 | 내 책장 | 호담");
+    expect(document.title).not.toContain("책 1");
     fireEvent.click(screen.getByRole("button", { name: "결말 선택" }));
     await waitFor(() => expect(mocks.finish).toHaveBeenCalledOnce());
     mocks.params.thread_id = "2";
