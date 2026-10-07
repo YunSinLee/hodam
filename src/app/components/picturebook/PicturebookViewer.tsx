@@ -60,6 +60,7 @@ export default function PicturebookViewer({
   headingLevel = 2,
 }: PicturebookViewerProps) {
   const BookHeading = headingLevel === 1 ? "h1" : "h2";
+  const SectionHeading = headingLevel === 1 ? "h2" : "h3";
   const readerId = useId();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -428,13 +429,13 @@ export default function PicturebookViewer({
           <p className="mb-2 text-sm font-semibold text-orange-700">
             4쪽을 읽고 하나를 골라주세요. 선택하면 5-8쪽 결말이 완성됩니다.
           </p>
-          <h3
+          <SectionHeading
             ref={choiceRef}
             tabIndex={-1}
             className="mb-3 scroll-mt-24 text-lg font-semibold text-gray-900"
           >
             {picturebook.choice.promptKo}
-          </h3>
+          </SectionHeading>
           <div className="grid grid-cols-1 gap-3">
             {picturebook.choice.options.map(option => {
               const isSelected =
@@ -474,11 +475,11 @@ export default function PicturebookViewer({
 
       {isComplete && isLastPage && (
         <div className="reader-ending">
-          <h3 className="font-semibold">
+          <SectionHeading className="font-semibold">
             {illustrationCount === pages.length
               ? "그림책이 완성됐어요"
               : "이야기가 완성됐어요"}
-          </h3>
+          </SectionHeading>
           {illustrationCount < pages.length && (
             <p className="mt-1 text-sm">
               그림 {illustrationCount}/{pages.length}장 · 글은 마지막까지 읽을
