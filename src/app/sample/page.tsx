@@ -121,18 +121,20 @@ export default function SamplePage() {
     });
   }
   return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <p className="eyebrow">로그인 없이 읽는 예시 이야기</p>
-        <h1>한 장씩, 함께 읽어볼까요?</h1>
-        <p>
-          이 예시는 글과 선택 흐름을 보여드려요. 실제 그림책은 아이의 입력에
-          맞춰 글과 그림을 생성해요.
-        </p>
+    <div className="page-shell sample-shell">
+      <div className="page-heading sample-heading">
+        <p className="eyebrow">로그인 없이 · 그림과 함께 · 무료 체험</p>
       </div>
       <PicturebookViewer
+        headingLevel={1}
         createAnotherLabel="처음부터 다시 읽기"
         picturebook={book}
+        imageUrls={Object.fromEntries(
+          book.pages.map(page => [
+            page.pageNumber,
+            `/sample/little-courage/page-${page.pageNumber}${page.pageNumber === 5 ? `-${book.selectedChoiceId?.toLowerCase()}` : ""}.webp`,
+          ]),
+        )}
         selectedChoiceId={book.selectedChoiceId}
         onSelectChoice={choose}
         onCreateAnother={() => setBook(sample)}

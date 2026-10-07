@@ -33,6 +33,61 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("reader", () => {
+  it("distinguishes a complete story from missing illustrations", () => {
+    const { rerender } = render(
+      <PicturebookViewer
+        picturebook={book("complete")}
+        imageUrls={{ 1: "/cover.webp" }}
+        headingLevel={1}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("region", { name: "그림책 읽기" }), {
+      key: "End",
+    });
+    expect(
+      screen.getByRole("heading", { name: "이야기가 완성됐어요" }),
+    ).toBeTruthy();
+    expect(screen.getByText(/그림 1\/8장/)).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "작은 용기" }),
+    ).toBeTruthy();
+    rerender(
+      <PicturebookViewer
+        picturebook={book("complete")}
+        imageUrls={Object.fromEntries(
+          Array.from({ length: 8 }, (_, i) => [i + 1, `/page-${i + 1}.webp`]),
+        )}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "그림책이 완성됐어요" }),
+    ).toBeTruthy();
+  });
+  it("shows dismissible feedback after downloading from the last page", () => {
+    const createUrl = vi.fn(() => "blob:test");
+    vi.stubGlobal("URL", {
+      createObjectURL: createUrl,
+      revokeObjectURL: vi.fn(),
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    render(<PicturebookViewer picturebook={book("complete")} />);
+    fireEvent.keyDown(screen.getByRole("region", { name: "그림책 읽기" }), {
+      key: "End",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "이야기 글 저장 (.txt)" }),
+    );
+    expect(createUrl).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status").textContent).toBe(
+      "이야기를 텍스트 파일로 저장했어요.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "알림 닫기" }));
+    expect(screen.queryByText("이야기를 텍스트 파일로 저장했어요.")).toBeNull();
+    click.mockRestore();
+    vi.unstubAllGlobals();
+  });
   it("can navigate to choices and sends the actual selected choice once", () => {
     const select = vi.fn();
     render(<PicturebookViewer picturebook={book()} onSelectChoice={select} />);
@@ -60,7 +115,7 @@ describe("reader", () => {
     for (let i = 0; i < 3; i++)
       fireEvent.click(screen.getByRole("button", { name: "다음" }));
     expect(
-      screen.getByRole("button", { name: "이야기 파일 저장" }),
+      screen.getByRole("button", { name: "이야기 글 저장 (.txt)" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "공유하기" })).toBeNull();
     expect(

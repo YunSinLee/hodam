@@ -48,6 +48,15 @@ export default function MyStoryDetail() {
   const images = usePicturebookImages();
   const { reset } = images;
   useEffect(() => {
+    if (!book || thread?.id !== id || thread.user_id !== userInfo.id)
+      return undefined;
+    const previousTitle = document.title;
+    document.title = `${book.title} | 내 책장 | 호담`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [book, thread, id, userInfo.id]);
+  useEffect(() => {
     epoch.current += 1;
     busy.current = false;
     setEnding(false);
@@ -251,6 +260,7 @@ export default function MyStoryDetail() {
                 </p>
               )}
               <PicturebookViewer
+                headingLevel={1}
                 key={id}
                 picturebook={book}
                 imageUrls={images.urls}

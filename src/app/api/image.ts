@@ -7,6 +7,42 @@ function getImagePath(threadId: number, pageNumber?: number) {
 }
 
 const imageApi = {
+  async getBookPreviews(
+    books: { threadId: number; pageNumbers: number[] }[],
+  ): Promise<Record<number, { coverUrl: string | null; imageCount: number }>> {
+    if (!books.length) return {};
+    const paths = books.flatMap(book => [
+      ...book.pageNumbers.map(page => getImagePath(book.threadId, page)),
+      getImagePath(book.threadId),
+    ]);
+    // One authorized storage request for the visible shelf, rather than one per page.
+    const { data, error } = await supabase.storage
+      .from("image")
+      .createSignedUrls(paths, 3600);
+    if (error) throw error;
+    const urls = new Map(
+      (data || []).map(item => [
+        item.path,
+        item.error ? null : item.signedUrl || null,
+      ]),
+    );
+    return Object.fromEntries(
+      books.map(book => {
+        const pageUrls = book.pageNumbers.map(
+          page =>
+            urls.get(getImagePath(book.threadId, page)) ||
+            (page === 1 ? urls.get(getImagePath(book.threadId)) : null),
+        );
+        return [
+          book.threadId,
+          {
+            coverUrl: pageUrls[0] || null,
+            imageCount: pageUrls.filter(Boolean).length,
+          },
+        ];
+      }),
+    );
+  },
   async saveImage({
     image_file,
     thread_id,

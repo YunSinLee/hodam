@@ -44,18 +44,15 @@ export default function PicturebookPage({
       ref={focusRef}
       tabIndex={focusRef ? -1 : undefined}
       aria-label={`${page.pageNumber}쪽`}
-      className={`scroll-mt-24 flex flex-col gap-3 rounded-xl border bg-[#fffaf2] p-5 shadow-sm sm:p-7 ${
+      className={`picturebook-page scroll-mt-24 flex flex-col gap-3 rounded-xl border bg-[#fffaf2] p-4 sm:p-5 ${
         showChoiceCue
           ? "border-orange-300 ring-2 ring-orange-100"
           : "border-orange-100"
       }`}
     >
       <div>
-        <div className="mb-4 flex items-center justify-between text-xs font-medium text-orange-700">
+        <div className="mb-3 flex items-center justify-between text-xs font-medium text-gray-600">
           <span>{`${page.pageNumber}쪽`}</span>
-          <span className="rounded-full bg-white px-2 py-1 text-[11px] text-gray-500">
-            잠자리 그림책
-          </span>
         </div>
 
         {imageUrl && !hasImageError ? (
@@ -71,7 +68,7 @@ export default function PicturebookPage({
               setFailedUrl(imageUrl);
               onImageError?.(page.pageNumber);
             }}
-            className="mb-5 aspect-square h-auto w-full rounded-lg object-cover shadow-sm"
+            className="picturebook-illustration mb-3 aspect-square h-auto w-full rounded-lg object-contain"
           />
         ) : (
           <div className="mb-5 flex min-h-[48px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-orange-200 bg-white/70 p-3 text-center text-sm leading-6 text-orange-700">

@@ -9,7 +9,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ threads: vi.fn() }));
+const mocks = vi.hoisted(() => ({ threads: vi.fn(), previews: vi.fn() }));
+vi.mock("@/app/api/image", () => ({
+  default: { getBookPreviews: mocks.previews },
+}));
 vi.mock("@/app/api/thread", () => ({
   default: { fetchThreadsByUserId: mocks.threads },
 }));
@@ -55,10 +58,40 @@ beforeEach(() => {
     userInfo: { id: "owner", email: "", profileUrl: "" },
   });
   mocks.threads.mockResolvedValue([modern, old, empty]);
+  mocks.previews.mockResolvedValue({});
 });
 afterEach(cleanup);
 
 describe("beta picturebook shelf and preserved stories", () => {
+  it("loads covers in a batch and shows the actual illustration count", async () => {
+    mocks.threads.mockResolvedValue([{ ...modern, has_image: true }]);
+    mocks.previews.mockResolvedValue({
+      3: { coverUrl: "/cover.webp", imageCount: 4 },
+    });
+    const { container } = render(<MyStory />);
+    await screen.findByText("그림 4/8장");
+    expect(container.querySelector("img")?.getAttribute("src")).toMatch(
+      /\/cover\.webp$/,
+    );
+    expect(mocks.previews).toHaveBeenLastCalledWith([
+      { threadId: 3, pageNumbers: [1, 2, 3, 4, 5, 6, 7, 8] },
+    ]);
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "complete" },
+    });
+    expect(mocks.previews).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("그림 4/8장")).toBeTruthy();
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("heading", { name: "작은 용기" })).toBeTruthy();
+  });
+  it("keeps stories readable when the cover request fails", async () => {
+    mocks.threads.mockResolvedValue([{ ...modern, has_image: true }]);
+    mocks.previews.mockRejectedValue(new Error("storage unavailable"));
+    render(<MyStory />);
+    await screen.findByText("그림은 책에서 확인해요");
+    expect(screen.getByRole("heading", { name: "작은 용기" })).toBeTruthy();
+  });
   it("defaults to picturebooks and keeps a visible route to all older records", async () => {
     render(<MyStory />);
     await screen.findByRole("heading", { name: "작은 용기" });
@@ -71,7 +104,7 @@ describe("beta picturebook shelf and preserved stories", () => {
         .getByRole("link", { name: "예전 동화 보관함 · 2개 ↗" })
         .getAttribute("href"),
     ).toBe("/my-story/archive");
-    expect(screen.getByText("8쪽 · 결말 완성")).toBeTruthy();
+    expect(screen.getByText("8쪽 · 이야기 완성")).toBeTruthy();
   });
 
   it("keeps an old-only account's history accessible next to the first picturebook action", async () => {
