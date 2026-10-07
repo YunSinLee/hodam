@@ -42,6 +42,7 @@ interface PicturebookViewerProps {
   bookPath?: string;
   createAnotherLabel?: string;
   onImageError?: (pageNumber: number) => void;
+  headingLevel?: 1 | 2;
 }
 
 export default function PicturebookViewer({
@@ -56,7 +57,10 @@ export default function PicturebookViewer({
   bookPath,
   createAnotherLabel = "다른 그림책 만들기",
   onImageError,
+  headingLevel = 2,
 }: PicturebookViewerProps) {
+  const BookHeading = headingLevel === 1 ? "h1" : "h2";
+  const SectionHeading = headingLevel === 1 ? "h2" : "h3";
   const readerId = useId();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -100,6 +104,9 @@ export default function PicturebookViewer({
   function getPageImageUrl(pageNumber: number) {
     return imageUrls[pageNumber] || (pageNumber === 1 ? imageUrl : null);
   }
+  const illustrationCount = pages.filter(page =>
+    getPageImageUrl(page.pageNumber),
+  ).length;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(min-width: 640px)");
@@ -315,7 +322,7 @@ export default function PicturebookViewer({
     );
   }
 
-  let readingStatus = "완결된 그림책";
+  let readingStatus = "이야기 완성";
   if (picturebook.status === "choice-ready") {
     readingStatus = isChoicePage
       ? "위 선택지 중 하나를 골라주세요"
@@ -326,7 +333,7 @@ export default function PicturebookViewer({
   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
   return (
     <section
-      className="rounded-xl border border-[#dfdfd2] bg-[#fffefb] p-4 sm:p-6"
+      className="picturebook-reader"
       aria-label="그림책 읽기"
       aria-describedby={`${readerId}-keyboard-help`}
       tabIndex={0}
@@ -337,6 +344,36 @@ export default function PicturebookViewer({
         좌우 방향키로 쪽을 넘길 수 있어요. Home 키는 첫 쪽, End 키는 마지막
         쪽으로 이동해요.
       </p>
+      {feedback && (
+        <div className="reader-feedback">
+          <p role="status">{feedback}</p>
+          <button
+            type="button"
+            aria-label="알림 닫기"
+            onClick={() => setFeedback("")}
+          >
+            닫기
+          </button>
+        </div>
+      )}
+      <div className="reader-heading">
+        <div>
+          <p className="reader-dedication">
+            {nameWithObjectParticle(picturebook.childName)} 위한 잠자리 그림책
+          </p>
+          <BookHeading
+            ref={titleRef}
+            tabIndex={-1}
+            className="scroll-mt-24 text-xl font-bold text-gray-900 sm:text-2xl"
+          >
+            {picturebook.title}
+          </BookHeading>
+          <p className="mt-1 text-sm leading-6 text-gray-600">
+            {picturebook.situation}
+          </p>
+        </div>
+      </div>
+
       <div className="reading-toolbar">
         {canSpeak && (
           <button type="button" onClick={readAloud} aria-pressed={isSpeaking}>
@@ -351,54 +388,14 @@ export default function PicturebookViewer({
           {largeText ? "기본 글씨" : "큰 글씨"}
         </button>
       </div>
-      {feedback && (
-        <p className="notice-info mb-4" role="status">
-          {feedback}
-        </p>
-      )}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="mb-1 text-sm font-medium text-orange-600">
-            {nameWithObjectParticle(picturebook.childName)} 위한 잠자리 그림책
-          </p>
-          <h2
-            ref={titleRef}
-            tabIndex={-1}
-            className="scroll-mt-24 text-2xl font-bold text-gray-900"
-          >
-            {picturebook.title}
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-gray-600">
-            {picturebook.situation}
-          </p>
-        </div>
-        <div
-          className="rounded-full bg-orange-50 px-3 py-1 text-sm font-medium text-orange-700"
-          role="status"
-          aria-atomic="true"
-        >
-          {currentPage.pageNumber}
-          {isDesktop && visiblePages.length === 2
-            ? `–${visiblePages[1].pageNumber}`
-            : ""}{" "}
-          / {isComplete ? pages.length : "8"}쪽
-        </div>
-      </div>
 
       {!isComplete && (
-        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-800 sm:flex-row sm:items-center sm:justify-between">
+        <div className="reader-choice-notice">
           <div>
-            <span className="font-semibold">첫 4쪽을 읽은 뒤 선택해요.</span>
-            <span className="ml-1 text-orange-700">
-              선택하면 5-8쪽 결말이 이어집니다.
-            </span>
+            <span>4쪽 뒤에 결말을 골라요.</span>
           </div>
           {!isChoicePage && (
-            <button
-              type="button"
-              onClick={goToChoice}
-              className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700"
-            >
+            <button type="button" onClick={goToChoice} className="text-link">
               선택지로 가기
             </button>
           )}
@@ -432,13 +429,13 @@ export default function PicturebookViewer({
           <p className="mb-2 text-sm font-semibold text-orange-700">
             4쪽을 읽고 하나를 골라주세요. 선택하면 5-8쪽 결말이 완성됩니다.
           </p>
-          <h3
+          <SectionHeading
             ref={choiceRef}
             tabIndex={-1}
             className="mb-3 scroll-mt-24 text-lg font-semibold text-gray-900"
           >
             {picturebook.choice.promptKo}
-          </h3>
+          </SectionHeading>
           <div className="grid grid-cols-1 gap-3">
             {picturebook.choice.options.map(option => {
               const isSelected =
@@ -477,20 +474,30 @@ export default function PicturebookViewer({
       )}
 
       {isComplete && isLastPage && (
-        <div className="mt-5 rounded-xl border border-green-100 bg-green-50 p-4">
-          <h3 className="font-semibold text-green-900">그림책이 완성됐어요</h3>
-          <p className="mt-1 text-sm text-green-800">
+        <div className="reader-ending">
+          <SectionHeading className="font-semibold">
+            {illustrationCount === pages.length
+              ? "그림책이 완성됐어요"
+              : "이야기가 완성됐어요"}
+          </SectionHeading>
+          {illustrationCount < pages.length && (
+            <p className="mt-1 text-sm">
+              그림 {illustrationCount}/{pages.length}장 · 글은 마지막까지 읽을
+              수 있어요.
+            </p>
+          )}
+          <p className="mt-1 text-sm">
             {bookPath
-              ? "이야기를 파일로 간직하고, 내 책장에서 다시 읽을 수 있어요."
-              : "예시 이야기를 파일로 저장하거나 처음부터 다시 읽어보세요."}
+              ? "이야기 글을 저장하거나 내 책장에서 다시 읽어보세요. 그림은 텍스트 파일에 포함되지 않아요."
+              : "예시 이야기 글을 저장하거나 처음부터 다시 읽어보세요. 그림은 텍스트 파일에 포함되지 않아요."}
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               onClick={downloadStory}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+              className="button-primary"
             >
-              이야기 파일 저장
+              이야기 글 저장 (.txt)
             </button>
             {bookPath && (
               <button
@@ -505,7 +512,7 @@ export default function PicturebookViewer({
               <button
                 type="button"
                 onClick={onCreateAnother}
-                className="rounded-lg border border-green-200 bg-white px-4 py-2 text-sm font-semibold text-green-800 hover:border-green-400"
+                className="button-secondary"
               >
                 {createAnotherLabel}
               </button>
@@ -514,23 +521,30 @@ export default function PicturebookViewer({
         </div>
       )}
 
-      <div className="reader-controls mt-5 flex items-center justify-between gap-3">
+      <div className="reader-controls">
         <button
           type="button"
           onClick={goPrevious}
           disabled={currentIndex === 0}
-          className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="reader-page-button"
         >
           이전
         </button>
         <div className="text-sm text-gray-600 text-center" aria-live="polite">
-          {readingStatus}
+          <span className="block font-medium text-gray-900">
+            {currentPage.pageNumber}
+            {isDesktop && visiblePages.length === 2
+              ? `–${visiblePages[1].pageNumber}`
+              : ""}{" "}
+            / {isComplete ? pages.length : 8}쪽
+          </span>
+          <span className="reader-status">{readingStatus}</span>
         </div>
         <button
           type="button"
           onClick={goNext}
           disabled={isLastPage}
-          className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="reader-page-button"
         >
           다음
         </button>

@@ -34,8 +34,8 @@ export default function Home() {
               <Link href="/service" className="button-primary">
                 우리 아이 그림책 만들기 <span aria-hidden="true">↗</span>
               </Link>
-              <Link href="/bedtime-stories" className="button-secondary">
-                잠자리 동화 읽어보기
+              <Link href="/sample" className="button-secondary">
+                그림책 무료로 읽어보기
               </Link>
             </div>
             <p className="hero-note">

@@ -1,0 +1,49 @@
+{
+  "generatedWith": "Built-in image_gen",
+  "createdAt": "2026-10-07",
+  "basePrompt": "Use case: illustration-story. Create one square full-bleed illustration for page 1 of a Korean children's picture book. A shy Korean boy aged 5 named Minjun with short straight black bowl-cut hair, round cheeks, wearing a muted sage-green sweatshirt, warm ochre shorts, white socks and cream sneakers with small mustard stars, stands hesitantly outside a sunny kindergarten's yellow wooden door, tightly holding his mother's hand. Mother has a dark brown bob, cream cardigan and rust-colored long skirt. Boy carries a tiny orange striped tiger plush partly visible in sweatshirt pocket. We see the whole child and mother from a gentle child-height three-quarter view, yellow doorway and quiet potted greenery. Authentic editorial children's book art, watercolor and colored pencil on warm ivory paper, soft hand-drawn outlines, subtle grain, muted sage, ochre and terracotta colors, emotionally gentle, simple clear composition, rich painterly texture, generous breathing room. The boy's nervous posture and comforting mother's hand tell the story. No text, letters, labels, frames, panel divisions, logos, watermarks, photorealism, or 3D. One continuous scene.",
+  "referenceStrategy": "Page 1 was the character/style reference for every other scene.",
+  "scenes": [
+    {
+      "file": "public/sample/little-courage/page-2.webp",
+      "scene": "Minjun looks down at the mustard star on his cream sneaker. Intimate downward view emphasizing his small shoes and nervous stance; his face and mother's comforting hand are visible above, with the kindergarten yellow door in the background. Gentle sound and laughter are only implied, no lettering."
+    },
+    {
+      "file": "public/sample/little-courage/page-3.webp",
+      "scene": "Close child-height view of Minjun gently touching the round ear of the little orange striped tiger plush peeking from the front pocket of his sage sweatshirt. The tiger is an ordinary soft toy. Minjun looks down with a hint of comfort, still near the yellow kindergarten door."
+    },
+    {
+      "file": "public/sample/little-courage/page-4.webp",
+      "scene": "The yellow kindergarten door is partly open. A same-age Korean girl with short dark hair and a muted dusty-pink cardigan waves from inside. Minjun faces her from the foreground, his fingers beginning to loosen near his mother's hand. Quiet, tentative connection."
+    },
+    {
+      "file": "public/sample/little-courage/page-5-a.webp",
+      "scene": "Minjun shyly waves at belly height to the same-age Korean girl with short black hair and dusty-pink cardigan inside the yellow kindergarten doorway. She smiles and waves back. A hopeful exchange between two small hands. Tiny tiger plush remains in Minjun's front pocket."
+    },
+    {
+      "file": "public/sample/little-courage/page-5-b.webp",
+      "scene": "Minjun and his mother take one small step together through the yellow kindergarten doorway. His grip on her hand is relaxed. Mother's cream cardigan, rust skirt, dark bob and brown bag match reference. The same-age Korean girl with short dark hair and dusty-pink cardigan waits kindly inside. Side view emphasizing their small step."
+    },
+    {
+      "file": "public/sample/little-courage/page-5-c.webp",
+      "scene": "Minjun has taken his tiny orange striped tiger plush out of his pocket and holds it out at chest height for a same-age Korean girl with short dark hair and a dusty-pink cardigan to see. She smiles at the toy's round ears. They stand by the yellow kindergarten door; no rabbit toy visible."
+    },
+    {
+      "file": "public/sample/little-courage/page-6.webp",
+      "scene": "Inside the kindergarten entry, Minjun sits on a low wooden bench near a neat little shoe rack, one cream star sneaker removed nearby. He rests a hand over the tiger plush in his front pocket and closes his eyes for one slow calming breath. Sage sweatshirt, ochre shorts, white socks. Gentle reassuring light."
+    },
+    {
+      "file": "public/sample/little-courage/page-7.webp",
+      "scene": "Minjun and the same-age Korean girl with short dark hair and a dusty-pink cardigan sit beside each other on a woven classroom mat. Minjun places one yellow wooden block on top of a small tower, the friend smiles. Warm sunlight lands on the blocks. His tiger toy rests in his front pocket."
+    },
+    {
+      "file": "public/sample/little-courage/page-8.webp",
+      "scene": "Night in Minjun's cozy bedroom. Minjun wearing soft cream pajamas is tucked into a sage quilt with a sleepy smile. His tiny orange striped tiger plush lies beside his pillow, its round ear gently covered by a corner of blanket. Peaceful moonlight and warm bedside lamp, no mother or other child. Quiet close framing and blue-green shadows."
+    }
+  ],
+  "revision": {
+    "file": "public/sample/little-courage/page-7.webp",
+    "prompt": "Preserve block-stacking scene. Match the girl's cream floral dress and dusty-pink cardigan from page 5 C. Both children wear white socks indoors, no shoes."
+  },
+  "encoding": "WebP quality 82; original dimensions preserved."
+}

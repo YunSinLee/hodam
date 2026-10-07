@@ -180,13 +180,13 @@ export const PaymentHistoryItemSchema = z
     id: z.string(),
     user_id: z.string(),
     order_id: z.string(),
-    payment_key: z.string().optional(),
+    payment_key: z.string().nullish(),
     payment_flow_id: z.string().nullable().optional(),
     amount: z.number().int().nonnegative(),
     bead_quantity: z.number().int().nonnegative(),
     status: z.enum(["pending", "completed", "failed", "cancelled"]),
     created_at: z.string(),
-    completed_at: z.string().optional(),
+    completed_at: z.string().nullish(),
   })
   .passthrough();
 

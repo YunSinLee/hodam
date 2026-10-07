@@ -5,8 +5,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 
+import imageApi from "@/app/api/image";
 import threadApi from "@/app/api/thread";
 import GuideForSign from "@/app/components/GuideForSign";
 import type { ThreadWithUser } from "@/app/types/openai";
@@ -15,13 +17,21 @@ import { parsePicturebookDraft } from "@/app/utils/picturebook";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 const pageSize = 24;
+type BookPreviews = Awaited<ReturnType<typeof imageApi.getBookPreviews>>;
 
 export default function MyStoryLibrary({
   archived = false,
 }: {
   archived?: boolean;
 }) {
-  const { userInfo } = useUserInfo();
+  const { userInfo, isAuthReady } = useUserInfo();
+  const [previews, setPreviews] = useState<BookPreviews>({});
+  const previewCache = useRef<{
+    owner?: string;
+    expiresAt: number;
+    values: BookPreviews;
+  }>({ expiresAt: 0, values: {} });
+  const [previewsReady, setPreviewsReady] = useState(false);
   const [threads, setThreads] = useState<ThreadWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -104,9 +114,69 @@ export default function MyStoryLibrary({
       ),
     [collection, query, filter],
   );
+  const visibleBooks = useMemo(
+    () => books.slice(0, visibleCount),
+    [books, visibleCount],
+  );
+  useEffect(() => {
+    let active = true;
+    if (
+      previewCache.current.owner !== userInfo.id ||
+      previewCache.current.expiresAt <= Date.now()
+    ) {
+      previewCache.current = {
+        owner: userInfo.id,
+        expiresAt: Date.now() + 55 * 60_000,
+        values: {},
+      };
+    }
+    setPreviews(previewCache.current.values);
+    setPreviewsReady(false);
+    if (archived || loadedOwner !== userInfo.id) return undefined;
+    const requests = visibleBooks.flatMap(({ thread, book }) =>
+      book && thread.has_image && !previewCache.current.values[thread.id]
+        ? [
+            {
+              threadId: thread.id,
+              pageNumbers: book.pages.map(page => page.pageNumber),
+            },
+          ]
+        : [],
+    );
+    if (!requests.length) {
+      setPreviewsReady(true);
+      return undefined;
+    }
+    imageApi
+      .getBookPreviews(requests)
+      .then(result => {
+        if (active) {
+          previewCache.current.values = {
+            ...previewCache.current.values,
+            ...result,
+          };
+          setPreviews(previewCache.current.values);
+        }
+      })
+      .catch(() => {
+        /* A cover failure must not prevent reading the saved story. */
+      })
+      .finally(() => {
+        if (active) setPreviewsReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [archived, loadedOwner, userInfo.id, visibleBooks]);
+  if (!isAuthReady)
+    return (
+      <div className="page-shell" role="status">
+        책장을 준비하고 있어요.
+      </div>
+    );
   if (!userInfo.id) return <GuideForSign />;
   return (
-    <div className="page-shell">
+    <div className="page-shell library-shell">
       {archived && (
         <Link className="text-link inline-block mb-6" href="/my-story">
           ← 내 그림책으로 돌아가기
@@ -114,7 +184,6 @@ export default function MyStoryLibrary({
       )}
       <div className="library-header">
         <div className="page-heading mb-0">
-          <p className="eyebrow">함께 읽은 시간이 쌓이는 곳</p>
           <h1>{archived ? "예전 동화 보관함" : "내 책장"}</h1>
           <p>
             {archived
@@ -132,7 +201,6 @@ export default function MyStoryLibrary({
         !archived &&
         archivedCount > 0 && (
           <aside className="library-archive-link">
-            <p>예전에 만든 동화와 기록도 보관하고 있어요.</p>
             <Link className="text-link" href="/my-story/archive">
               예전 동화 보관함 · {archivedCount}개 ↗
             </Link>
@@ -252,14 +320,41 @@ export default function MyStoryLibrary({
               ` · ${Math.min(visibleCount, books.length)}${filter === "empty" ? "개" : "권"} 표시 중`}
           </p>
           <div className="book-list">
-            {books
-              .slice(0, visibleCount)
-              .map(({ thread, book, title, status }, index) => (
-                <Link
-                  href={`/my-story/${thread.id}`}
-                  key={thread.id}
-                  ref={index === visibleCount - pageSize ? nextBook : undefined}
-                >
+            {visibleBooks.map(({ thread, book, title, status }, index) => (
+              <Link
+                href={`/my-story/${thread.id}`}
+                key={thread.id}
+                ref={index === visibleCount - pageSize ? nextBook : undefined}
+              >
+                {book && (
+                  <div className="shelf-cover">
+                    {previews[thread.id]?.coverUrl ? (
+                      <Image
+                        src={previews[thread.id].coverUrl!}
+                        alt=""
+                        width={480}
+                        height={360}
+                        unoptimized
+                        onError={() =>
+                          setPreviews(current => ({
+                            ...current,
+                            [thread.id]: {
+                              ...current[thread.id],
+                              coverUrl: null,
+                            },
+                          }))
+                        }
+                      />
+                    ) : (
+                      <div className="shelf-cover-fallback" aria-hidden="true">
+                        <span>호담의 작은 책</span>
+                        <strong>{title}</strong>
+                        <span>{book.childName}의 하루</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="shelf-book-info">
                   <small>
                     {formatTime(thread.created_at, "YYYY.MM.DD")}
                     {book ? ` · ${book.childName}의 이야기` : ""}
@@ -271,7 +366,7 @@ export default function MyStoryLibrary({
                       {book?.status === "choice-ready"
                         ? "첫 4쪽 · 결말을 골라주세요"
                         : book
-                          ? "8쪽 · 결말 완성"
+                          ? "8쪽 · 이야기 완성"
                           : status === "legacy"
                             ? "저장된 동화"
                             : thread.raw_text?.trim()
@@ -287,8 +382,18 @@ export default function MyStoryLibrary({
                       ↗
                     </span>
                   </footer>
-                </Link>
-              ))}
+                  {book && (
+                    <p className="shelf-image-status">
+                      {previews[thread.id] || !thread.has_image
+                        ? `그림 ${previews[thread.id]?.imageCount || 0}/${book.pages.length}장`
+                        : previewsReady
+                          ? "그림은 책에서 확인해요"
+                          : "그림 확인 중…"}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
           </div>
           {visibleCount < books.length && (
             <div className="text-center mt-8">

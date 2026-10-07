@@ -8,13 +8,13 @@ export interface PaymentHistoryRow {
   id: string;
   user_id: string;
   order_id: string;
-  payment_key?: string;
+  payment_key?: string | null;
   payment_flow_id?: string | null;
   amount: number;
   bead_quantity: number;
   status: "pending" | "completed" | "failed" | "cancelled";
   created_at: string;
-  completed_at?: string;
+  completed_at?: string | null;
   credited_at?: string | null;
   credited_user_id?: string | null;
 }
