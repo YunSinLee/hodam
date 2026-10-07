@@ -1,7 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
-// Native images support signed private URLs or local SVG illustrations.
+// Reuse the static sample illustration without a separate image request.
 import Link from "next/link";
 
+import TrackedLink from "@/app/components/marketing/TrackedLink";
 import { createPublicMetadata } from "@/lib/seo";
 
 export const metadata = createPublicMetadata({
@@ -17,51 +18,66 @@ export default function Home() {
       <section className="home-hero">
         <div className="hero-inner">
           <div className="hero-copy">
-            <p className="eyebrow">오늘 하루, 한 권의 이야기</p>
+            <p className="eyebrow">호담 · 오늘을 담은 그림책</p>
             <h1>
-              작은 마음이 자라는
+              오늘 있었던 일이,
               <br />
-              <em>오늘 밤의 그림책.</em>
+              <em>
+                아이가 주인공인
+                <br />
+                그림책으로.
+              </em>
             </h1>
             <p className="hero-description">
-              양치가 싫었던 날도, 용기를 냈던 날도.
+              처음이라 무서웠던 마음도, 친구에게 서운했던 마음도.
               <br />
-              아이의 하루를 담은 8쪽 그림책을 만들고
+              우리 아이의 이름과 하루를 담아
               <br />
-              잠들기 전, 나란히 읽어주세요.
+              잠들기 전 함께 읽는 이야기를 만들어요.
             </p>
             <div className="hero-actions">
-              <Link href="/service" className="button-primary">
-                우리 아이 그림책 만들기 <span aria-hidden="true">↗</span>
-              </Link>
-              <Link href="/sample" className="button-secondary">
-                그림책 무료로 읽어보기
-              </Link>
+              <TrackedLink
+                href="/sample"
+                source="home"
+                className="button-primary"
+              >
+                무료 그림책 먼저 읽기 <span aria-hidden="true">↗</span>
+              </TrackedLink>
+              <TrackedLink
+                href="/service"
+                source="home"
+                className="button-secondary"
+              >
+                우리 아이 그림책 만들기
+              </TrackedLink>
             </div>
             <p className="hero-note">
-              그림책 1권 · 곶감 1개 &nbsp; / &nbsp; 미리보기는 로그인 없이
+              무료 체험은 로그인 없이 · 새 그림책 1권은 곶감 1개
             </p>
           </div>
           <figure className="book-scene">
-            <div className="hero-book">
-              <small>호담의 잠자리 책장 · 미리보기</small>
-              <h2>
-                작은 용기를
-                <br />
-                빌려줄게
-              </h2>
+            <TrackedLink
+              href="/sample"
+              source="home"
+              className="hero-story-preview"
+              aria-label="작은 용기를 빌려줄게 무료 그림책 읽기"
+            >
               <img
-                src="/hodam.png"
-                width="210"
-                height="216"
-                alt="책을 읽어주는 다정한 호랑이 호담"
+                src="/sample/little-courage/page-1.webp"
+                width="1254"
+                height="1254"
+                alt="처음 가는 유치원 앞에서 엄마 손을 잡고 작은 용기를 내는 아이"
                 fetchPriority="high"
               />
-              <p>민준이의 하루에서 시작된 이야기</p>
-            </div>
-            <figcaption>
-              아이의 이름으로 시작하고, 아이의 선택으로 이어져요.
-            </figcaption>
+              <div className="hero-story-caption">
+                <small>무료로 읽는 호담의 그림책</small>
+                <h2>작은 용기를 빌려줄게</h2>
+                <p>“노란 문 앞에서 민준이의 발끝이 멈췄어요.”</p>
+                <span>
+                  다음 장면을 함께 골라보세요 <span aria-hidden="true">↗</span>
+                </span>
+              </div>
+            </TrackedLink>
           </figure>
         </div>
       </section>
@@ -84,7 +100,7 @@ export default function Home() {
           </p>
         </div>
         <div className="story-examples">
-          <Link href="/service?example=brushing">
+          <TrackedLink href="/service?example=brushing" source="home">
             <small>생활 습관</small>
             <h3>“양치는 내일 할래요.”</h3>
             <p>
@@ -93,8 +109,8 @@ export default function Home() {
               작은 시도를 응원하는 이야기.
             </p>
             <span>이 상황으로 시작하기 ↗</span>
-          </Link>
-          <Link href="/service?example=friends">
+          </TrackedLink>
+          <TrackedLink href="/service?example=friends" source="home">
             <small>친구와의 하루</small>
             <h3>“내 장난감인데…”</h3>
             <p>
@@ -103,8 +119,8 @@ export default function Home() {
               천천히 함께 노는 이야기.
             </p>
             <span>이 상황으로 시작하기 ↗</span>
-          </Link>
-          <Link href="/service?example=dark">
+          </TrackedLink>
+          <TrackedLink href="/service?example=dark" source="home">
             <small>잠들기 전 마음</small>
             <h3>“불을 끄면 무서워요.”</h3>
             <p>
@@ -113,7 +129,7 @@ export default function Home() {
               곁에 있는 온기를 찾는 이야기.
             </p>
             <span>이 상황으로 시작하기 ↗</span>
-          </Link>
+          </TrackedLink>
         </div>
       </section>
       <section className="how-section">
@@ -193,13 +209,13 @@ export default function Home() {
       </section>
       <section className="home-section">
         <div className="section-intro">
-          <h2>오늘 밤의 이야기를 만나보세요.</h2>
-          <p>로그인 없이 읽는 동화부터, 아이를 위한 그림책 만들기까지.</p>
+          <h2>오늘의 작은 순간으로 시작해보세요.</h2>
+          <p>한두 문장이면 충분해요. 아이의 나이에 맞춰 이야기를 엮어드려요.</p>
         </div>
         <div className="hero-actions">
-          <Link href="/bedtime-stories" className="button-primary">
-            잠자리 동화 모음 ↗
-          </Link>
+          <TrackedLink href="/service" source="home" className="button-primary">
+            우리 아이 그림책 만들기 ↗
+          </TrackedLink>
           <Link href="/ai-storybook" className="button-secondary">
             AI 동화책 만드는 방법
           </Link>

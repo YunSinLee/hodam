@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from "react";
 import {
   act,
   cleanup,
@@ -44,6 +45,10 @@ import {
 } from "../src/app/service/picturebook-request-recovery";
 import useUserInfo from "../src/services/hooks/use-user-info";
 import useBead from "../src/services/hooks/use-bead";
+import {
+  prepareSampleStarter,
+  consumeSampleStarter,
+} from "../src/lib/picturebook/sample";
 import { book, input } from "./fixtures";
 
 const owner = (id: string | undefined = "owner") =>
@@ -74,6 +79,7 @@ const pending = {
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  consumeSampleStarter();
   owner();
   useBead.setState({
     bead: { id: "bead", user_id: "owner", count: 10, created: "today" },
@@ -87,6 +93,66 @@ afterEach(() => {
 });
 
 describe("creation request recovery across page visits", () => {
+  it("carries an explicit sample nickname through StrictMode and login without an old child's age", () => {
+    useUserInfo.setState({
+      isAuthReady: true,
+      userInfo: { id: undefined, email: "", profileUrl: "" },
+    });
+    sessionStorage.setItem(
+      "hodam-picturebook-input",
+      JSON.stringify({ input, savedAt: Date.now() }),
+    );
+    prepareSampleStarter("보라");
+    const page = render(
+      <StrictMode>
+        <Service />
+      </StrictMode>,
+    );
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("보라");
+    expect((screen.getByLabelText("나이") as HTMLSelectElement).value).toBe("");
+    fireEvent.change(screen.getByLabelText("나이"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "네 마음도 소중해" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "로그인하고 그림책 만들기" }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith("/sign-in?next=/service");
+    expect(mocks.create).not.toHaveBeenCalled();
+    page.unmount();
+    owner();
+    render(
+      <StrictMode>
+        <Service />
+      </StrictMode>,
+    );
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("보라");
+    expect((screen.getByLabelText("나이") as HTMLSelectElement).value).toBe(
+      "5",
+    );
+    expect(
+      (screen.getByLabelText("전하고 싶은 마음") as HTMLInputElement).value,
+    ).toBe("네 마음도 소중해");
+  });
+
+  it("discards the sample hint when a paid generation request needs recovery", () => {
+    savePendingPicturebookRequest(pending);
+    prepareSampleStarter("보라");
+    render(
+      <StrictMode>
+        <Service />
+      </StrictMode>,
+    );
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe(input.childName);
+    expect(consumeSampleStarter()).toBeNull();
+    expect(readPendingPicturebookRequest("owner")).toEqual(pending);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   const confirmNewBook = () => {
     fireEvent.click(
       screen.getByRole("button", { name: "새 그림책 따로 만들기" }),

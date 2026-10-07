@@ -1,5 +1,7 @@
 import { useId } from "react";
 
+import Link from "next/link";
+
 import type { PicturebookInput, PicturebookTone } from "@/app/types/openai";
 import {
   situationExamples,
@@ -13,6 +15,7 @@ interface PicturebookInputFormProps {
   isLoading: boolean;
   isSignedIn?: boolean;
   isAuthReady?: boolean;
+  fromSample?: boolean;
   onChange: (value: PicturebookInput) => void;
   onSubmit: () => void;
 }
@@ -28,6 +31,7 @@ export default function PicturebookInputForm({
   isLoading,
   isSignedIn = true,
   isAuthReady = true,
+  fromSample = false,
   onChange,
   onSubmit,
 }: PicturebookInputFormProps) {
@@ -69,10 +73,17 @@ export default function PicturebookInputForm({
         <p className="eyebrow">오늘 밤, 우리 아이가 주인공</p>
         <h1>어떤 하루를 보냈나요?</h1>
         <p>
-          작은 순간을 들려주세요.
-          <br />
-          아이의 마음을 담은 8쪽 잠자리 그림책을 만들어요.
+          이름과 오늘의 한 장면을 알려주세요. 아이가 주인공인 이야기를 만들어요.
         </p>
+      </div>
+      <div className="creation-expectation">
+        <p>
+          <strong>8쪽 그림책 한 권 · 곶감 {picturebookCost}개</strong>
+        </p>
+        <p>첫 4쪽 → 아이와 함께 선택 → 결말 4쪽과 내 책장 보관</p>
+        <Link href="/sample" className="text-link">
+          완성된 예시 먼저 읽기 ↗
+        </Link>
       </div>
       <section className="form-section">
         <h2>
@@ -119,6 +130,11 @@ export default function PicturebookInputForm({
         <h2>
           <span>02</span>오늘의 작은 순간
         </h2>
+        {fromSample && (
+          <p className="field-help mb-4">
+            무료 체험의 상황을 가져왔어요. 오늘 있었던 일에 맞게 고쳐주세요.
+          </p>
+        )}
         <div className="example-buttons" aria-label="상황 예시">
           {Object.entries(situationExamples).map(([key, example]) => (
             <button
@@ -165,41 +181,60 @@ export default function PicturebookInputForm({
             placeholder="예: 천천히 해도 괜찮다는 마음"
           />
         </label>
+        <div className="lesson-suggestions" aria-label="전하고 싶은 마음 추천">
+          {[
+            "천천히 해도 괜찮아",
+            "네 마음도 소중해",
+            "함께하면 할 수 있어",
+          ].map(message => (
+            <button
+              key={message}
+              type="button"
+              disabled={isLoading}
+              aria-pressed={value.lesson === message}
+              onClick={() => update("lesson", message)}
+            >
+              {message}
+            </button>
+          ))}
+        </div>
       </section>
-      <section className="form-section">
-        <h2>
-          <span>03</span>우리 아이가 좋아할 이야기
-        </h2>
-        <fieldset>
-          <legend className="mb-3 text-[15px]">이야기 분위기</legend>
-          <div className="tone-options">
-            {tones.map(tone => (
-              <button
-                type="button"
-                key={tone.value}
-                aria-pressed={value.tone === tone.value}
-                disabled={isLoading}
-                onClick={() => update("tone", tone.value)}
-              >
-                {tone.label}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <label className="field mt-6">
-          <span>
-            좋아하는 것 <small>(선택)</small>
-          </span>
-          <input
-            name="interests"
-            value={value.interests || ""}
-            onChange={event => update("interests", event.target.value)}
-            maxLength={100}
-            disabled={isLoading}
-            placeholder="예: 토끼 인형, 공룡, 별"
-          />
-        </label>
-      </section>
+      <details className="form-section creation-preferences">
+        <summary>
+          이야기 취향 더하기 <span>선택 · 기본은 차분하고 포근하게</span>
+        </summary>
+        <div className="creation-preferences-content">
+          <fieldset>
+            <legend className="mb-3 text-[15px]">이야기 분위기</legend>
+            <div className="tone-options">
+              {tones.map(tone => (
+                <button
+                  type="button"
+                  key={tone.value}
+                  aria-pressed={value.tone === tone.value}
+                  disabled={isLoading}
+                  onClick={() => update("tone", tone.value)}
+                >
+                  {tone.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <label className="field mt-6">
+            <span>
+              좋아하는 것 <small>(선택)</small>
+            </span>
+            <input
+              name="interests"
+              value={value.interests || ""}
+              onChange={event => update("interests", event.target.value)}
+              maxLength={100}
+              disabled={isLoading}
+              placeholder="예: 토끼 인형, 공룡, 별"
+            />
+          </label>
+        </div>
+      </details>
       <div className="form-summary">
         <span>8쪽 그림책 1권 · 곶감 {picturebookCost}개</span>
         <span>{balanceLabel}</span>

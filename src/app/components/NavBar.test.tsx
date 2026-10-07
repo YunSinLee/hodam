@@ -116,9 +116,11 @@ describe("NavBar", () => {
       expect(gtag.mock.calls.map(call => call[1])).toEqual([
         "hodam_cta_click",
         "hodam_generation_started",
+        "hodam_draft_saved",
         "hodam_generation_completed",
       ]);
       expect(gtag.mock.calls.map(call => call[2].search_source)).toEqual([
+        source,
         source,
         source,
         source,
