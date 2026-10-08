@@ -107,6 +107,7 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 - [ ] 원자적 그림책 저장 앱 배포 전 `20261006010000_commit_picturebook_atomically.sql` 적용, 서버 역할 `picturebook_storage_ready()` true 및 두 함수의 서버 전용 권한 확인
 - [ ] 완독 반응 UI 배포 전 `20261008010000_reading_feedback.sql` 적용, 본인 책 읽기·저장·수정과 타 계정 접근 거부 확인 (`docs/reading-feedback.md`)
 - [ ] `20261008020000_narrow_security_definer_grants.sql` 적용 후 웹훅 등록·운영 점검 RPC의 클라이언트 실행 차단 및 보안 기준 검사 통과 확인 (`docs/security-definer-review.md`)
+- [ ] `20261008030000_reading_state_sync.sql` 적용 후 계정별 책갈피·즐겨찾기 저장, 다른 저장소에서 불러오기, 충돌·재연결 및 기존 브라우저 기록의 명시적 가져오기 확인 (`docs/reading-state-sync.md`)
 - [ ] `hodam_security_grants_smoke_check`와 보안 점검이 새 회계 권한 기준으로 통과
 - [ ] `image`·`profiles` 비공개 상태, 새 그림책/기존 중첩 경로의 소유자 접근 확인
 - [ ] Postgres 패치 업그레이드 (`vulnerable_postgres_version`)

@@ -24,6 +24,11 @@ import useUserInfo from "@/services/hooks/use-user-info";
 
 import MyStoryLibrary from "./MyStoryLibrary";
 
+vi.mock(
+  "@/services/hooks/use-reading-sync",
+  () => import("../../../../tests/fixtures/reading-sync-ui-mock"),
+);
+
 vi.mock("@/app/api/thread", () => ({
   default: { fetchThreadsByUserId: vi.fn() },
 }));
@@ -166,7 +171,7 @@ describe("MyStoryLibrary discovery", () => {
     ).toBe("false");
   });
 
-  it("reports storage failures instead of displaying a saved favorite", async () => {
+  it("reports a rejected favorite mutation without displaying a saved favorite", async () => {
     render(<MyStoryLibrary />);
     await screen.findByRole("heading", { name: "작은 하루" });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
@@ -177,7 +182,7 @@ describe("MyStoryLibrary discovery", () => {
     );
     expect(
       screen.getByText(
-        "브라우저에 저장하지 못했어요. 저장 공간과 사이트 설정을 확인해주세요.",
+        "좋아하는 책을 저장하지 못했어요. 잠시 후 다시 시도해주세요.",
       ),
     ).toBeTruthy();
     expect(

@@ -15,18 +15,14 @@ import type { ThreadWithUser } from "@/app/types/openai";
 import { formatTime } from "@/app/utils";
 import { parsePicturebookDraft } from "@/app/utils/picturebook";
 import {
-  getReadingLibrary,
-  setBookFavorite,
-  subscribeReadingLibrary,
-} from "@/lib/client/reading-library";
-import type { ReadingLibraryState } from "@/lib/client/reading-library";
-import {
   adventureCompanions,
   adventureWorlds,
 } from "@/lib/picturebook/adventure";
+import useReadingSync from "@/services/hooks/use-reading-sync";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 import styles from "./library-discovery.module.css";
+import ReadingSyncNotice from "./ReadingSyncNotice";
 
 const pageSize = 24;
 type BookPreviews = Awaited<ReturnType<typeof imageApi.getBookPreviews>>;
@@ -52,14 +48,8 @@ export default function MyStoryLibrary({
   const [filter, setFilter] = useState("all");
   const [shelfView, setShelfView] = useState("all");
   const [preferenceNotice, setPreferenceNotice] = useState("");
-  const [readingState, setReadingState] = useState<{
-    owner?: string;
-    value: ReadingLibraryState;
-  }>({ value: { books: {} } });
-  const readingBooks = useMemo(
-    () => (readingState.owner === userInfo.id ? readingState.value.books : {}),
-    [readingState, userInfo.id],
-  );
+  const reading = useReadingSync(userInfo.id);
+  const readingBooks = reading.books;
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const [loadedOwner, setLoadedOwner] = useState<string>();
   const nextBook = useRef<HTMLAnchorElement>(null);
@@ -67,14 +57,7 @@ export default function MyStoryLibrary({
     if (visibleCount > pageSize) nextBook.current?.focus();
   }, [visibleCount]);
   useEffect(() => {
-    const refresh = () =>
-      setReadingState({
-        owner: userInfo.id,
-        value: getReadingLibrary(userInfo.id),
-      });
-    refresh();
     setPreferenceNotice("");
-    return subscribeReadingLibrary(userInfo.id, refresh);
   }, [userInfo.id]);
   useEffect(() => {
     setThreads([]);
@@ -341,9 +324,7 @@ export default function MyStoryLibrary({
                   </button>
                 ))}
               </div>
-              <p className={styles.storageNote}>
-                좋아하는 책과 책갈피는 이 브라우저에 저장돼요.
-              </p>
+              <ReadingSyncNotice sync={reading} />
             </div>
           )}
           <div className="library-tools">
@@ -582,15 +563,14 @@ export default function MyStoryLibrary({
                         aria-label={`${title} 좋아하는 책${readingBooks[thread.id]?.favorite ? "에서 빼기" : "에 담기"}`}
                         aria-pressed={!!readingBooks[thread.id]?.favorite}
                         onClick={() => {
-                          const saved = setBookFavorite(
-                            userInfo.id,
+                          const saved = reading.setFavorite(
                             thread.id,
                             !readingBooks[thread.id]?.favorite,
                           );
                           setPreferenceNotice(
                             saved
                               ? ""
-                              : "브라우저에 저장하지 못했어요. 저장 공간과 사이트 설정을 확인해주세요.",
+                              : "좋아하는 책을 저장하지 못했어요. 잠시 후 다시 시도해주세요.",
                           );
                         }}
                       >
