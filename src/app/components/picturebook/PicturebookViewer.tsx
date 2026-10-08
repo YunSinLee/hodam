@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
+import ReadingSyncNotice from "@/app/components/my-story/ReadingSyncNotice";
 import type {
   PicturebookChoiceOption,
   PicturebookDraft,
@@ -86,6 +87,7 @@ export default function PicturebookViewer({
     canSave: canSaveReading,
     saveProgress,
     setFavorite,
+    sync: readingSync,
   } = useReadingLibraryBook(readingOwnerId, readingBookId);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
@@ -95,6 +97,7 @@ export default function PicturebookViewer({
   const pageRef = useRef<HTMLElement>(null);
   const pendingFocus = useRef<"title" | "choice" | "page" | null>(null);
   const navigatedBook = useRef("");
+  const lastCompletionIntent = useRef("");
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { pages } = picturebook;
   const bookIdentity =
@@ -125,12 +128,17 @@ export default function PicturebookViewer({
   useEffect(() => {
     // A wider screen can reveal the final page without another Next click.
     // Only update a book the reader has actively navigated during this visit.
+    const intent = `${readingIdentity}:${currentIndex}:${pages.length}`;
     if (
       navigatedBook.current === readingIdentity &&
       isComplete &&
       isLastPage &&
-      !readingEntry?.completedAt
+      !readingEntry?.completedAt &&
+      lastCompletionIntent.current !== intent
     ) {
+      // A server conflict may restore another device's unfinished bookmark.
+      // Do not turn that response into a new write without another reading action.
+      lastCompletionIntent.current = intent;
       saveProgress(currentIndex, pages.length, true);
     }
   }, [
@@ -231,9 +239,7 @@ export default function PicturebookViewer({
       navigatedBook.current = readingIdentity;
       setResumeDismissedFor(readingIdentity);
       if (!saveProgress(picturebook.choice.afterPage, pages.length, false)) {
-        setFeedback(
-          "이 브라우저에서 읽던 위치를 저장하지 못했어요. 책은 계속 읽을 수 있어요.",
-        );
+        setFeedback("읽던 위치를 저장하지 못했어요. 책은 계속 읽을 수 있어요.");
       }
       pendingFocus.current = "title";
     }
@@ -286,10 +292,11 @@ export default function PicturebookViewer({
     navigatedBook.current = readingIdentity;
     setResumeDismissedFor(readingIdentity);
     const completed = isComplete && index + (isDesktop ? 2 : 1) >= pages.length;
+    lastCompletionIntent.current = completed
+      ? `${readingIdentity}:${index}:${pages.length}`
+      : "";
     if (!saveProgress(index, pages.length, completed)) {
-      setFeedback(
-        "이 브라우저에서 읽던 위치를 저장하지 못했어요. 책은 계속 읽을 수 있어요.",
-      );
+      setFeedback("읽던 위치를 저장하지 못했어요. 책은 계속 읽을 수 있어요.");
     }
   }
 
@@ -297,15 +304,11 @@ export default function PicturebookViewer({
     const next = !readingEntry?.favorite;
     if (!setFavorite(next)) {
       setFeedback(
-        "좋아하는 책을 저장하지 못했어요. 브라우저 저장 공간을 확인해주세요.",
+        "좋아하는 책을 저장하지 못했어요. 잠시 후 다시 시도해주세요.",
       );
       return;
     }
-    setFeedback(
-      next
-        ? "이 브라우저의 좋아하는 책에 담았어요."
-        : "좋아하는 책에서 뺐어요.",
-    );
+    setFeedback(next ? "좋아하는 책에 담았어요." : "좋아하는 책에서 뺐어요.");
   }
 
   function goToPage(index: number) {
@@ -532,11 +535,13 @@ export default function PicturebookViewer({
         </div>
       </div>
 
+      {canSaveReading && <ReadingSyncNotice sync={readingSync} compact />}
+
       {canResume && (
         <div className="reader-resume scroll-mt-24" id="continue-reading">
           <div>
             <strong>지난번에 {savedPage + 1}쪽까지 읽었어요.</strong>
-            <p>이 브라우저에 남겨둔 읽던 자리예요.</p>
+            <p>책갈피를 따라 이야기를 이어 읽어보세요.</p>
           </div>
           <div>
             <button

@@ -30,9 +30,13 @@ psql -X -v ON_ERROR_STOP=1 -h "$HODAM_TEST_TMP" -p 54599 -d postgres \
   -f supabase/migrations/20260407180000_harden_auth_callback_metric_writer_rpc.sql \
   -f supabase/migrations/20261008020000_narrow_security_definer_grants.sql \
   -f supabase/migrations/20261008020000_narrow_security_definer_grants.sql \
+  -f supabase/migrations/20261008030000_reading_state_sync.sql \
+  -f supabase/migrations/20261008030000_reading_state_sync.sql \
   -f tests/db/assertions.sql \
   -f tests/db/storage-assertions.sql \
   -f tests/db/picturebook-atomic-assertions.sql \
   -f tests/db/reading-feedback-assertions.sql \
-  -f tests/db/rpc-surface-assertions.sql
+  -f tests/db/rpc-surface-assertions.sql \
+  -f tests/db/reading-state-assertions.sql
 sh tests/db/picturebook-atomic-concurrency.sh "$HODAM_TEST_TMP"
+sh tests/db/reading-state-concurrency.sh "$HODAM_TEST_TMP"

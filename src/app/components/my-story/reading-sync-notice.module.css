@@ -1,0 +1,64 @@
+.notice {
+  color: var(--color-text-muted, #59665b);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.notice p {
+  margin: 0;
+}
+.line,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+}
+
+.line button,
+.actions button {
+  min-height: 44px;
+}
+.legacy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-top: 0.65rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid rgba(91, 113, 96, 0.22);
+}
+
+.legacy strong {
+  color: var(--color-text, #354a3e);
+}
+.legacy p {
+  margin-top: 0.2rem;
+}
+.warning {
+  margin-top: 0.4rem !important;
+}
+.compact {
+  margin-bottom: 1rem;
+}
+
+:global(.hodam-bedtime-mode) .notice {
+  color: #c2cdbf;
+}
+:global(.hodam-bedtime-mode) .legacy {
+  border-color: #526052;
+}
+:global(.hodam-bedtime-mode) .legacy strong {
+  color: #f0efdc;
+}
+
+@media (max-width: 480px) {
+  .actions {
+    width: 100%;
+  }
+  .actions button {
+    flex: 1 1 auto;
+  }
+}

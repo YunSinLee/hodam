@@ -20,6 +20,11 @@ import { book } from "./fixtures";
 let desktop = false;
 let resize: () => void;
 
+vi.mock(
+  "../src/services/hooks/use-reading-sync",
+  () => import("./fixtures/reading-sync-ui-mock"),
+);
+
 vi.mock("../src/app/components/picturebook/ReadingFeedback", () => ({
   default: () => null,
 }));
@@ -44,6 +49,29 @@ afterEach(() => {
 });
 
 describe("private reading preferences", () => {
+  it("does not overwrite a restored server bookmark after a completion conflict", () => {
+    desktop = true;
+    render(
+      <PicturebookViewer
+        picturebook={book("complete")}
+        readingOwnerId="owner-a"
+        readingBookId={17}
+      />,
+    );
+    for (let page = 0; page < 3; page += 1)
+      fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    expect(getReadingLibrary("owner-a").books[17].completedAt).toBeTruthy();
+    act(() => {
+      saveReadingProgress("owner-a", 17, {
+        pageIndex: 2,
+        pageCount: 8,
+        completed: false,
+      });
+    });
+    expect(getReadingLibrary("owner-a").books[17].pageIndex).toBe(2);
+    expect(getReadingLibrary("owner-a").books[17].completedAt).toBeUndefined();
+  });
+
   it("dismisses resume when a mobile bookmark belongs to the current desktop spread", () => {
     desktop = true;
     saveReadingProgress("owner-a", 17, {
@@ -221,7 +249,7 @@ describe("private reading preferences", () => {
     expect(screen.getByRole("article", { name: "1쪽" })).toBeTruthy();
   });
 
-  it("continues reading when browser storage refuses writes", () => {
+  it("continues reading when the reading store rejects a write", () => {
     render(
       <PicturebookViewer
         picturebook={book("complete")}
