@@ -45,6 +45,12 @@ import {
 
 import Service from "../src/app/service/page";
 import {
+  createFormModes,
+  readFormDraft,
+  saveFormDraft,
+} from "../src/app/service/picturebook-form-draft";
+import { initialInput } from "../src/app/utils/picturebook";
+import {
   readPendingPicturebookRequest,
   readUnconfirmedPicturebookRequests,
   savePendingPicturebookRequest,
@@ -710,4 +716,193 @@ it("clears unsent direct adventure input and mode caches when the signed-in acco
     (screen.getByLabelText(/모험에 더하고 싶은 것/) as HTMLInputElement).value,
   ).toBe("");
   expect(mocks.create).not.toHaveBeenCalled();
+});
+
+describe("unfinished form drafts", () => {
+  it("restores incomplete inputs and both mode memories after remount in StrictMode", () => {
+    const first = render(<Service />);
+    fireEvent.change(screen.getByLabelText("이름 또는 별명"), {
+      target: { value: "아직 작성 중" },
+    });
+    fireEvent.change(screen.getByLabelText("오늘 있었던 일"), {
+      target: { value: "오늘의 한 장면" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+    fireEvent.change(screen.getByLabelText("단짝 이름"), {
+      target: { value: "" },
+    });
+    first.unmount();
+    render(
+      <StrictMode>
+        <Service />
+      </StrictMode>,
+    );
+    expect(screen.getByText("작성하던 이야기를 불러왔어요")).toBeTruthy();
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("아직 작성 중");
+    expect((screen.getByLabelText("나이") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      "",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /오늘의 이야기/ }));
+    expect(
+      (screen.getByLabelText("오늘 있었던 일") as HTMLInputElement).value,
+    ).toBe("오늘의 한 장면");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("restores each owner separately and never adopts a guest draft during unrelated login", () => {
+    useUserInfo.setState({
+      userInfo: { id: undefined, email: "", profileUrl: "" },
+    });
+    render(<Service />);
+    fireEvent.change(screen.getByLabelText("이름 또는 별명"), {
+      target: { value: "방문자" },
+    });
+    act(() => owner());
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("");
+    fireEvent.change(screen.getByLabelText("이름 또는 별명"), {
+      target: { value: "첫 계정" },
+    });
+    act(() => owner("other"));
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("");
+    fireEvent.change(screen.getByLabelText("이름 또는 별명"), {
+      target: { value: "둘째 계정" },
+    });
+    act(() => owner());
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("첫 계정");
+    expect(readFormDraft("other").draft?.input.childName).toBe("둘째 계정");
+    expect(readFormDraft(undefined).draft?.input.childName).toBe("방문자");
+  });
+
+  it("waits for auth before hydrating or allowing edits", () => {
+    saveFormDraft("owner", input, createFormModes(input));
+    useUserInfo.setState({ isAuthReady: false });
+    render(<Service />);
+    expect(screen.queryByLabelText("이름 또는 별명")).toBeNull();
+    expect(readFormDraft("owner").draft?.input).toEqual(input);
+    act(() => owner());
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe(input.childName);
+  });
+
+  it("keeps an owner draft ahead of URL defaults and an explicit starter ahead of the draft", () => {
+    saveFormDraft("owner", input, createFormModes(input));
+    window.history.replaceState(
+      null,
+      "",
+      "/service?mode=adventure&example=friend",
+    );
+    const first = render(<Service />);
+    expect(screen.queryByLabelText("단짝 이름")).toBeNull();
+    expect(
+      (screen.getByLabelText("오늘 있었던 일") as HTMLInputElement).value,
+    ).toBe(input.situation);
+    first.unmount();
+    prepareAdventureStarter(
+      {
+        ...book("complete"),
+        adventure: { ...defaultAdventure, companionName: "새 단짝" },
+      },
+      "owner",
+    );
+    render(<Service />);
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      "새 단짝",
+    );
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("requires an explicit clear, removes hidden modes, and leaves paid recovery untouched", () => {
+    const first = render(<Service />);
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+    fireEvent.change(screen.getByLabelText("단짝 이름"), {
+      target: { value: "잊을 단짝" },
+    });
+    savePendingPicturebookRequest({ ...pending, userId: "other" });
+    fireEvent.click(screen.getByRole("button", { name: "임시 보관 비우기" }));
+    expect(readFormDraft("owner").draft).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "계속 작성하기" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "임시 보관 비우기" }),
+    );
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      "잊을 단짝",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "임시 보관 비우기" }));
+    fireEvent.click(screen.getByRole("button", { name: "작성 내용 비우기" }));
+    expect(readFormDraft("owner").draft).toBeNull();
+    expect(readPendingPicturebookRequest("other")?.requestId).toBe(
+      pending.requestId,
+    );
+    first.unmount();
+    render(<Service />);
+    expect(
+      (screen.getByLabelText("오늘 있었던 일") as HTMLInputElement).value,
+    ).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: /단짝과 상상 모험/ }));
+    expect((screen.getByLabelText("단짝 이름") as HTMLInputElement).value).toBe(
+      defaultAdventure.companionName,
+    );
+  });
+
+  it("reports failed storage and failed deletion without preventing signed-in form editing", () => {
+    render(<Service />);
+    fill();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    fireEvent.change(screen.getByLabelText("이름 또는 별명"), {
+      target: { value: "현재 입력" },
+    });
+    expect(
+      screen.getByText("이 브라우저에 작성 내용을 보관하지 못했어요"),
+    ).toBeTruthy();
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "임시 보관 비우기" }));
+    fireEvent.click(screen.getByRole("button", { name: "작성 내용 비우기" }));
+    expect(
+      screen.getByText("화면은 비웠지만 보관한 내용은 지우지 못했어요"),
+    ).toBeTruthy();
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe("");
+  });
+
+  it("keeps pending recovery ahead of form drafts and clears the draft after successful creation", async () => {
+    saveFormDraft(
+      "owner",
+      { ...initialInput, childName: "새로 쓰던 이름" },
+      createFormModes(initialInput),
+    );
+    savePendingPicturebookRequest(pending);
+    render(<Service />);
+    expect(
+      (screen.getByLabelText("이름 또는 별명") as HTMLInputElement).value,
+    ).toBe(input.childName);
+    expect(
+      screen.queryByRole("button", { name: "임시 보관 비우기" }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "이전 요청 이어서 확인하기" }),
+    );
+    await screen.findByText("작은 용기");
+    expect(readFormDraft("owner").draft).toBeNull();
+    expect(mocks.create).toHaveBeenCalledWith(
+      input,
+      "token",
+      pending.requestId,
+    );
+  });
 });

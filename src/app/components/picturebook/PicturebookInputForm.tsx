@@ -1,13 +1,16 @@
-import { useId, useRef } from "react";
+import { useId, useRef, type ReactNode } from "react";
 
 import Link from "next/link";
 
+import {
+  createFormModes,
+  type PicturebookFormModes,
+} from "@/app/service/picturebook-form-draft";
 import type { PicturebookInput, PicturebookTone } from "@/app/types/openai";
 import {
   situationExamples,
   validatePicturebookInput,
 } from "@/app/utils/picturebook";
-import { defaultAdventure } from "@/lib/picturebook/adventure";
 
 import AdventureFields from "./AdventureFields";
 
@@ -19,7 +22,9 @@ interface PicturebookInputFormProps {
   isSignedIn?: boolean;
   isAuthReady?: boolean;
   fromSample?: boolean;
-  onChange: (value: PicturebookInput) => void;
+  modes?: PicturebookFormModes;
+  draftNotice?: ReactNode;
+  onChange: (value: PicturebookInput, modes?: PicturebookFormModes) => void;
   onSubmit: () => void;
 }
 const tones: { value: PicturebookTone; label: string }[] = [
@@ -35,6 +40,8 @@ export default function PicturebookInputForm({
   isSignedIn = true,
   isAuthReady = true,
   fromSample = false,
+  modes,
+  draftNotice,
   onChange,
   onSubmit,
 }: PicturebookInputFormProps) {
@@ -44,15 +51,27 @@ export default function PicturebookInputForm({
   const situationHelpId = `${formId}-situation-help`;
   const invalid = validatePicturebookInput(value);
   const isAdventure = !!value.adventure;
-  const previousDaily = useRef({
-    situation: value.situation,
-    lesson: value.lesson,
-  });
-  const previousAdventure = useRef({
-    adventure: { ...defaultAdventure },
-    situation: "",
-    lesson: "",
-  });
+  const initialModes = modes || createFormModes(value);
+  const previousDaily = useRef(initialModes.daily);
+  const previousAdventure = useRef(initialModes.adventure);
+  function change(next: PicturebookInput) {
+    if (next.adventure) {
+      previousAdventure.current = {
+        adventure: { ...next.adventure },
+        situation: next.situation,
+        lesson: next.lesson,
+      };
+    } else {
+      previousDaily.current = {
+        situation: next.situation,
+        lesson: next.lesson,
+      };
+    }
+    onChange(next, {
+      daily: previousDaily.current,
+      adventure: previousAdventure.current,
+    });
+  }
   function switchMode(adventure: boolean) {
     if (adventure === isAdventure) return;
     if (adventure) {
@@ -60,21 +79,21 @@ export default function PicturebookInputForm({
         situation: value.situation,
         lesson: value.lesson,
       };
-      onChange({ ...value, ...previousAdventure.current });
+      change({ ...value, ...previousAdventure.current });
     } else {
       previousAdventure.current = {
         adventure: value.adventure!,
         situation: value.situation,
         lesson: value.lesson,
       };
-      onChange({ ...value, ...previousDaily.current, adventure: undefined });
+      change({ ...value, ...previousDaily.current, adventure: undefined });
     }
   }
   function update<Key extends keyof PicturebookInput>(
     key: Key,
     next: PicturebookInput[Key],
   ) {
-    onChange({ ...value, [key]: next });
+    change({ ...value, [key]: next });
   }
   let balanceLabel = "로그인 정보를 확인하고 있어요";
   if (isAuthReady) {
@@ -113,6 +132,7 @@ export default function PicturebookInputForm({
             : "이름과 오늘의 한 장면을 알려주세요. 아이가 주인공인 이야기를 만들어요."}
         </p>
       </div>
+      {draftNotice}
       <div className="story-mode" role="group" aria-label="이야기 종류">
         <button
           type="button"
@@ -185,7 +205,9 @@ export default function PicturebookInputForm({
         <AdventureFields
           value={{ ...value, adventure: value.adventure }}
           disabled={isLoading}
-          onChange={onChange}
+          // Direct handler updates the active mode before notifying its owner.
+          // eslint-disable-next-line react/jsx-no-bind
+          onChange={change}
         />
       ) : (
         <section className="form-section">
@@ -204,7 +226,7 @@ export default function PicturebookInputForm({
                 type="button"
                 disabled={isLoading}
                 onClick={() =>
-                  onChange({
+                  change({
                     ...value,
                     situation: example.situation,
                     lesson: example.lesson,

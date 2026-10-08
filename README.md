@@ -424,6 +424,7 @@ npm run start
 ## API 구성
 
 - 새 8쪽 그림책의 생성·결말·삽화는 `src/app/api/story-actions.ts`의 인증된 서버 액션을 사용합니다. 이전 동화와 `/api/v1/story/*` API도 유지합니다.
+- 만들기 화면은 작성 중인 입력과 일상·모험 모드별 내용을 계정별 `sessionStorage`에 보관합니다. 마지막 수정 후 2시간 이내 같은 탭에서 복원하며, 로그인 CTA에서만 방문자 초안을 일회용으로 전달합니다. 미확인 생성 요청 복구가 초안보다 우선하고, 초안 비우기는 생성 요청·책장 기록을 변경하지 않습니다.
 - 홈의 `그림책 무료로 읽어보기`는 `/sample`로 연결됩니다. 미리 작성한 8쪽 이야기와 선택지별 5쪽 삽화를 포함한 WebP 10개를 `public/sample/little-courage/`에서 제공하며, 열람할 때 AI API를 호출하지 않습니다. [삽화 제작 기록](docs/sample-illustrations.json)에 장면별 프롬프트와 수정 내역을 보관합니다.
 - `/bedtime-stories`와 `/bedtime-stories/[slug]`는 로그인 없이 읽는 창작 동화 3편을, `/ai-storybook`은 제작 방법과 이용 조건을 제공합니다. 공개 원고는 `src/content/public-stories.ts`, 대표 삽화는 `public/stories/*.webp`에 보관하며 열람할 때 AI API를 호출하지 않습니다.
 - 계정·책장·결제 화면은 기존 `/api/v1` 클라이언트와 API 계약을 사용합니다. `/api/routes/payment/confirm`도 같은 v1 승인 핸들러로 연결됩니다.
