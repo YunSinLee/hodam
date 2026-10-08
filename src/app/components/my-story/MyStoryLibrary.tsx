@@ -18,10 +18,19 @@ import {
   adventureCompanions,
   adventureWorlds,
 } from "@/lib/picturebook/adventure";
+import {
+  compareLibraryEntries,
+  getBookReadingStatus,
+  getChildShelfKey,
+} from "@/lib/picturebook/library-discovery";
 import useReadingSync from "@/services/hooks/use-reading-sync";
 import useUserInfo from "@/services/hooks/use-user-info";
 
 import styles from "./library-discovery.module.css";
+import LibraryTools, {
+  initialLibraryFilters,
+  librarySortLabels,
+} from "./LibraryTools";
 import ReadingSyncNotice from "./ReadingSyncNotice";
 
 const pageSize = 24;
@@ -45,7 +54,13 @@ export default function MyStoryLibrary({
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filters, setFilters] = useState(initialLibraryFilters);
+  const {
+    completion: filter,
+    child: selectedChild,
+    reading: readingFilter,
+    sort,
+  } = filters;
   const [shelfView, setShelfView] = useState("all");
   const [preferenceNotice, setPreferenceNotice] = useState("");
   const reading = useReadingSync(userInfo.id);
@@ -62,7 +77,7 @@ export default function MyStoryLibrary({
   useEffect(() => {
     setThreads([]);
     setQuery("");
-    setFilter("all");
+    setFilters(initialLibraryFilters);
     setShelfView("all");
     setVisibleCount(pageSize);
     setLoadedOwner(undefined);
@@ -118,31 +133,62 @@ export default function MyStoryLibrary({
     archived &&
     collection.length > 0 &&
     collection.every(entry => entry.status === "empty");
+  const childOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    collection.forEach(({ book }) => {
+      if (!book) return;
+      const name = getChildShelfKey(book.childName);
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+    return Array.from(counts, ([name, count]) => ({ name, count })).sort(
+      (left, right) => left.name.localeCompare(right.name, "ko"),
+    );
+  }, [collection]);
   const books = useMemo(
     () =>
-      collection.filter(
-        ({ thread, book, title, status }) =>
-          (!query.trim() ||
-            `${title} ${book?.childName || ""} ${book?.situation || ""} ${book?.adventure?.companionName || ""} ${book?.adventure ? adventureCompanions[book.adventure.companion].label : ""}`
-              .toLowerCase()
-              .includes(query.trim().toLowerCase())) &&
-          (shelfView !== "favorites" || readingBooks[thread.id]?.favorite) &&
-          (filter === "all" ? status !== "empty" : status === filter),
-      ),
-    [collection, query, filter, shelfView, readingBooks],
+      collection
+        .filter(
+          ({ thread, book, title, status }) =>
+            (!query.trim() ||
+              `${title} ${book?.childName || ""} ${book?.situation || ""} ${book?.adventure?.companionName || ""} ${book?.adventure ? adventureCompanions[book.adventure.companion].label : ""}`
+                .normalize("NFC")
+                .toLowerCase()
+                .includes(query.trim().normalize("NFC").toLowerCase())) &&
+            (shelfView !== "favorites" || readingBooks[thread.id]?.favorite) &&
+            (!selectedChild ||
+              (book && getChildShelfKey(book.childName) === selectedChild)) &&
+            (readingFilter === "all" ||
+              (book &&
+                getBookReadingStatus(book, readingBooks[thread.id]) ===
+                  readingFilter)) &&
+            (filter === "all" ? status !== "empty" : status === filter),
+        )
+        .sort((left, right) =>
+          compareLibraryEntries(sort, left, right, readingBooks),
+        ),
+    [
+      collection,
+      query,
+      filter,
+      shelfView,
+      readingBooks,
+      selectedChild,
+      readingFilter,
+      sort,
+    ],
   );
   const visibleBooks = useMemo(
     () => books.slice(0, visibleCount),
     [books, visibleCount],
   );
   const resumeBook = !archived
-    ? collection
+    ? books
         .filter(({ thread, book }) => {
           const progress = readingBooks[thread.id];
           return (
             book &&
             progress &&
-            !progress.completedAt &&
+            getBookReadingStatus(book, progress) === "reading" &&
             (progress.pageIndex || 0) > 0 &&
             progress.pageIndex! < book.pages.length
           );
@@ -166,14 +212,14 @@ export default function MyStoryLibrary({
       const adventure = entry.book?.adventure;
       const groupId = adventure
         ? JSON.stringify([
-            entry.book?.childName,
+            getChildShelfKey(entry.book!.childName),
             adventure.companion,
             adventure.companionName,
           ])
         : "everyday";
       const group = groups.get(groupId) || {
         label: adventure
-          ? `${entry.book!.childName} · ${adventureCompanions[adventure.companion].label} ${adventure.companionName}`
+          ? `${getChildShelfKey(entry.book!.childName)} · ${adventureCompanions[adventure.companion].label} ${adventure.companionName}`
           : "하루를 담은 그림책",
         description: adventure
           ? `${adventureCompanions[adventure.companion].label} 단짝과 떠난 각각의 모험이에요.`
@@ -266,27 +312,6 @@ export default function MyStoryLibrary({
           새 그림책 만들기 ↗
         </Link>
       </div>
-      {!loading && !error && loadedOwner === userInfo.id && resumeBook && (
-        <section
-          className={styles.resume}
-          aria-labelledby="resume-book-heading"
-        >
-          <div>
-            <p className={styles.eyebrow}>마지막으로 펼친 책</p>
-            <h2 id="resume-book-heading">{resumeBook.title}</h2>
-            <p>
-              {readingBooks[resumeBook.thread.id].pageIndex! + 1}쪽에 책갈피가
-              있어요.
-            </p>
-          </div>
-          <Link
-            href={`/my-story/${resumeBook.thread.id}#continue-reading`}
-            className="button-secondary"
-          >
-            읽던 그림책 열기 ↗
-          </Link>
-        </section>
-      )}
       {!loading &&
         !error &&
         loadedOwner === userInfo.id &&
@@ -327,52 +352,43 @@ export default function MyStoryLibrary({
               <ReadingSyncNotice sync={reading} />
             </div>
           )}
-          <div className="library-tools">
-            <label className="sr-only" htmlFor="book-search">
-              {archived
-                ? "키워드로 예전 동화 찾기"
-                : "제목, 아이 이름, 단짝 이름, 상황으로 검색"}
-            </label>
-            <input
-              id="book-search"
-              type="search"
-              value={query}
-              onChange={event => {
-                setQuery(event.target.value);
-                setVisibleCount(pageSize);
-              }}
-              placeholder={
-                archived
-                  ? "키워드로 예전 동화 찾기"
-                  : "제목, 아이 이름, 단짝 이름으로 찾기"
-              }
-            />
-            <label className="sr-only" htmlFor="book-filter">
-              완성 상태
-            </label>
-            <select
-              id="book-filter"
-              value={filter}
-              onChange={event => {
-                setFilter(event.target.value);
-                setVisibleCount(pageSize);
-              }}
-            >
-              {archived ? (
-                <>
-                  <option value="all">읽을 수 있는 동화</option>
-                  <option value="empty">내용 확인이 필요한 기록</option>
-                </>
-              ) : (
-                <>
-                  <option value="all">모든 그림책</option>
-                  <option value="complete">결말까지 쓴 그림책</option>
-                  <option value="choice-ready">이어 만들 그림책</option>
-                </>
-              )}
-            </select>
-          </div>
+          <LibraryTools
+            key={`${userInfo.id}:${archived}`}
+            archived={archived}
+            query={query}
+            onQueryChange={value => {
+              setQuery(value);
+              setVisibleCount(pageSize);
+            }}
+            filters={filters}
+            onFiltersChange={value => {
+              setFilters(value);
+              setVisibleCount(pageSize);
+            }}
+            childOptions={childOptions}
+          />
         </>
+      )}
+      {!loading && !error && loadedOwner === userInfo.id && resumeBook && (
+        <section
+          className={styles.resume}
+          aria-labelledby="resume-book-heading"
+        >
+          <div>
+            <p className={styles.eyebrow}>마지막으로 펼친 책</p>
+            <h2 id="resume-book-heading">{resumeBook.title}</h2>
+            <p>
+              {readingBooks[resumeBook.thread.id].pageIndex! + 1}쪽에 책갈피가
+              있어요.
+            </p>
+          </div>
+          <Link
+            href={`/my-story/${resumeBook.thread.id}#continue-reading`}
+            className="button-secondary"
+          >
+            읽던 그림책 열기 ↗
+          </Link>
+        </section>
       )}
       {preferenceNotice && (
         <p className="notice-error mb-4" role="status">
@@ -418,14 +434,22 @@ export default function MyStoryLibrary({
           <h2>
             {onlyEmptyRecords
               ? "내용 확인이 필요한 기록이 있어요."
-              : shelfView === "favorites" && !query.trim() && filter === "all"
+              : shelfView === "favorites" &&
+                  !query.trim() &&
+                  filter === "all" &&
+                  !selectedChild &&
+                  readingFilter === "all"
                 ? "다시 읽고 싶은 책을 골라보세요."
                 : "찾는 이야기가 없어요."}
           </h2>
           <p>
             {onlyEmptyRecords
               ? "읽을 수 있는 글이 없는 기록도 보관하고 있어요."
-              : shelfView === "favorites" && !query.trim() && filter === "all"
+              : shelfView === "favorites" &&
+                  !query.trim() &&
+                  filter === "all" &&
+                  !selectedChild &&
+                  readingFilter === "all"
                 ? "표지의 하트를 누르면 좋아하는 책만 모아볼 수 있어요."
                 : "검색어나 책장 보기 방식을 바꿔보세요."}
           </p>
@@ -434,7 +458,10 @@ export default function MyStoryLibrary({
             type="button"
             onClick={() => {
               setQuery("");
-              setFilter(onlyEmptyRecords ? "empty" : "all");
+              setFilters({
+                ...initialLibraryFilters,
+                completion: onlyEmptyRecords ? "empty" : "all",
+              });
               setShelfView("all");
               setVisibleCount(pageSize);
             }}
@@ -446,7 +473,7 @@ export default function MyStoryLibrary({
         <>
           <p role="status" className="text-sm text-gray-600 mb-4">
             {books.length}
-            {filter === "empty" ? "개 기록" : "권"} · 최근에 만든 순
+            {filter === "empty" ? "개 기록" : "권"} · {librarySortLabels[sort]}
             {books.length > pageSize &&
               ` · ${Math.min(visibleCount, books.length)}${filter === "empty" ? "개" : "권"} 표시 중`}
           </p>
@@ -546,13 +573,34 @@ export default function MyStoryLibrary({
                           </span>
                         </footer>
                         {book && (
-                          <p className="shelf-image-status">
-                            {previews[thread.id] || !thread.has_image
-                              ? `그림 ${previews[thread.id]?.imageCount || 0}/${book.pages.length}장`
-                              : previewsReady
-                                ? "그림은 책에서 확인해요"
-                                : "그림 확인 중…"}
-                          </p>
+                          <div className={styles.bookMeta}>
+                            <span
+                              className={styles.readingStatus}
+                              data-status={getBookReadingStatus(
+                                book,
+                                readingBooks[thread.id],
+                              )}
+                            >
+                              {getBookReadingStatus(
+                                book,
+                                readingBooks[thread.id],
+                              ) === "finished"
+                                ? "끝까지 읽었어요"
+                                : getBookReadingStatus(
+                                      book,
+                                      readingBooks[thread.id],
+                                    ) === "reading"
+                                  ? `${readingBooks[thread.id].pageIndex! + 1}/${book.pages.length}쪽 읽는 중`
+                                  : "아직 책갈피 없음"}
+                            </span>
+                            <span>
+                              {previews[thread.id] || !thread.has_image
+                                ? `그림 ${previews[thread.id]?.imageCount || 0}/${book.pages.length}장`
+                                : previewsReady
+                                  ? "그림은 책에서 확인해요"
+                                  : "그림 확인 중…"}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </Link>

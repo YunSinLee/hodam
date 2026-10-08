@@ -96,7 +96,7 @@ describe("authenticated account QA", () => {
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(24);
     fireEvent.click(screen.getByRole("button", { name: /이야기 더 보기/ }));
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(48);
-    expect(document.activeElement?.getAttribute("href")).toBe("/my-story/25");
+    expect(document.activeElement?.getAttribute("href")).toBe("/my-story/26");
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "이야기 50" },
     });
@@ -132,7 +132,8 @@ describe("authenticated account QA", () => {
         .getByRole("link", { name: /예전 동화 보관함/ })
         .getAttribute("href"),
     ).toBe("/my-story/archive");
-    fireEvent.change(screen.getByRole("combobox"), {
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "완성 상태" }), {
       target: { value: "complete" },
     });
     expect(screen.queryByRole("heading", { name: "예전 동화" })).toBeNull();
