@@ -45,7 +45,7 @@ function thread(
   return {
     id,
     openai_thread_id: `thread-${id}`,
-    created_at: "2026-10-08T00:00:00.000Z",
+    created_at: new Date(Date.UTC(2026, 9, 8, 0, 0, 60 - id)).toISOString(),
     user_id: "owner-a",
     able_english: false,
     has_image: false,
@@ -229,5 +229,206 @@ describe("MyStoryLibrary discovery", () => {
     expect(
       screen.getByRole("link", { name: "읽던 그림책 열기 ↗" }),
     ).toBeTruthy();
+  });
+
+  it("combines normalized child selection with search, favorites, and companion groups", async () => {
+    vi.mocked(threadApi.fetchThreadsByUserId).mockResolvedValue([
+      thread(11, "하윤의 달", {
+        childName: "하윤",
+        adventure: defaultAdventure,
+      }),
+      thread(12, "하윤의 바다", {
+        childName: "하윤".normalize("NFD"),
+        adventure: defaultAdventure,
+      }),
+      thread(13, "민준의 달", {
+        childName: "민준",
+        adventure: defaultAdventure,
+      }),
+    ]);
+    setBookFavorite("owner-a", 11, true);
+    setBookFavorite("owner-a", 13, true);
+    render(<MyStoryLibrary />);
+    await screen.findByRole("heading", { name: "하윤의 달" });
+    expect(screen.queryByRole("region", { name: "책장 정리" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    expect(screen.getByRole("option", { name: "하윤 · 2권" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("아이 이름별로"), {
+      target: { value: "하윤" },
+    });
+    expect(screen.queryByRole("heading", { name: "민준의 달" })).toBeNull();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "달" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "좋아하는 책 · 2" }));
+    expect(screen.getByRole("heading", { name: "하윤의 달" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "하윤의 바다" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "단짝 모아보기" }));
+    expect(
+      screen.getByRole("region", { name: "하윤 · 토끼 두부" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리 · 1" }));
+    expect(screen.queryByRole("region", { name: "책장 정리" })).toBeNull();
+    expect(screen.getByText("하윤의 책")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "조건 초기화" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "책장 정리" }),
+    );
+    expect(screen.getByRole("heading", { name: "민준의 달" })).toBeTruthy();
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe(
+      "달",
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "하윤".normalize("NFD") },
+    });
+    expect(screen.getByRole("heading", { name: "하윤의 바다" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "하윤의 달" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("region", { name: "하윤 · 토끼 두부" }),
+    ).toHaveLength(1);
+  });
+
+  it("distinguishes reading from story completion and scopes the resume card to filters", async () => {
+    vi.mocked(threadApi.fetchThreadsByUserId).mockResolvedValue([
+      thread(11, "끝까지 읽은 책"),
+      thread(12, "지금 읽는 책", { childName: "하윤" }),
+      thread(13, "새 결말이 생긴 책"),
+      thread(14, "처음 펼칠 책"),
+    ]);
+    saveReadingProgress("owner-a", 11, {
+      pageIndex: 6,
+      pageCount: 8,
+      completed: true,
+    });
+    saveReadingProgress("owner-a", 12, {
+      pageIndex: 2,
+      pageCount: 8,
+      completed: false,
+    });
+    saveReadingProgress("owner-a", 13, {
+      pageIndex: 3,
+      pageCount: 4,
+      completed: true,
+    });
+    render(<MyStoryLibrary />);
+    await screen.findByText("끝까지 읽었어요");
+    expect(screen.getByText("3/8쪽 읽는 중")).toBeTruthy();
+    expect(screen.getByText("4/8쪽 읽는 중")).toBeTruthy();
+    expect(screen.getByText("아직 책갈피 없음")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    fireEvent.change(screen.getByLabelText("읽기 상태"), {
+      target: { value: "finished" },
+    });
+    expect(
+      screen.getByRole("heading", { name: "끝까지 읽은 책" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("마지막으로 펼친 책")).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "새 결말이 생긴 책" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("읽기 상태"), {
+      target: { value: "reading" },
+    });
+    fireEvent.change(screen.getByLabelText("아이 이름별로"), {
+      target: { value: "하윤" },
+    });
+    const resume = screen.getByRole("region", { name: "지금 읽는 책" });
+    expect(within(resume).getByText("3쪽에 책갈피가 있어요.")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "새 결말이 생긴 책" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("읽기 상태"), {
+      target: { value: "unread" },
+    });
+    expect(
+      screen.getByRole("heading", { name: "찾는 이야기가 없어요." }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "전체 이야기 보기" }));
+    expect(document.activeElement).toBe(screen.getByRole("searchbox"));
+    expect(screen.getByRole("heading", { name: "처음 펼칠 책" })).toBeTruthy();
+    expect(
+      (screen.getByLabelText("아이 이름별로") as HTMLSelectElement).value,
+    ).toBe("");
+  });
+
+  it("sorts before pagination and resets the visible page when the order changes", async () => {
+    vi.mocked(threadApi.fetchThreadsByUserId).mockResolvedValue(
+      Array.from({ length: 25 }, (_, index) =>
+        thread(index + 1, `그림책 ${index + 1}`),
+      ),
+    );
+    saveReadingProgress("owner-a", 25, {
+      pageIndex: 0,
+      pageCount: 8,
+      completed: false,
+    });
+    render(<MyStoryLibrary />);
+    await screen.findByRole("heading", { name: "그림책 1" });
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    fireEvent.change(screen.getByLabelText("책 순서"), {
+      target: { value: "recently-read" },
+    });
+    expect(screen.getAllByRole("article")[0].textContent).toContain(
+      "그림책 25",
+    );
+    expect(screen.queryByRole("heading", { name: "그림책 24" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "이야기 더 보기 · 1권 남음" }),
+    );
+    expect(screen.getAllByRole("article")).toHaveLength(25);
+    fireEvent.change(screen.getByLabelText("책 순서"), {
+      target: { value: "oldest" },
+    });
+    expect(screen.getAllByRole("article")).toHaveLength(24);
+    expect(screen.getAllByRole("article")[0].textContent).toContain(
+      "그림책 25",
+    );
+    expect(screen.queryByRole("heading", { name: "그림책 1" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("책 순서"), {
+      target: { value: "title" },
+    });
+    expect(screen.getAllByRole("article")[0].textContent).toContain("그림책 1");
+    expect(screen.getAllByRole("article")[1].textContent).toContain("그림책 2");
+  });
+
+  it("clears child filters and closes the controls after changing accounts", async () => {
+    render(<MyStoryLibrary />);
+    await screen.findByRole("heading", { name: "작은 하루" });
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    fireEvent.change(screen.getByLabelText("아이 이름별로"), {
+      target: { value: "아이" },
+    });
+    vi.mocked(threadApi.fetchThreadsByUserId).mockResolvedValue([
+      thread(21, "다른 가족의 이야기", { childName: "새 이름" }),
+    ]);
+    act(() =>
+      useUserInfo.setState({
+        userInfo: { id: "owner-b", email: "b@example.com", profileUrl: "" },
+      }),
+    );
+    expect(screen.queryByText("아이의 책")).toBeNull();
+    await screen.findByRole("heading", { name: "다른 가족의 이야기" });
+    expect(screen.queryByRole("region", { name: "책장 정리" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    expect(
+      (screen.getByLabelText("아이 이름별로") as HTMLSelectElement).value,
+    ).toBe("");
+    expect(screen.queryByRole("option", { name: "아이 · 3권" })).toBeNull();
+  });
+
+  it("preserves the archive's empty-record recovery without picturebook filters", async () => {
+    vi.mocked(threadApi.fetchThreadsByUserId).mockResolvedValue([
+      { ...thread(99, "옛 기록"), raw_text: "", messages: [], keywords: [] },
+    ]);
+    render(<MyStoryLibrary archived />);
+    await screen.findByRole("heading", {
+      name: "내용 확인이 필요한 기록이 있어요.",
+    });
+    expect(screen.queryByRole("button", { name: "책장 정리" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "보관된 기록 보기" }));
+    expect(
+      screen.getByRole("heading", { name: "제목 없는 이야기" }),
+    ).toBeTruthy();
+    expect(screen.getByText("내용이 없는 기록")).toBeTruthy();
   });
 });

@@ -76,7 +76,8 @@ describe("beta picturebook shelf and preserved stories", () => {
     expect(mocks.previews).toHaveBeenLastCalledWith([
       { threadId: 3, pageNumbers: [1, 2, 3, 4, 5, 6, 7, 8] },
     ]);
-    fireEvent.change(screen.getByRole("combobox"), {
+    fireEvent.click(screen.getByRole("button", { name: "책장 정리" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "완성 상태" }), {
       target: { value: "complete" },
     });
     expect(mocks.previews).toHaveBeenCalledTimes(1);
