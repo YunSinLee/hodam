@@ -1,0 +1,6 @@
+NanumGothic Regular (unmodified)
+Source: https://github.com/google/fonts/tree/main/ofl/nanumgothic
+Font: https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Regular.ttf
+Retrieved: 2026-10-08
+License: SIL Open Font License 1.1, see NanumGothic-OFL.txt in this directory.
+Used only for on-demand PDF export. The complete font is embedded to preserve composite Korean glyphs in PDF readers.

@@ -14,7 +14,19 @@ import GuideForSign from "@/app/components/GuideForSign";
 import type { ThreadWithUser } from "@/app/types/openai";
 import { formatTime } from "@/app/utils";
 import { parsePicturebookDraft } from "@/app/utils/picturebook";
+import {
+  getReadingLibrary,
+  setBookFavorite,
+  subscribeReadingLibrary,
+} from "@/lib/client/reading-library";
+import type { ReadingLibraryState } from "@/lib/client/reading-library";
+import {
+  adventureCompanions,
+  adventureWorlds,
+} from "@/lib/picturebook/adventure";
 import useUserInfo from "@/services/hooks/use-user-info";
+
+import styles from "./library-discovery.module.css";
 
 const pageSize = 24;
 type BookPreviews = Awaited<ReturnType<typeof imageApi.getBookPreviews>>;
@@ -38,6 +50,16 @@ export default function MyStoryLibrary({
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
+  const [shelfView, setShelfView] = useState("all");
+  const [preferenceNotice, setPreferenceNotice] = useState("");
+  const [readingState, setReadingState] = useState<{
+    owner?: string;
+    value: ReadingLibraryState;
+  }>({ value: { books: {} } });
+  const readingBooks = useMemo(
+    () => (readingState.owner === userInfo.id ? readingState.value.books : {}),
+    [readingState, userInfo.id],
+  );
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const [loadedOwner, setLoadedOwner] = useState<string>();
   const nextBook = useRef<HTMLAnchorElement>(null);
@@ -45,9 +67,20 @@ export default function MyStoryLibrary({
     if (visibleCount > pageSize) nextBook.current?.focus();
   }, [visibleCount]);
   useEffect(() => {
+    const refresh = () =>
+      setReadingState({
+        owner: userInfo.id,
+        value: getReadingLibrary(userInfo.id),
+      });
+    refresh();
+    setPreferenceNotice("");
+    return subscribeReadingLibrary(userInfo.id, refresh);
+  }, [userInfo.id]);
+  useEffect(() => {
     setThreads([]);
     setQuery("");
     setFilter("all");
+    setShelfView("all");
     setVisibleCount(pageSize);
     setLoadedOwner(undefined);
     if (!userInfo.id) return undefined;
@@ -105,19 +138,74 @@ export default function MyStoryLibrary({
   const books = useMemo(
     () =>
       collection.filter(
-        ({ book, title, status }) =>
+        ({ thread, book, title, status }) =>
           (!query.trim() ||
-            `${title} ${book?.childName || ""} ${book?.situation || ""}`
+            `${title} ${book?.childName || ""} ${book?.situation || ""} ${book?.adventure?.companionName || ""} ${book?.adventure ? adventureCompanions[book.adventure.companion].label : ""}`
               .toLowerCase()
               .includes(query.trim().toLowerCase())) &&
+          (shelfView !== "favorites" || readingBooks[thread.id]?.favorite) &&
           (filter === "all" ? status !== "empty" : status === filter),
       ),
-    [collection, query, filter],
+    [collection, query, filter, shelfView, readingBooks],
   );
   const visibleBooks = useMemo(
     () => books.slice(0, visibleCount),
     [books, visibleCount],
   );
+  const resumeBook = !archived
+    ? collection
+        .filter(({ thread, book }) => {
+          const progress = readingBooks[thread.id];
+          return (
+            book &&
+            progress &&
+            !progress.completedAt &&
+            (progress.pageIndex || 0) > 0 &&
+            progress.pageIndex! < book.pages.length
+          );
+        })
+        .sort(
+          (left, right) =>
+            (readingBooks[right.thread.id]?.updatedAt || 0) -
+            (readingBooks[left.thread.id]?.updatedAt || 0),
+        )[0]
+    : undefined;
+  const bookGroups = useMemo(() => {
+    if (shelfView !== "companions")
+      return [
+        ["all", { label: "", description: "", books: visibleBooks }],
+      ] as const;
+    const groups = new Map<
+      string,
+      { label: string; description: string; books: typeof visibleBooks }
+    >();
+    visibleBooks.forEach(entry => {
+      const adventure = entry.book?.adventure;
+      const groupId = adventure
+        ? JSON.stringify([
+            entry.book?.childName,
+            adventure.companion,
+            adventure.companionName,
+          ])
+        : "everyday";
+      const group = groups.get(groupId) || {
+        label: adventure
+          ? `${entry.book!.childName} · ${adventureCompanions[adventure.companion].label} ${adventure.companionName}`
+          : "하루를 담은 그림책",
+        description: adventure
+          ? `${adventureCompanions[adventure.companion].label} 단짝과 떠난 각각의 모험이에요.`
+          : "일상 속 마음과 작은 발견을 다시 만나요.",
+        books: [],
+      };
+      group.books.push(entry);
+      groups.set(groupId, group);
+    });
+    return Array.from(groups.entries());
+  }, [visibleBooks, shelfView]);
+  const BookHeading = shelfView === "companions" ? "h3" : "h2";
+  const favoriteCount = collection.filter(
+    ({ thread }) => readingBooks[thread.id]?.favorite,
+  ).length;
   useEffect(() => {
     let active = true;
     if (
@@ -195,6 +283,27 @@ export default function MyStoryLibrary({
           새 그림책 만들기 ↗
         </Link>
       </div>
+      {!loading && !error && loadedOwner === userInfo.id && resumeBook && (
+        <section
+          className={styles.resume}
+          aria-labelledby="resume-book-heading"
+        >
+          <div>
+            <p className={styles.eyebrow}>마지막으로 펼친 책</p>
+            <h2 id="resume-book-heading">{resumeBook.title}</h2>
+            <p>
+              {readingBooks[resumeBook.thread.id].pageIndex! + 1}쪽에 책갈피가
+              있어요.
+            </p>
+          </div>
+          <Link
+            href={`/my-story/${resumeBook.thread.id}#continue-reading`}
+            className="button-secondary"
+          >
+            읽던 그림책 열기 ↗
+          </Link>
+        </section>
+      )}
       {!loading &&
         !error &&
         loadedOwner === userInfo.id &&
@@ -207,51 +316,87 @@ export default function MyStoryLibrary({
           </aside>
         )}
       {!loading && loadedOwner === userInfo.id && collection.length > 0 && (
-        <div className="library-tools">
-          <label className="sr-only" htmlFor="book-search">
-            {archived
-              ? "키워드로 예전 동화 찾기"
-              : "제목, 아이 이름, 상황으로 검색"}
-          </label>
-          <input
-            id="book-search"
-            type="search"
-            value={query}
-            onChange={event => {
-              setQuery(event.target.value);
-              setVisibleCount(pageSize);
-            }}
-            placeholder={
-              archived
+        <>
+          {!archived && (
+            <div className={styles.discovery}>
+              <div className={styles.views} aria-label="책장 보기 방식">
+                {[
+                  ["all", "전체 책장"],
+                  [
+                    "favorites",
+                    `좋아하는 책${favoriteCount ? ` · ${favoriteCount}` : ""}`,
+                  ],
+                  ["companions", "단짝 모아보기"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={shelfView === value}
+                    onClick={() => {
+                      setShelfView(value);
+                      setVisibleCount(pageSize);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className={styles.storageNote}>
+                좋아하는 책과 책갈피는 이 브라우저에 저장돼요.
+              </p>
+            </div>
+          )}
+          <div className="library-tools">
+            <label className="sr-only" htmlFor="book-search">
+              {archived
                 ? "키워드로 예전 동화 찾기"
-                : "제목, 아이 이름, 상황으로 검색"
-            }
-          />
-          <label className="sr-only" htmlFor="book-filter">
-            완성 상태
-          </label>
-          <select
-            id="book-filter"
-            value={filter}
-            onChange={event => {
-              setFilter(event.target.value);
-              setVisibleCount(pageSize);
-            }}
-          >
-            {archived ? (
-              <>
-                <option value="all">읽을 수 있는 동화</option>
-                <option value="empty">내용 확인이 필요한 기록</option>
-              </>
-            ) : (
-              <>
-                <option value="all">모든 그림책</option>
-                <option value="complete">결말까지 쓴 그림책</option>
-                <option value="choice-ready">이어 만들 그림책</option>
-              </>
-            )}
-          </select>
-        </div>
+                : "제목, 아이 이름, 단짝 이름, 상황으로 검색"}
+            </label>
+            <input
+              id="book-search"
+              type="search"
+              value={query}
+              onChange={event => {
+                setQuery(event.target.value);
+                setVisibleCount(pageSize);
+              }}
+              placeholder={
+                archived
+                  ? "키워드로 예전 동화 찾기"
+                  : "제목, 아이 이름, 단짝 이름으로 찾기"
+              }
+            />
+            <label className="sr-only" htmlFor="book-filter">
+              완성 상태
+            </label>
+            <select
+              id="book-filter"
+              value={filter}
+              onChange={event => {
+                setFilter(event.target.value);
+                setVisibleCount(pageSize);
+              }}
+            >
+              {archived ? (
+                <>
+                  <option value="all">읽을 수 있는 동화</option>
+                  <option value="empty">내용 확인이 필요한 기록</option>
+                </>
+              ) : (
+                <>
+                  <option value="all">모든 그림책</option>
+                  <option value="complete">결말까지 쓴 그림책</option>
+                  <option value="choice-ready">이어 만들 그림책</option>
+                </>
+              )}
+            </select>
+          </div>
+        </>
+      )}
+      {preferenceNotice && (
+        <p className="notice-error mb-4" role="status">
+          {preferenceNotice}
+        </p>
       )}
       {loading || (!error && loadedOwner !== userInfo.id) ? (
         <p className="empty-state" role="status">
@@ -292,12 +437,16 @@ export default function MyStoryLibrary({
           <h2>
             {onlyEmptyRecords
               ? "내용 확인이 필요한 기록이 있어요."
-              : "찾는 이야기가 없어요."}
+              : shelfView === "favorites" && !query.trim() && filter === "all"
+                ? "다시 읽고 싶은 책을 골라보세요."
+                : "찾는 이야기가 없어요."}
           </h2>
           <p>
             {onlyEmptyRecords
               ? "읽을 수 있는 글이 없는 기록도 보관하고 있어요."
-              : "검색어나 완성 상태를 바꿔보세요."}
+              : shelfView === "favorites" && !query.trim() && filter === "all"
+                ? "표지의 하트를 누르면 좋아하는 책만 모아볼 수 있어요."
+                : "검색어나 책장 보기 방식을 바꿔보세요."}
           </p>
           <button
             className="button-secondary"
@@ -305,6 +454,7 @@ export default function MyStoryLibrary({
             onClick={() => {
               setQuery("");
               setFilter(onlyEmptyRecords ? "empty" : "all");
+              setShelfView("all");
               setVisibleCount(pageSize);
             }}
           >
@@ -319,82 +469,153 @@ export default function MyStoryLibrary({
             {books.length > pageSize &&
               ` · ${Math.min(visibleCount, books.length)}${filter === "empty" ? "개" : "권"} 표시 중`}
           </p>
-          <div className="book-list">
-            {visibleBooks.map(({ thread, book, title, status }, index) => (
-              <Link
-                href={`/my-story/${thread.id}`}
-                key={thread.id}
-                ref={index === visibleCount - pageSize ? nextBook : undefined}
-              >
-                {book && (
-                  <div className="shelf-cover">
-                    {previews[thread.id]?.coverUrl ? (
-                      <Image
-                        src={previews[thread.id].coverUrl!}
-                        alt=""
-                        width={480}
-                        height={360}
-                        unoptimized
-                        onError={() =>
-                          setPreviews(current => ({
-                            ...current,
-                            [thread.id]: {
-                              ...current[thread.id],
-                              coverUrl: null,
-                            },
-                          }))
-                        }
-                      />
-                    ) : (
-                      <div className="shelf-cover-fallback" aria-hidden="true">
-                        <span>호담의 작은 책</span>
-                        <strong>{title}</strong>
-                        <span>{book.childName}의 하루</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div className="shelf-book-info">
-                  <small>
-                    {formatTime(thread.created_at, "YYYY.MM.DD")}
-                    {book ? ` · ${book.childName}의 이야기` : ""}
-                  </small>
-                  <h2>{title}</h2>
-                  {book && <p className="line-clamp-2">{book.situation}</p>}
-                  <footer>
-                    <span>
-                      {book?.status === "choice-ready"
-                        ? "첫 4쪽 · 결말을 골라주세요"
-                        : book
-                          ? "8쪽 · 이야기 완성"
-                          : status === "legacy"
-                            ? "저장된 동화"
-                            : thread.raw_text?.trim()
-                              ? "내용 확인 필요"
-                              : "내용이 없는 기록"}
-                    </span>
-                    <span>
-                      {book?.status === "choice-ready"
-                        ? "이어 만들기"
-                        : status === "empty"
-                          ? "상태 확인"
-                          : "읽기"}{" "}
-                      ↗
-                    </span>
-                  </footer>
-                  {book && (
-                    <p className="shelf-image-status">
-                      {previews[thread.id] || !thread.has_image
-                        ? `그림 ${previews[thread.id]?.imageCount || 0}/${book.pages.length}장`
-                        : previewsReady
-                          ? "그림은 책에서 확인해요"
-                          : "그림 확인 중…"}
-                    </p>
-                  )}
+          {bookGroups.map(([groupId, group]) => (
+            <section
+              key={groupId}
+              className={styles.group}
+              aria-label={group.label || undefined}
+            >
+              {shelfView === "companions" && (
+                <div className={styles.groupHeading}>
+                  <h2>{group.label}</h2>
+                  <p>{group.description}</p>
                 </div>
-              </Link>
-            ))}
-          </div>
+              )}
+              <div className="book-list">
+                {group.books.map(({ thread, book, title, status }) => (
+                  <article key={thread.id} className={styles.bookCard}>
+                    <Link
+                      href={`/my-story/${thread.id}`}
+                      className={styles.bookLink}
+                      ref={
+                        thread.id ===
+                        visibleBooks[visibleCount - pageSize]?.thread.id
+                          ? nextBook
+                          : undefined
+                      }
+                    >
+                      {book && (
+                        <div className="shelf-cover">
+                          {previews[thread.id]?.coverUrl ? (
+                            <Image
+                              src={previews[thread.id].coverUrl!}
+                              alt=""
+                              width={480}
+                              height={360}
+                              unoptimized
+                              onError={() =>
+                                setPreviews(current => ({
+                                  ...current,
+                                  [thread.id]: {
+                                    ...current[thread.id],
+                                    coverUrl: null,
+                                  },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <div
+                              className="shelf-cover-fallback"
+                              aria-hidden="true"
+                            >
+                              <span>호담의 작은 책</span>
+                              <strong>{title}</strong>
+                              <span>
+                                {book.childName}의{" "}
+                                {book.adventure ? "모험" : "하루"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="shelf-book-info">
+                        <small>
+                          {formatTime(thread.created_at, "YYYY.MM.DD")}
+                          {book ? ` · ${book.childName}의 이야기` : ""}
+                        </small>
+                        <BookHeading className={styles.bookTitle}>
+                          {title}
+                        </BookHeading>
+                        {book && (
+                          <p className="line-clamp-2">
+                            {book.adventure
+                              ? `${adventureWorlds[book.adventure.world].label} · 단짝 ${book.adventure.companionName}`
+                              : book.situation}
+                          </p>
+                        )}
+                        <footer>
+                          <span>
+                            {book?.status === "choice-ready"
+                              ? "첫 4쪽 · 결말을 골라주세요"
+                              : book
+                                ? `${book.pages.length}쪽 · 이야기 완성`
+                                : status === "legacy"
+                                  ? "저장된 동화"
+                                  : thread.raw_text?.trim()
+                                    ? "내용 확인 필요"
+                                    : "내용이 없는 기록"}
+                          </span>
+                          <span>
+                            {book?.status === "choice-ready"
+                              ? "이어 만들기"
+                              : status === "empty"
+                                ? "상태 확인"
+                                : "읽기"}{" "}
+                            ↗
+                          </span>
+                        </footer>
+                        {book && (
+                          <p className="shelf-image-status">
+                            {previews[thread.id] || !thread.has_image
+                              ? `그림 ${previews[thread.id]?.imageCount || 0}/${book.pages.length}장`
+                              : previewsReady
+                                ? "그림은 책에서 확인해요"
+                                : "그림 확인 중…"}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                    {book && (
+                      <button
+                        type="button"
+                        className={styles.favorite}
+                        aria-label={`${title} 좋아하는 책${readingBooks[thread.id]?.favorite ? "에서 빼기" : "에 담기"}`}
+                        aria-pressed={!!readingBooks[thread.id]?.favorite}
+                        onClick={() => {
+                          const saved = setBookFavorite(
+                            userInfo.id,
+                            thread.id,
+                            !readingBooks[thread.id]?.favorite,
+                          );
+                          setPreferenceNotice(
+                            saved
+                              ? ""
+                              : "브라우저에 저장하지 못했어요. 저장 공간과 사이트 설정을 확인해주세요.",
+                          );
+                        }}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="21"
+                          height="21"
+                          fill={
+                            readingBooks[thread.id]?.favorite
+                              ? "currentColor"
+                              : "none"
+                          }
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          aria-hidden="true"
+                        >
+                          <path d="M20.8 4.6a5.6 5.6 0 0 0-7.9 0L12 5.5l-.9-.9a5.6 5.6 0 0 0-7.9 7.9L12 21l8.8-8.5a5.6 5.6 0 0 0 0-7.9Z" />
+                        </svg>
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
           {visibleCount < books.length && (
             <div className="text-center mt-8">
               <button

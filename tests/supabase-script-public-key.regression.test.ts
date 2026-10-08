@@ -20,6 +20,7 @@ globalThis.fetch = async (target, options = {}) => {
   if (url.pathname === "/auth/v1/token") return Response.json({ access_token: "synthetic-access-token" });
   if (url.pathname.endsWith("/get_auth_callback_metrics_by_attempt")) return Response.json([]);
   if (url.pathname.endsWith("/record_auth_callback_metric")) return Response.json(true);
+  if (url.pathname.endsWith("/handle_new_user")) throw new Error("Trigger functions are not exposed as PostgREST RPCs; verify their DB grants instead");
   if (url.pathname.startsWith("/rest/v1/rpc/")) return Response.json({ message: "permission denied" }, { status: 403 });
   throw new Error("Unexpected mocked endpoint");
 };
