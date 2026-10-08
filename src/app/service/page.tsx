@@ -43,6 +43,15 @@ import useBead from "@/services/hooks/use-bead";
 import usePicturebookImages from "@/services/hooks/use-picturebook-images";
 import useUserInfo from "@/services/hooks/use-user-info";
 
+import FormDraftNotice, { type FormDraftStatus } from "./FormDraftNotice";
+import {
+  clearFormDraft,
+  consumeFormDraftLogin,
+  createFormModes,
+  prepareFormDraftLogin,
+  readFormDraft,
+  saveFormDraft,
+} from "./picturebook-form-draft";
 import {
   clearPendingPicturebookRequest,
   readPendingPicturebookRequest,
@@ -52,9 +61,13 @@ import {
   type PendingPicturebookRequest,
 } from "./picturebook-request-recovery";
 
-const storageKey = "hodam-picturebook-input";
 export default function Service() {
   const [input, setInput] = useState<PicturebookInput>(initialInput);
+  const [formModes, setFormModes] = useState(() =>
+    createFormModes(initialInput),
+  );
+  const [draftStatus, setDraftStatus] = useState<FormDraftStatus>("none");
+  const [readyOwner, setReadyOwner] = useState<string | null>(null);
   const [fromSample, setFromSample] = useState(false);
   const [formRevision, setFormRevision] = useState(0);
   const [thread, setThread] = useState<Thread | null>(null);
@@ -73,116 +86,115 @@ export default function Service() {
     useState<PicturebookChoiceOption["id"]>();
   const busy = useRef(false);
   const formStarted = useRef(false);
-  const initialFormApplied = useRef(false);
-  const adventureOwner = useRef<string | undefined>();
+  const hydratedOwner = useRef<string | null>(null);
   const epoch = useRef(0);
   const requestId = useRef<string | null>(null);
   const requestInput = useRef<PicturebookInput | null>(null);
   const requestUncertain = useRef(false);
   const searchAttempt = useRef<SearchGenerationAttempt | null>(null);
   const { userInfo, isAuthReady } = useUserInfo();
-  const previousOwner = useRef(userInfo.id);
+  const ownerKey = userInfo.id ? `user:${userInfo.id}` : "guest";
+  const formReady = isAuthReady && readyOwner === ownerKey;
   const { bead, setBead } = useBead();
   const images = usePicturebookImages();
   const { reset: resetImages } = images;
   const router = useRouter();
 
   useEffect(() => {
-    const ownerChanged =
-      !!previousOwner.current && previousOwner.current !== userInfo.id;
-    previousOwner.current = userInfo.id;
-    if (ownerChanged) {
-      try {
-        sessionStorage.removeItem(storageKey);
-      } catch {
-        /* Storage may be unavailable. */
-      }
+    if (!isAuthReady) {
+      hydratedOwner.current = null;
+      setReadyOwner(null);
+      return undefined;
     }
-    if (
-      ownerChanged ||
-      requestInput.current ||
-      (adventureOwner.current && adventureOwner.current !== userInfo.id)
-    ) {
-      setInput(initialInput);
+    // StrictMode replays effects; consuming one-use starters twice loses them.
+    if (hydratedOwner.current !== ownerKey) {
+      hydratedOwner.current = ownerKey;
+      epoch.current += 1;
+      busy.current = false;
+      formStarted.current = false;
+      requestId.current = null;
+      requestInput.current = null;
+      requestUncertain.current = false;
+      searchAttempt.current = null;
+      setPendingRequest(null);
+      setUnconfirmedRequests([]);
+      setConfirmSeparateBook(false);
+      setThread(null);
+      setBook(null);
+      setStage("idle");
+      setError("");
+      setSelectedChoice(undefined);
       setFromSample(false);
-      adventureOwner.current = undefined;
-    }
-    epoch.current += 1;
-    busy.current = false;
-    requestId.current = null;
-    requestInput.current = null;
-    requestUncertain.current = false;
-    setPendingRequest(null);
-    setUnconfirmedRequests([]);
-    setConfirmSeparateBook(false);
-    searchAttempt.current = null;
-    setThread(null);
-    setBook(null);
-    setStage("idle");
-    setError("");
-    setSelectedChoice(undefined);
-    resetImages();
-    if (userInfo.id) {
-      setUnconfirmedRequests(readUnconfirmedPicturebookRequests(userInfo.id));
-      const pending = readPendingPicturebookRequest(userInfo.id);
+      resetImages();
+      // The old unscoped login snapshot cannot establish an account owner.
+      try {
+        sessionStorage.removeItem("hodam-picturebook-input");
+      } catch {
+        /* Unavailable storage is reported by the draft reader. */
+      }
+      const sampleStarter = consumeSampleStarter();
+      const adventureStarter = consumeAdventureStarter(userInfo.id);
+      const handoff = userInfo.id ? consumeFormDraftLogin(userInfo.id) : null;
+      const stored = readFormDraft(userInfo.id);
+      const pending = userInfo.id
+        ? readPendingPicturebookRequest(userInfo.id)
+        : null;
+      if (userInfo.id)
+        setUnconfirmedRequests(readUnconfirmedPicturebookRequests(userInfo.id));
+      let restoredInput = initialInput;
+      let restoredModes = createFormModes(initialInput);
+      let status: FormDraftStatus =
+        stored.available && handoff?.available !== false
+          ? "none"
+          : "unavailable";
       if (pending) {
-        setFromSample(false);
         requestId.current = pending.requestId;
         requestInput.current = pending.input;
         requestUncertain.current = true;
         setPendingRequest(pending);
-        setInput(pending.input);
+        restoredInput = pending.input;
+        restoredModes = createFormModes(restoredInput);
+      } else if (adventureStarter || sampleStarter) {
+        restoredInput = adventureStarter || {
+          ...initialInput,
+          ...sampleStarter,
+        };
+        restoredModes = createFormModes(restoredInput);
+        setFromSample(!adventureStarter && !!sampleStarter);
+        status = saveFormDraft(userInfo.id, restoredInput, restoredModes)
+          ? "saved"
+          : "unavailable";
+      } else if (handoff?.draft || stored.draft) {
+        const draft = handoff?.draft || stored.draft!;
+        restoredInput = draft.input;
+        restoredModes = draft.modes;
+        status = "restored";
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("mode") === "adventure")
+          restoredInput = {
+            ...restoredInput,
+            adventure: { ...defaultAdventure },
+          };
+        const example = params.get("example");
+        if (example && Object.hasOwn(situationExamples, example))
+          restoredInput = {
+            ...restoredInput,
+            ...situationExamples[example as keyof typeof situationExamples],
+          };
+        restoredModes = createFormModes(restoredInput);
       }
+      setInput(restoredInput);
+      setFormModes(restoredModes);
+      setDraftStatus(status);
+      setFormRevision(value => value + 1);
+      setReadyOwner(ownerKey);
     }
     return () => {
       epoch.current += 1;
       resetImages();
     };
-  }, [userInfo.id, resetImages]);
-
-  useEffect(() => {
-    if (!isAuthReady) return;
-    if (initialFormApplied.current) return;
-    initialFormApplied.current = true;
-    const sampleStarter = consumeSampleStarter();
-    const adventureStarter = consumeAdventureStarter(userInfo.id);
-    if (requestInput.current) return;
-    if (adventureStarter) {
-      adventureOwner.current = userInfo.id;
-      setInput(adventureStarter);
-      return;
-    }
-    if (sampleStarter) {
-      setInput({ ...initialInput, ...sampleStarter });
-      setFromSample(true);
-      return;
-    }
-    try {
-      const stored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
-      if (
-        stored &&
-        Date.now() - stored.savedAt < 2 * 60 * 60 * 1000 &&
-        !validatePicturebookInput(stored.input)
-      )
-        setInput(stored.input);
-      else sessionStorage.removeItem(storageKey);
-    } catch {
-      /* Storage may be unavailable in private browsing. */
-    }
-    const example = new URLSearchParams(window.location.search).get("example");
-    if (new URLSearchParams(window.location.search).get("mode") === "adventure")
-      setInput(value => ({
-        ...value,
-        situation: "",
-        lesson: "",
-        adventure: { ...defaultAdventure },
-      }));
-    if (example && example in situationExamples)
-      setInput(value => ({
-        ...value,
-        ...situationExamples[example as keyof typeof situationExamples],
-      }));
-  }, [isAuthReady, userInfo.id]);
+  }, [isAuthReady, ownerKey, userInfo.id, resetImages]);
 
   useEffect(() => {
     if (stage === "idle") {
@@ -217,7 +229,12 @@ export default function Service() {
   }, [book, thread, images.urls, userInfo.id]);
 
   async function createBook() {
-    if (busy.current || !isAuthReady) return;
+    if (
+      busy.current ||
+      !formReady ||
+      useUserInfo.getState().userInfo.id !== userInfo.id
+    )
+      return;
     const invalid = validatePicturebookInput(input);
     if (invalid) {
       setError(invalid);
@@ -225,13 +242,15 @@ export default function Service() {
     }
     if (!userInfo.id) {
       trackFirstBookStep("login_requested");
-      try {
-        sessionStorage.setItem(
-          storageKey,
-          JSON.stringify({ input, savedAt: Date.now() }),
+      if (
+        !saveFormDraft(undefined, input, formModes) ||
+        !prepareFormDraftLogin()
+      ) {
+        setDraftStatus("unavailable");
+        setError(
+          "로그인 전에 입력을 임시 보관하지 못했어요. 브라우저의 사이트 저장을 허용한 뒤 다시 시도해주세요.",
         );
-      } catch {
-        /* Form remains usable without storage. */
+        return;
       }
       router.push("/sign-in?next=/service");
       return;
@@ -304,11 +323,7 @@ export default function Service() {
       });
       setThread({ id: result.threadId, user_id: userInfo.id } as Thread);
       setBook(result.book);
-      try {
-        sessionStorage.removeItem(storageKey);
-      } catch {
-        /* Ignore unavailable storage. */
-      }
+      setDraftStatus(clearFormDraft(userInfo.id) ? "none" : "clear-failed");
       images.reset();
       images.draw(result.threadId, result.book.pages);
     } catch {
@@ -385,7 +400,8 @@ export default function Service() {
     setThread(null);
     setError("");
     setInput(initialInput);
-    adventureOwner.current = undefined;
+    setFormModes(createFormModes(initialInput));
+    setDraftStatus(clearFormDraft(userInfo.id) ? "none" : "clear-failed");
     setFromSample(false);
     setSelectedChoice(undefined);
   }
@@ -401,8 +417,12 @@ export default function Service() {
     const next = nextAdventureInput(book);
     if (!next) return;
     reset();
-    adventureOwner.current = userInfo.id;
     setInput(next);
+    const modes = createFormModes(next);
+    setFormModes(modes);
+    setDraftStatus(
+      saveFormDraft(userInfo.id, next, modes) ? "saved" : "unavailable",
+    );
     window.requestAnimationFrame(() =>
       document.querySelector<HTMLElement>(".creation-form h1")?.focus(),
     );
@@ -494,7 +514,12 @@ export default function Service() {
           </div>
         </div>
       )}
-      {!book && stage === "idle" && (
+      {!book && stage === "idle" && !formReady && (
+        <p className="notice-info" role="status">
+          작성 화면을 준비하고 있어요…
+        </p>
+      )}
+      {!book && stage === "idle" && formReady && (
         <>
           {pendingRequest && pendingRequest.userId === userInfo.id && (
             <section
@@ -567,8 +592,38 @@ export default function Service() {
               isAuthReady={isAuthReady}
               isSignedIn={!!userInfo.id}
               fromSample={fromSample}
-              onChange={value => {
-                if (requestInput.current) return;
+              modes={formModes}
+              draftNotice={
+                !pendingRequest && (
+                  <FormDraftNotice
+                    status={draftStatus}
+                    onClear={() => {
+                      if (
+                        !formReady ||
+                        requestInput.current ||
+                        busy.current ||
+                        useUserInfo.getState().userInfo.id !== userInfo.id
+                      )
+                        return;
+                      reset();
+                      window.requestAnimationFrame(() =>
+                        document
+                          .querySelector<HTMLInputElement>(
+                            'input[name="childName"]',
+                          )
+                          ?.focus(),
+                      );
+                    }}
+                  />
+                )
+              }
+              onChange={(value, modes = createFormModes(value)) => {
+                if (
+                  requestInput.current ||
+                  !formReady ||
+                  useUserInfo.getState().userInfo.id !== userInfo.id
+                )
+                  return;
                 if (value.situation !== input.situation || value.adventure)
                   setFromSample(false);
                 if (!formStarted.current) {
@@ -579,6 +634,12 @@ export default function Service() {
                 requestInput.current = null;
                 searchAttempt.current = null;
                 setInput(value);
+                setFormModes(modes);
+                setDraftStatus(
+                  saveFormDraft(userInfo.id, value, modes)
+                    ? "saved"
+                    : "unavailable",
+                );
               }}
               onSubmit={createBook}
             />
