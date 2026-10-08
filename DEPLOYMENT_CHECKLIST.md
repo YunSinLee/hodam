@@ -105,6 +105,8 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 - [ ] `20260914010000_harden_hodam_accounting.sql` 적용
 - [ ] `20260914020000_private_picturebook_storage.sql` 적용
 - [ ] 원자적 그림책 저장 앱 배포 전 `20261006010000_commit_picturebook_atomically.sql` 적용, 서버 역할 `picturebook_storage_ready()` true 및 두 함수의 서버 전용 권한 확인
+- [ ] 완독 반응 UI 배포 전 `20261008010000_reading_feedback.sql` 적용, 본인 책 읽기·저장·수정과 타 계정 접근 거부 확인 (`docs/reading-feedback.md`)
+- [ ] `20261008020000_narrow_security_definer_grants.sql` 적용 후 웹훅 등록·운영 점검 RPC의 클라이언트 실행 차단 및 보안 기준 검사 통과 확인 (`docs/security-definer-review.md`)
 - [ ] `hodam_security_grants_smoke_check`와 보안 점검이 새 회계 권한 기준으로 통과
 - [ ] `image`·`profiles` 비공개 상태, 새 그림책/기존 중첩 경로의 소유자 접근 확인
 - [ ] Postgres 패치 업그레이드 (`vulnerable_postgres_version`)
@@ -126,6 +128,7 @@ SQL은 빌드나 Vercel 배포로 자동 적용되지 않습니다. 코드와 DB
 - [ ] `/sample`, 로그인/OAuth 콜백, 계정 변경·로그아웃 확인
 - [ ] 4쪽 생성 → 행동 선택 → 8쪽 완성 → 책장에서 다시 읽기 및 삽화 확인
 - [ ] 이전 동화 본문·중첩 경로의 삽화, 기존/신규 프로필 사진 확인
+- [ ] PDF 표지·한글·삽화·마지막 쪽, 그림 누락 안내, 계정별 즐겨찾기·책갈피·단짝별 책장 및 잠자리 모드 확인
 - [ ] 결제 준비 상태, 승인·상태 재확인·내역·웹훅 핵심 플로우 검증
 - [ ] 유지한 v1 동화·번역·TTS 계약 점검
 - [ ] `x-request-id` 확인 가능한 샘플 장애 로그 확보

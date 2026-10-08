@@ -649,6 +649,8 @@ export default function Service() {
             onCreateAnother={reset}
             onContinueAdventure={continueAdventure}
             bookPath={thread ? `/my-story/${thread.id}` : undefined}
+            readingOwnerId={userInfo.id}
+            readingBookId={thread?.id}
           />
         </>
       )}

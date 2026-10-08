@@ -84,7 +84,7 @@ export default function Home() {
       <div className="home-strip">
         <span>아이의 상황을 담은 이야기</span>
         <span>함께 고르는 세 가지 선택</span>
-        <span>내 책장에 보관하는 8쪽 그림책</span>
+        <span>PDF로 간직하는 8쪽 그림책</span>
       </div>
       <section className="home-section home-adventure">
         <div>
@@ -195,7 +195,7 @@ export default function Home() {
               <span>03</span>
               <div>
                 <h3>마지막 장까지, 포근하게</h3>
-                <p>선택에 맞는 결말 4쪽을 읽고 내 책장에 간직해요.</p>
+                <p>결말까지 함께 읽고, 그림이 담긴 PDF로 간직해요.</p>
               </div>
             </li>
           </ol>
@@ -231,8 +231,17 @@ export default function Home() {
           <summary>만든 이야기를 다시 읽을 수 있나요?</summary>
           <p>
             로그인한 계정의 내 책장에 보관돼요. 아직 결말을 고르지 않은 그림책도
-            내 책장에서 이어 만들 수 있어요. 현재 베타 서비스로, 운영 변경 시
-            데이터가 초기화될 수 있어요.
+            내 책장에서 이어 만들 수 있어요. 좋아하는 책과 읽던 위치는 이
+            브라우저에 기억해두고, 모험 그림책은 단짝별로 모아 볼 수 있어요.
+            현재 베타 서비스로, 운영 변경 시 데이터가 초기화될 수 있어요.
+          </p>
+        </details>
+        <details>
+          <summary>만든 그림책을 파일로 간직할 수 있나요?</summary>
+          <p>
+            마지막 쪽에서 표지와 그림, 이야기가 담긴 PDF를 저장할 수 있어요.
+            그림이 모두 준비된 뒤 저장하면 온전한 그림책을 간직할 수 있어요.
+            다시 읽기와 PDF 저장에는 곶감을 사용하지 않아요.
           </p>
         </details>
       </section>

@@ -4,6 +4,11 @@ import path from "path";
 
 import { createClient } from "@supabase/supabase-js";
 import { loadLocalEnv, readEnvValue } from "./lib/env-loader.mjs";
+import {
+  expandSecurityAdvisories,
+  isDefinerExecutionAdvisory,
+  reviewedDefinerForAdvisory,
+} from "./lib/reviewed-security-definers.mjs";
 
 const args = new Set(process.argv.slice(2));
 const strictMode = args.has("--strict");
@@ -46,6 +51,8 @@ const ignoredIssueNames = new Set([
 ]);
 
 function isIgnoredIssue(issueName) {
+  // These warnings require individual signature/role review, never a blanket skip.
+  if (isDefinerExecutionAdvisory(issueName)) return false;
   return ignoredIssueNames.has(issueName);
 }
 
@@ -191,6 +198,13 @@ async function main() {
             p_thread_id: 1,
           },
         },
+        { fn: "hodam_security_smoke_check", args: {} },
+        { fn: "hodam_security_grants_smoke_check", args: {} },
+        { fn: "hodam_security_integrity_smoke_check", args: {} },
+        {
+          fn: "register_webhook_transmission",
+          args: { p_transmission_id: "" },
+        },
       ];
 
       for (const rpcCheck of rpcChecks) {
@@ -243,13 +257,12 @@ async function main() {
         {
           fn: "record_auth_callback_metric",
           args: {
-            p_stage: "flow_start",
+            // Invalid stage returns false before INSERT: checking EXECUTE
+            // must not create diagnostic rows in the production database.
+            p_stage: "security_smoke_invalid_stage",
             p_callback_path: "/auth/callback",
-            p_timestamp_ms: Date.now(),
-            p_details: {
-              source: "security_smoke",
-              oauthAttemptId: "security-smoke-attempt",
-            },
+            p_timestamp_ms: 0,
+            p_details: {},
           },
         },
       ];
@@ -432,9 +445,9 @@ async function main() {
             `management: advisors/security failed (${securityRes.status}): ${securityRaw.slice(0, 400)}`,
           );
         } else {
-          const lints = toArray(
+          const lints = expandSecurityAdvisories(toArray(
             securityJson?.result?.lints || securityJson?.lints || securityJson,
-          );
+          ));
 
           if (lints.length === 0) {
             markWarn("management: advisors/security returned no lints");
@@ -445,6 +458,11 @@ async function main() {
               const detail = String(lint?.detail || lint?.description || "");
               const remediation = normalizeRemediation(lint);
               advisorLintNames.add(name);
+              const reviewed = reviewedDefinerForAdvisory(lint);
+              if (reviewed) {
+                markOk(`management:${name}[${level}] reviewed public.${reviewed.name}(${reviewed.arguments}): ${reviewed.reason}`);
+                continue;
+              }
               if (isIgnoredIssue(name)) {
                 markOk(`management:${name}[${level}] ignored by configuration`);
                 if (level === "WARN" || level === "ERROR") {

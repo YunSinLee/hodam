@@ -1,6 +1,6 @@
 {
   "name": "hodam",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -13,6 +13,7 @@
     "test": "vitest run --maxWorkers=2",
     "test:watch": "vitest --maxWorkers=1 --no-file-parallelism",
     "qa:picturebook": "node scripts/qa-picturebook.mjs",
+    "qa:models": "node scripts/compare-picturebook-models.mjs",
     "test:smoke:v1": "node scripts/smoke-v1.mjs",
     "test:user:ensure": "node scripts/ensure-test-user.mjs",
     "token:test:access": "node scripts/get-test-access-token.mjs",
@@ -65,24 +66,25 @@
     "check:seo:build": "node scripts/check-search-artifacts.mjs"
   },
   "dependencies": {
-    "@next/third-parties": "^15.5.25",
+    "@next/third-parties": "^15.5.27",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@sentry/nextjs": "^10.47.0",
     "@supabase/supabase-js": "2.99.2",
     "cors": "^2.8.5",
     "dayjs": "^1.11.10",
-    "next": "^15.5.25",
+    "next": "^15.5.27",
     "openai": "^4.60.0",
-    "react": "^18",
-    "react-dom": "^18",
-    "zod": "^3.23.8",
-    "zustand": "^4.5.2",
+    "pdf-lib": "^1.17.1",
     "primeicons": "^7.0.0",
     "primereact": "^10.8.3",
-    "server-only": "^0.0.1"
+    "react": "^18",
+    "react-dom": "^18",
+    "server-only": "^0.0.1",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "next-sitemap": "^4.2.3",
-    "sass": "^1.105.1",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^20.17.50",
     "@types/react": "^18",
     "@types/react-dom": "^18",
@@ -92,21 +94,22 @@
     "eslint": "^8.57.1",
     "eslint-config-airbnb": "^19.0.4",
     "eslint-config-airbnb-typescript": "^18.0.0",
-    "eslint-config-next": "^15.5.25",
+    "eslint-config-next": "^15.5.27",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsx-a11y": "^6.5.1",
     "eslint-plugin-prettier": "^5.1.2",
     "eslint-plugin-react": "^7.28.0",
     "eslint-plugin-react-hooks": "^4.3.0",
+    "jsdom": "^26.1.0",
+    "next-sitemap": "^4.2.3",
     "postcss": "^8.5.23",
     "prettier": "^3.1.1",
+    "sass": "^1.105.1",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
-    "vitest": "^4.1.11",
-    "@testing-library/react": "^16.3.0",
-    "jsdom": "^26.1.0",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11"
   },
   "packageManager": "npm@10.9.5",
   "overrides": {

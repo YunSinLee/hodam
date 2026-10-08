@@ -284,6 +284,8 @@ export default function MyStoryDetail() {
                     router.push("/service");
                 }}
                 bookPath={`/my-story/${id}`}
+                readingOwnerId={userInfo.id}
+                readingBookId={id}
               />
             </>
           ) : thread && messages.length > 0 ? (

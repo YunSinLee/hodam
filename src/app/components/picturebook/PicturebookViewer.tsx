@@ -7,10 +7,14 @@ import type {
 } from "@/app/types/openai";
 import { spreadStart } from "@/app/utils/picturebook";
 import { adventureWorlds } from "@/lib/picturebook/adventure";
+import useReadingLibraryBook from "@/services/hooks/use-reading-library-book";
 
 import PicturebookPage from "./PicturebookPage";
+import PicturebookPdfButton from "./PicturebookPdfButton";
+import ReadingFeedback from "./ReadingFeedback";
 
 const largeTextStorageKey = "hodam-reader-large-text";
+const bedtimeStorageKey = "hodam-reader-bedtime";
 
 function hasFinalConsonant(value: string) {
   const trimmedValue = value.trim();
@@ -46,6 +50,8 @@ interface PicturebookViewerProps {
   onImageError?: (pageNumber: number) => void;
   headingLevel?: 1 | 2;
   onReadComplete?: () => void;
+  readingOwnerId?: string;
+  readingBookId?: number;
 }
 
 export default function PicturebookViewer({
@@ -63,6 +69,8 @@ export default function PicturebookViewer({
   onImageError,
   headingLevel = 2,
   onReadComplete,
+  readingOwnerId,
+  readingBookId,
 }: PicturebookViewerProps) {
   const BookHeading = headingLevel === 1 ? "h1" : "h2";
   const SectionHeading = headingLevel === 1 ? "h2" : "h3";
@@ -71,6 +79,14 @@ export default function PicturebookViewer({
   const [isDesktop, setIsDesktop] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [largeText, setLargeText] = useState(false);
+  const [bedtime, setBedtime] = useState(false);
+  const [resumeDismissedFor, setResumeDismissedFor] = useState("");
+  const {
+    entry: readingEntry,
+    canSave: canSaveReading,
+    saveProgress,
+    setFavorite,
+  } = useReadingLibraryBook(readingOwnerId, readingBookId);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
   const [pendingChoiceId, setPendingChoiceId] = useState("");
@@ -78,6 +94,7 @@ export default function PicturebookViewer({
   const choiceRef = useRef<HTMLHeadingElement>(null);
   const pageRef = useRef<HTMLElement>(null);
   const pendingFocus = useRef<"title" | "choice" | "page" | null>(null);
+  const navigatedBook = useRef("");
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { pages } = picturebook;
   const bookIdentity =
@@ -87,6 +104,14 @@ export default function PicturebookViewer({
     identity: bookIdentity,
     status: picturebook.status,
   });
+  const readingIdentity = `${readingOwnerId || ""}:${bookIdentity}`;
+  const savedPage = readingEntry?.pageIndex;
+  const canResume =
+    resumeDismissedFor !== readingIdentity &&
+    !readingEntry?.completedAt &&
+    savedPage !== undefined &&
+    savedPage > 0 &&
+    savedPage < pages.length;
   const currentPage = pages[currentIndex];
   const isComplete = picturebook.status === "complete";
   const isLastPage = isDesktop
@@ -96,6 +121,27 @@ export default function PicturebookViewer({
   useEffect(() => {
     if (isComplete && isLastPage) onReadComplete?.();
   }, [isComplete, isLastPage, onReadComplete]);
+
+  useEffect(() => {
+    // A wider screen can reveal the final page without another Next click.
+    // Only update a book the reader has actively navigated during this visit.
+    if (
+      navigatedBook.current === readingIdentity &&
+      isComplete &&
+      isLastPage &&
+      !readingEntry?.completedAt
+    ) {
+      saveProgress(currentIndex, pages.length, true);
+    }
+  }, [
+    readingIdentity,
+    isComplete,
+    isLastPage,
+    currentIndex,
+    pages.length,
+    readingEntry?.completedAt,
+    saveProgress,
+  ]);
 
   const visiblePages = useMemo(() => {
     const firstPage = pages[currentIndex];
@@ -140,6 +186,7 @@ export default function PicturebookViewer({
     );
     try {
       setLargeText(localStorage.getItem(largeTextStorageKey) === "true");
+      setBedtime(localStorage.getItem(bedtimeStorageKey) === "true");
     } catch {
       /* Reading stays available when browser storage is disabled. */
     }
@@ -148,6 +195,11 @@ export default function PicturebookViewer({
       window.speechSynthesis?.cancel?.();
     };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("hodam-bedtime-mode", bedtime);
+    return () => document.body.classList.remove("hodam-bedtime-mode");
+  }, [bedtime]);
 
   useEffect(() => {
     utteranceRef.current = null;
@@ -166,6 +218,8 @@ export default function PicturebookViewer({
       (previous.status === "complete" && picturebook.status === "choice-ready")
     ) {
       setCurrentIndex(0);
+      setResumeDismissedFor("");
+      navigatedBook.current = "";
       setFeedback("");
       setPendingChoiceId("");
       pendingFocus.current = "title";
@@ -174,9 +228,23 @@ export default function PicturebookViewer({
       picturebook.status === "complete"
     ) {
       setCurrentIndex(picturebook.choice.afterPage);
+      navigatedBook.current = readingIdentity;
+      setResumeDismissedFor(readingIdentity);
+      if (!saveProgress(picturebook.choice.afterPage, pages.length, false)) {
+        setFeedback(
+          "이 브라우저에서 읽던 위치를 저장하지 못했어요. 책은 계속 읽을 수 있어요.",
+        );
+      }
       pendingFocus.current = "title";
     }
-  }, [bookIdentity, picturebook.choice.afterPage, picturebook.status]);
+  }, [
+    bookIdentity,
+    picturebook.choice.afterPage,
+    picturebook.status,
+    pages.length,
+    readingIdentity,
+    saveProgress,
+  ]);
 
   useEffect(() => {
     let target: HTMLElement | null = null;
@@ -204,11 +272,59 @@ export default function PicturebookViewer({
     }
   }
 
+  function toggleBedtime() {
+    const next = !bedtime;
+    setBedtime(next);
+    try {
+      localStorage.setItem(bedtimeStorageKey, String(next));
+    } catch {
+      /* A display preference can still apply for this visit. */
+    }
+  }
+
+  function rememberPage(index: number) {
+    navigatedBook.current = readingIdentity;
+    setResumeDismissedFor(readingIdentity);
+    const completed = isComplete && index + (isDesktop ? 2 : 1) >= pages.length;
+    if (!saveProgress(index, pages.length, completed)) {
+      setFeedback(
+        "이 브라우저에서 읽던 위치를 저장하지 못했어요. 책은 계속 읽을 수 있어요.",
+      );
+    }
+  }
+
+  function toggleFavorite() {
+    const next = !readingEntry?.favorite;
+    if (!setFavorite(next)) {
+      setFeedback(
+        "좋아하는 책을 저장하지 못했어요. 브라우저 저장 공간을 확인해주세요.",
+      );
+      return;
+    }
+    setFeedback(
+      next
+        ? "이 브라우저의 좋아하는 책에 담았어요."
+        : "좋아하는 책에서 뺐어요.",
+    );
+  }
+
   function goToPage(index: number) {
     const nextIndex = spreadStart(index, isDesktop, pages.length);
     if (nextIndex === currentIndex) return;
+    rememberPage(nextIndex);
     pendingFocus.current = "page";
     setCurrentIndex(nextIndex);
+  }
+
+  function resumeReading() {
+    if (savedPage === undefined) return;
+    setResumeDismissedFor(readingIdentity);
+    const nextIndex = spreadStart(savedPage, isDesktop, pages.length);
+    if (nextIndex === currentIndex) {
+      rememberPage(nextIndex);
+      pageRef.current?.focus({ preventScroll: true });
+      pageRef.current?.scrollIntoView?.({ block: "start", behavior: "auto" });
+    } else goToPage(savedPage);
   }
 
   function goPrevious() {
@@ -221,12 +337,10 @@ export default function PicturebookViewer({
 
   function goToChoice() {
     if (choicePageIndex < 0) return;
+    const nextIndex = spreadStart(choicePageIndex, isDesktop, pages.length);
+    rememberPage(nextIndex);
     pendingFocus.current = "choice";
-    setCurrentIndex(
-      isDesktop
-        ? Math.max(0, choicePageIndex - (choicePageIndex % 2))
-        : choicePageIndex,
-    );
+    setCurrentIndex(nextIndex);
   }
 
   function navigateWithKeyboard(event: KeyboardEvent<HTMLElement>) {
@@ -365,40 +479,83 @@ export default function PicturebookViewer({
           </button>
         </div>
       )}
-      <div className="reader-heading">
-        <div>
-          <p className="reader-dedication">
-            {nameWithObjectParticle(picturebook.childName)} 위한 잠자리 그림책
-          </p>
-          <BookHeading
-            ref={titleRef}
-            tabIndex={-1}
-            className="scroll-mt-24 text-xl font-bold text-gray-900 sm:text-2xl"
+      <div className="reader-topbar">
+        <div className="reader-heading">
+          <div>
+            <p className="reader-dedication">
+              {nameWithObjectParticle(picturebook.childName)} 위한 잠자리 그림책
+            </p>
+            <BookHeading
+              ref={titleRef}
+              tabIndex={-1}
+              className="scroll-mt-24 text-xl font-bold text-gray-900 sm:text-2xl"
+            >
+              {picturebook.title}
+            </BookHeading>
+            <p className="mt-1 text-sm leading-6 text-gray-600">
+              {picturebook.adventure
+                ? `${adventureWorlds[picturebook.adventure.world].label} · ${picturebook.adventure.companionName}${hasFinalConsonant(picturebook.adventure.companionName) ? "과" : "와"} 함께하는 모험`
+                : picturebook.situation}
+            </p>
+          </div>
+        </div>
+
+        <div className="reading-toolbar" role="group" aria-label="읽기 설정">
+          {canSpeak && (
+            <button type="button" onClick={readAloud} aria-pressed={isSpeaking}>
+              {isSpeaking ? "읽어주기 멈추기" : "이 쪽 읽어주기"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={toggleLargeText}
+            aria-pressed={largeText}
           >
-            {picturebook.title}
-          </BookHeading>
-          <p className="mt-1 text-sm leading-6 text-gray-600">
-            {picturebook.adventure
-              ? `${adventureWorlds[picturebook.adventure.world].label} · ${picturebook.adventure.companionName}${hasFinalConsonant(picturebook.adventure.companionName) ? "과" : "와"} 함께하는 모험`
-              : picturebook.situation}
-          </p>
+            {largeText ? "기본 글씨" : "큰 글씨"}
+          </button>
+          <button type="button" onClick={toggleBedtime} aria-pressed={bedtime}>
+            <span aria-hidden="true">☾ </span>잠자리 모드
+          </button>
+          {canSaveReading && (
+            <button
+              type="button"
+              onClick={toggleFavorite}
+              aria-pressed={!!readingEntry?.favorite}
+              className="reader-favorite"
+            >
+              <span aria-hidden="true">
+                {readingEntry?.favorite ? "♥" : "♡"}{" "}
+              </span>
+              좋아하는 책
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="reading-toolbar">
-        {canSpeak && (
-          <button type="button" onClick={readAloud} aria-pressed={isSpeaking}>
-            {isSpeaking ? "읽어주기 멈추기" : "이 쪽 읽어주기"}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={toggleLargeText}
-          aria-pressed={largeText}
-        >
-          {largeText ? "기본 글씨" : "큰 글씨"}
-        </button>
-      </div>
+      {canResume && (
+        <div className="reader-resume scroll-mt-24" id="continue-reading">
+          <div>
+            <strong>지난번에 {savedPage + 1}쪽까지 읽었어요.</strong>
+            <p>이 브라우저에 남겨둔 읽던 자리예요.</p>
+          </div>
+          <div>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={resumeReading}
+            >
+              {savedPage + 1}쪽부터 이어 읽기
+            </button>
+            <button
+              type="button"
+              className="text-link"
+              onClick={() => setResumeDismissedFor(readingIdentity)}
+            >
+              처음부터 읽기
+            </button>
+          </div>
+        </div>
+      )}
 
       {!isComplete && (
         <div className="reader-choice-notice">
@@ -413,7 +570,7 @@ export default function PicturebookViewer({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="reader-spread grid grid-cols-1 gap-4 sm:grid-cols-2">
         {visiblePages.map(page => (
           <PicturebookPage
             largeText={largeText}
@@ -434,7 +591,7 @@ export default function PicturebookViewer({
 
       {isChoicePage && onSelectChoice && (
         <div
-          className="mt-5 rounded-xl border border-orange-200 bg-orange-50 p-4"
+          className="reader-choice mt-5 rounded-xl border border-orange-200 bg-orange-50 p-4"
           aria-busy={isEndingLoading}
         >
           <p className="mb-2 text-sm font-semibold text-orange-700">
@@ -486,6 +643,14 @@ export default function PicturebookViewer({
 
       {isComplete && isLastPage && (
         <div className="reader-ending">
+          <details className="reader-conversation">
+            <summary>책을 덮기 전, 한마디</summary>
+            <p>정답은 없어요. 아이가 고른 장면을 함께 떠올려보세요.</p>
+            <ul>
+              <li>가장 마음에 남은 장면은 어디였어?</li>
+              <li>네가 주인공이라면, 다음엔 무엇을 해보고 싶어?</li>
+            </ul>
+          </details>
           {picturebook.adventure && onContinueAdventure && (
             <div className="reader-next-adventure">
               <SectionHeading>
@@ -525,18 +690,20 @@ export default function PicturebookViewer({
           )}
           <p className="mt-1 text-sm">
             {bookPath
-              ? "이야기 글을 저장하거나 내 책장에서 다시 읽어보세요. 그림은 텍스트 파일에 포함되지 않아요."
-              : "예시 이야기 글을 저장하거나 처음부터 다시 읽어보세요. 그림은 텍스트 파일에 포함되지 않아요."}
+              ? "그림과 이야기를 PDF로 간직하거나 내 책장에서 다시 읽어보세요."
+              : "이름을 담은 예시 그림책을 PDF로 간직해보세요."}
           </p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <div className="reader-save-actions">
+            <PicturebookPdfButton
+              picturebook={picturebook}
+              imageUrls={imageUrls}
+              imageUrl={imageUrl}
+              isImageLoading={isImageLoading}
+            />
             <button
               type="button"
               onClick={downloadStory}
-              className={
-                picturebook.adventure && onContinueAdventure
-                  ? "button-secondary"
-                  : "button-primary"
-              }
+              className="button-secondary"
             >
               이야기 글 저장 (.txt)
             </button>
@@ -559,6 +726,12 @@ export default function PicturebookViewer({
               </button>
             )}
           </div>
+          {readingOwnerId && readingBookId && (
+            <ReadingFeedback
+              ownerId={readingOwnerId}
+              threadId={readingBookId}
+            />
+          )}
         </div>
       )}
 
