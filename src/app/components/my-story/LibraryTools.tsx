@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type { RefObject } from "react";
 
 import type {
   BookReadingStatus,
@@ -42,6 +43,7 @@ export default function LibraryTools({
   filters,
   onFiltersChange,
   childOptions,
+  searchRef,
 }: {
   archived: boolean;
   query: string;
@@ -49,8 +51,10 @@ export default function LibraryTools({
   filters: LibraryFilters;
   onFiltersChange: (filters: LibraryFilters) => void;
   childOptions: { name: string; count: number }[];
+  searchRef: RefObject<HTMLInputElement>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const selections = [
     filters.child && `${filters.child}의 책`,
     filters.reading !== "all" && readingLabels[filters.reading],
@@ -95,6 +99,7 @@ export default function LibraryTools({
             : "제목, 아이 이름, 단짝 이름, 상황으로 검색"}
         </label>
         <input
+          ref={searchRef}
           id="book-search"
           type="search"
           value={query}
@@ -114,6 +119,7 @@ export default function LibraryTools({
           </>
         ) : (
           <button
+            ref={toggleRef}
             type="button"
             className={styles.filterToggle}
             aria-expanded={expanded}
@@ -210,7 +216,10 @@ export default function LibraryTools({
               <p>{selections.join(" · ")}</p>
               <button
                 type="button"
-                onClick={() => onFiltersChange(initialLibraryFilters)}
+                onClick={() => {
+                  onFiltersChange(initialLibraryFilters);
+                  toggleRef.current?.focus();
+                }}
               >
                 조건 초기화
               </button>

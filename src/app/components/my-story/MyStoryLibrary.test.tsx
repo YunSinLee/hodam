@@ -271,6 +271,9 @@ describe("MyStoryLibrary discovery", () => {
     expect(screen.queryByRole("region", { name: "책장 정리" })).toBeNull();
     expect(screen.getByText("하윤의 책")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "조건 초기화" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "책장 정리" }),
+    );
     expect(screen.getByRole("heading", { name: "민준의 달" })).toBeTruthy();
     expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe(
       "달",
@@ -341,6 +344,7 @@ describe("MyStoryLibrary discovery", () => {
       screen.getByRole("heading", { name: "찾는 이야기가 없어요." }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "전체 이야기 보기" }));
+    expect(document.activeElement).toBe(screen.getByRole("searchbox"));
     expect(screen.getByRole("heading", { name: "처음 펼칠 책" })).toBeTruthy();
     expect(
       (screen.getByLabelText("아이 이름별로") as HTMLSelectElement).value,

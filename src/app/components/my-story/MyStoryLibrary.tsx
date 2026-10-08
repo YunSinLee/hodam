@@ -68,6 +68,7 @@ export default function MyStoryLibrary({
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const [loadedOwner, setLoadedOwner] = useState<string>();
   const nextBook = useRef<HTMLAnchorElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (visibleCount > pageSize) nextBook.current?.focus();
   }, [visibleCount]);
@@ -366,6 +367,7 @@ export default function MyStoryLibrary({
               setVisibleCount(pageSize);
             }}
             childOptions={childOptions}
+            searchRef={searchInput}
           />
         </>
       )}
@@ -464,6 +466,7 @@ export default function MyStoryLibrary({
               });
               setShelfView("all");
               setVisibleCount(pageSize);
+              searchInput.current?.focus();
             }}
           >
             {onlyEmptyRecords ? "보관된 기록 보기" : "전체 이야기 보기"}
